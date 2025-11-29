@@ -1,8 +1,9 @@
+import { customizeSharedLayout } from "@custom/quartz.layout"
 import { PageLayout, SharedLayout } from "./quartz/cfg"
 import * as Component from "./quartz/components"
 
 // components shared across all pages
-export const sharedPageComponents: SharedLayout = {
+export const sharedPageComponents: SharedLayout = customizeSharedLayout({
   head: Component.Head(),
   header: [],
   afterBody: [],
@@ -12,7 +13,7 @@ export const sharedPageComponents: SharedLayout = {
       "Discord Community": "https://discord.gg/cRFFHYye7t",
     },
   }),
-}
+})
 
 // components for pages that display a single page (e.g. a single note)
 export const defaultContentPageLayout: PageLayout = {
