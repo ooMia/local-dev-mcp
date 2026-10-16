@@ -1,0 +1,18 @@
+{
+  // https://code.visualstudio.com/docs/python/debugging
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "debug:main",
+      "type": "debugpy",
+      "request": "launch",
+      "justMyCode": true,
+      "module": "local_dev_mcp",
+      "args": [
+        "run"
+      ],
+      "console": "integratedTerminal",
+      "preLaunchTask": "uv sync"
+    }
+  ]
+}

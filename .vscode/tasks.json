@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "shell",
+      "label": "uv sync",
+      "command": "uv sync",
+      "problemMatcher": "$python",
+      "presentation": {
+        "reveal": "silent",
+        "showReuseMessage": false
+      }
+    },
+    {
+      "type": "shell",
+      "label": "uv build",
+      "command": "uv build",
+      "problemMatcher": "$python",
+      "presentation": {
+        "reveal": "silent",
+        "showReuseMessage": false
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}

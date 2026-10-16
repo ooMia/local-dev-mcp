@@ -1,0 +1,30 @@
+[project]
+name = "local-dev-mcp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Hyeon-hak Kim", email = "hyeonhak.kim.dev@gmail.com" }
+]
+requires-python = ">=3.15"
+dependencies = []
+
+[project.scripts]
+local-dev-mcp = "local_dev_mcp.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow",
+    "integration: marks integration tests",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
