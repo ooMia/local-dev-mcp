@@ -1,30 +1,52 @@
 [project]
 name = "local-dev-mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "Workspace-scoped MCP tools for ChatGPT development sessions"
 readme = "README.md"
 authors = [
     { name = "Hyeon-hak Kim", email = "hyeonhak.kim.dev@gmail.com" }
 ]
 requires-python = ">=3.15"
-dependencies = []
+dependencies = [
+    "fastmcp==4.1.1",
+    "mcp>=2.3.0",
+    "pydantic>=2.12.0,<3",
+    "python-dotenv>=1.2.4",
+    "shellous>=0.42.0",
+]
 
 [project.scripts]
 local-dev-mcp = "local_dev_mcp.cli:main"
+local-dev-mcp-gpg = "local_dev_mcp.tools.gpg._wrapper:main"
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]
 build-backend = "uv_build"
 
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "ANN205", "ANN206"]
+
+[tool.pyright]
+include = ["src", "tests"]
+typeCheckingMode = "strict"
+pythonVersion = "3.15"
+venvPath = "."
+venv = ".venv"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short -n auto --maxprocesses=4 -m 'not packaging'"
 markers = [
-    "slow: marks tests as slow",
-    "integration: marks integration tests",
+    "packaging: opt-in wheel installation and entry-point integration",
 ]
 
 [dependency-groups]
 dev = [
+    "pyright>=1.1.414",
     "pytest>=9.1.1",
+    "pytest-xdist>=3.8.0,<4",
+    "ruff>=0.17.1",
 ]

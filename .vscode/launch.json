@@ -8,9 +8,7 @@
       "request": "launch",
       "justMyCode": true,
       "module": "local_dev_mcp",
-      "args": [
-        "run"
-      ],
+      "args": "connect",
       "console": "integratedTerminal",
       "preLaunchTask": "uv sync"
     }

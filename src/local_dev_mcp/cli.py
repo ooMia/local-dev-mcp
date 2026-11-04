@@ -1,42 +1,101 @@
 import argparse
-import sys
-from enum import IntEnum
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Final
 
-from .core import server
+from .errors import CliError, ExecutionError, ExitCode, LocalIOError
+from .settings import Policy
+
+type Handler = Callable[[Policy], int]
 
 
-class ExitCode(IntEnum):
-    """
-    @see https://www.gnu.org/prep/standards/standards.html
-    """
+@dataclass(frozen=True)
+class Command:
+    command: str
+    help: str
+    handler: Handler
 
-    SUCCESS = 0
-    GENERAL = 1  # catch-all (GNU: "very broad information")
-    USAGE = 2  # argparse 자동 반환
-    CONFIG_ERROR = 3  # 설정 파일 부재/무효 → 호출자가 수정 후 재시도
-    IO_ERROR = 4  # I/O 실패 → 재시도 가능
-    DEPENDENCY = 5  # 외부 서비스/프로시 없음 → 재시도 or 스킵
-    # ── 커스텀: 3~63, 79~125 ──
-    INTERRUPTED = 130
-    # 추가할 때: "호출자가 다르게 처리해야 하는가?"를 먼저 질문
+
+class _Arguments(argparse.Namespace):
+    handler: Handler
 
 
 def main() -> int:
-    try:
-        return _run()
-    except KeyboardInterrupt, InterruptedError:
-        print("Aborted", file=sys.stderr)
-        return ExitCode.INTERRUPTED
-    except OSError as exc:
-        print(f"IO: {exc}", file=sys.stderr)
-        return ExitCode.IO_ERROR
+    from .diagnostics import report, stderr_diagnostics
+
+    with stderr_diagnostics():
+        try:
+            return _run()
+        except CliError as error:
+            report(error)
+            return error.code
+        except KeyboardInterrupt:
+            report(ExecutionError.interrupted())
+            return ExitCode.INTERRUPTED
+        except Exception as error:
+            report(ExecutionError.unexpected(error))
+            return ExitCode.GENERAL
+
+
+def _select_handler() -> Handler:
+    parser = argparse.ArgumentParser(prog="local-dev-mcp")
+    commands = parser.add_subparsers(required=True)
+    for c in COMMANDS:
+        commands.add_parser(c.command, help=c.help).set_defaults(handler=c.handler)
+    args = parser.parse_args(namespace=_Arguments())
+    return args.handler
 
 
 def _run() -> int:
-    parser = argparse.ArgumentParser(prog="local-dev-mcp")
-    sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("run", help="Run server").set_defaults(_callback=server.base)
+    from pathlib import Path
 
-    args = parser.parse_args()
-    handler: server.Callback = args._callback
-    return handler(args)
+    handler = _select_handler()
+
+    try:
+        directory = Path.cwd()
+    except OSError as error:
+        raise LocalIOError.locate_project(error) from error
+    policy = Policy.load(directory)
+
+    return handler(policy)
+
+
+def _connect_tunnel(policy: Policy) -> int:
+    from .tools.tunnel_client import run
+
+    return run(policy)
+
+
+def _run_stdio_server(policy: Policy) -> int:
+    import os
+
+    from .execution import base_environment
+
+    # Remove ambient credentials and SDK settings before importing the server.
+    env = base_environment()
+    # FastMCP otherwise reads cwd/.env during import. Application startup owns
+    # explicit loading; this library control is not a user configuration.
+    env["FASTMCP_ENV_FILE"] = os.devnull
+    os.environ.clear()
+    os.environ.update(env)
+
+    from .core import create_server
+
+    try:
+        create_server(policy).run(transport="stdio", show_banner=False, log_level="WARNING")
+    except OSError as error:
+        raise LocalIOError.run_stdio_server(error) from error
+    return ExitCode.SUCCESS
+
+
+RUN: Final = Command(
+    command="run",
+    help="Run the stdio MCP server",
+    handler=_run_stdio_server,
+)
+CONNECT: Final = Command(
+    command="connect",
+    help="Connect the MCP server through Secure MCP Tunnel",
+    handler=_connect_tunnel,
+)
+COMMANDS: Final[tuple[Command, ...]] = (RUN, CONNECT)

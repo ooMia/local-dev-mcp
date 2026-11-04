@@ -1,0 +1,16 @@
+# 실행 디렉터리의 고정 정책. .env·CLI로 경로나 권한을 바꾸지 않는다.
+# 현재 Git 도구는 호스트에서 실행하며 OS sandbox를 제공하지 않는다.
+
+[filesystem]
+# 설정 위치 기준의 허용 경로와 하위 경로. 현재 디렉터리만 도구의 조회 대상이다.
+# 예: allowed_paths = ["."]
+allowed_paths = ["."]
+
+[system]
+# 내부 함수명·도구명이 아닌 직접 사용하는 시스템 명령의 집합이다.
+# git은 run 시작 시 필수다. gpg는 서명 true에서만, tunnel-client는 connect에서 필요하다.
+# Tunnel이 실행하는 sys.executable은 이 목록에서 별도 검사하지 않는다.
+allowed_commands = ["git", "tunnel-client", "gpg"]
+
+# 이 목록은 외부 프로그램의 모든 간접 실행이나 파일 접근을 제한하지 않는다.
+# 범용 명령 실행·파일 CRUD·전체 자식 트리 정책은 아직 구현하지 않았다.
