@@ -3,7 +3,7 @@
 ChatGPT chat 세션에서 지정한 로컬 개발 workspace를 다루기 위한 MCP 실행 프로젝트다.
 현재 파일 목록·경로/내용 검색·텍스트 읽기·관측 구간 수정·파일 생성·단일 파일 삭제,
 등록된 lint·format·test 실행과 로컬 Git 작업을 제공한다.
-임의 명령 실행·OS 격리는 제공하지 않는다. GitHub 원격 조회·기능 브랜치 게시·Draft PR 생성은 별도 권한과 인증된 호스트 `gh`가 있을 때만 제공한다.
+임의 명령 실행·OS 격리는 제공하지 않는다. GitHub 원격 조회·기능 브랜치 게시·Draft PR 생성·명시적 PR 병합은 별도 권한과 인증된 호스트 `gh`가 있을 때만 제공한다.
 
 ## 준비와 실행
 
@@ -86,6 +86,8 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `fetch_project_remote_main` | 관측 SHA가 일치할 때 `origin/main`만 비강제 Fetch |
 | `push_project_feature` | 미공개 main 혼입을 거부하고 기능 브랜치만 비강제 Push |
 | `create_project_draft_pr` | 신규 `.changes`와 커밋을 기반으로 중복 없이 Draft PR 생성 |
+| `get_project_pr_merge_plan` | 실제 PR head와 고정 squash 메시지·검토 Digest 조회 |
+| `merge_project_pr` | 검토 head·Digest로 조건부 squash하고 실제 결과 커밋 검증 |
 | `prepare_project_worktree` | 원본 checkout을 전환하지 않고 기존 topic 브랜치를 격리된 Worktree에 준비 |
 | `inspect_project_worktree` | 관리 Worktree의 absent·partial·ready, SHA와 clean 상태 조회 |
 | `start_project_worktree_task` | 지정 Worktree에서 등록 검사 실행; 기존 job 조회·취소와 실행 슬롯 공유 |

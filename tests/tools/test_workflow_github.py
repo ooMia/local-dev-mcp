@@ -10,11 +10,17 @@ from local_dev_mcp.tools import workflow
 pytestmark = pytest.mark.unit
 
 
-def test_pr_merge_pins_observed_head_and_records_real_pr_url(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pr_merge_pins_observed_head_and_verifies_real_result(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, ...]] = []
+    payloads: list[dict[str, object]] = []
+    message = "feat: example (#12)\n\nSource-PR: https://github.com/owner/project/pull/12\nSource-Head: " + "a" * 40
 
     def remote(root: Path, *argv: str, capture: bool = False, input_text: str | None = None) -> str:
         calls.append(argv)
+        if argv[:3] == ("git", "remote", "get-url"):
+            return "git@github.com:owner/project.git"
+        if argv[:3] == ("gh", "repo", "view"):
+            return '{"nameWithOwner":"owner/project","url":"https://github.com/owner/project"}'
         if argv[:3] == ("gh", "pr", "view"):
             return json.dumps(
                 {
@@ -22,21 +28,57 @@ def test_pr_merge_pins_observed_head_and_records_real_pr_url(monkeypatch: pytest
                     "title": "feat: example",
                     "headRefOid": "a" * 40,
                     "baseRefName": "main",
-                    "state": "OPEN",
+                    "state": "MERGED" if payloads else "OPEN",
                     "isDraft": False,
+                    "mergeCommit": {"oid": "b" * 40} if payloads else None,
                 }
             )
-        return ""
+        if input_text is not None:
+            payloads.append(json.loads(input_text))
+            return '{"merged":true}'
+        if argv[:2] == ("gh", "api"):
+            return json.dumps({"sha": "b" * 40, "message": message, "parents": [{"sha": "c" * 40}]})
+        raise AssertionError(argv)
 
     monkeypatch.setattr(workflow, "run", remote)
-    workflow.merge_pr(Path("/unused"), 12)
-    emitted = calls[-1]
-    assert emitted[:4] == ("gh", "pr", "merge", "12")
-    assert "--squash" in emitted
-    assert emitted[emitted.index("--match-head-commit") + 1] == "a" * 40
-    assert emitted[emitted.index("--body") + 1] == (
-        "Source-PR: https://github.com/owner/project/pull/12\nSource-Head: " + "a" * 40 + "\n"
-    )
+    result = workflow.merge_pr(Path("/unused"), 12)
+    assert result["status"] == "merged_verified"
+    assert result["merge_sha"] == "b" * 40
+    assert payloads == [
+        {
+            "merge_method": "squash",
+            "sha": "a" * 40,
+            "commit_title": "feat: example (#12)",
+            "commit_message": message.split("\n\n", 1)[1] + "\n",
+        }
+    ]
+    assert calls[-1][-1] == "repos/owner/project/git/commits/" + "b" * 40
+
+
+def test_cli_refuses_repository_context_outside_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+    def remote(root: Path, *argv: str, capture: bool = False, input_text: str | None = None) -> str:
+        if argv[:3] == ("git", "remote", "get-url"):
+            return "https://github.com/owner/other.git"
+        if argv[:3] == ("gh", "repo", "view"):
+            return '{"nameWithOwner":"owner/project","url":"https://github.com/owner/project"}'
+        raise AssertionError("No remote write allowed")
+
+    monkeypatch.setattr(workflow, "run", remote)
+    with pytest.raises(ValueError, match="origin"):
+        workflow.merge_pr(Path("/unused"), 12)
+
+
+def test_cli_plan_failure_uses_controlled_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def repository(_root: Path) -> str:
+        return "owner/project"
+
+    def fail(root: Path, *argv: str, capture: bool = False, input_text: str | None = None) -> str:
+        raise OSError("external diagnostics")
+
+    monkeypatch.setattr(workflow, "_merge_repository", repository)
+    monkeypatch.setattr(workflow, "run", fail)
+    with pytest.raises(ValueError, match="Cannot observe"):
+        workflow.pr_merge_plan(Path("/unused"), 12)
 
 
 def test_github_setup_keeps_writer_bypass_separate_from_quality_gates(monkeypatch: pytest.MonkeyPatch) -> None:

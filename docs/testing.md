@@ -262,3 +262,12 @@ hooks의 검사 범위는 그대로 유지한다. PR의 정확한 base/head에 �
 
 workflow 파일의 존재를 원격 실행 성공이나 required check 설정의 증거로 취급하지 않는다.
 merge queue를 사용하려면 `merge_group` 대상을 별도로 추가·검증해야 한다.
+
+## 명시적 PR 병합 검사
+
+[순수 병합 검사](../tests/tools/gh/test_pr_merge.py)는 고정 메시지·계획 변경·조건부 요청과
+응답 유실·이미 병합·실제 메시지 불일치의 결과 판정을 검증한다. GitHub 경계만 대체하며 외부 바이너리는 실행하지 않는다.
+[CLI 경계](../tests/tools/test_workflow_github.py)와
+[MCP 공개 계약](../tests/tools/git/test_pr_merge_mcp.py)은 공통 구현 연결, origin 일치, strict 입력,
+독립 권한 거부와 중복 쓰기 방지를 확인한다. MCP 검사는 로컬 실제 framework와 Git root를 사용한다.
+실제 GitHub merge와 새 도구의 ChatGPT 호출은 별도 수용 증거이며, 이 테스트로 대체하지 않는다.

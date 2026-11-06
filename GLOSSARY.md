@@ -73,3 +73,8 @@ _Avoid_: 서버 자체 연결 판정, 로컬 stdio 검증을 ChatGPT E2E로 부�
 **작업의 E2E 분류**:
 대상 프로젝트가 `level="e2e"`로 등록한 테스트 실행 분류다. 해당 runner의 성공이 local-dev-mcp의 실제 ChatGPT 호출을 증명하지는 않는다.
 _Avoid_: 모든 E2E recipe를 ChatGPT 수용 검증으로 해석하기
+
+**PR 병합 계획**:
+실제 PR의 repository·URL·head·title에서 만든 고정 squash 제목·본문과 검토 digest다.
+수명 상태와 별개로 의도한 입력을 식별하며, 권한·CI 성공·병합 완료를 증명하지 않는다.
+_Avoid_: GitHub 기본 메시지, 병합 성공 영수증

@@ -4,6 +4,7 @@ This developer CLI does not start MCP or read dotenv. Explicit CLI authenticatio
 """
 
 import argparse
+import asyncio
 import json
 import os
 import re
@@ -18,6 +19,7 @@ from typing import cast
 
 from ..execution import base_environment
 from ._workflow_hooks import inspect_hooks, install_hooks
+from .gh import pr_merge
 
 _CHECKS = ("format_check", "lint", "typecheck", "unit", "integration")
 _SOURCE = re.compile(r"^Source-PR: https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]*$", re.MULTILINE)
@@ -218,40 +220,62 @@ def verify_distributions(directory: Path) -> None:
             raise ValueError(f"Release working metadata leaked into {path.name}.")
 
 
-def merge_pr(root: Path, number: int) -> None:
-    data = json.loads(
-        run(
-            root,
-            "gh",
-            "pr",
-            "view",
-            str(number),
-            "--json",
-            "url,title,headRefOid,baseRefName,state,isDraft",
-            capture=True,
-        )
+def _merge_repository(root: Path) -> str:
+    metadata = json.loads(run(root, "gh", "repo", "view", "--json", "nameWithOwner,url", capture=True))
+    repository = metadata["nameWithOwner"]
+    url = metadata["url"]
+    if not isinstance(repository, str) or url != "https://github.com/" + repository:
+        raise ValueError("Select a GitHub.com repository matching origin.")
+    origin = run(root, "git", "remote", "get-url", "origin", capture=True).strip()
+    allowed = (
+        url,
+        url + ".git",
+        "git@github.com:" + repository,
+        "git@github.com:" + repository + ".git",
+        "ssh://git@github.com/" + repository,
+        "ssh://git@github.com/" + repository + ".git",
     )
-    if data["baseRefName"] != "main" or data["state"] != "OPEN" or data["isDraft"]:
-        raise ValueError("Select an open, ready PR targeting main.")
-    body = f"Source-PR: {data['url']}\nSource-Head: {data['headRefOid']}\n"
-    require_source(body)
-    if re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", data["headRefOid"]) is None:
-        raise ValueError("GitHub did not return a full source SHA.")
-    # Required/up-to-date CI and permitted merge methods are enforced by GitHub rules.
-    run(
-        root,
-        "gh",
-        "pr",
-        "merge",
-        str(number),
-        "--squash",
-        "--match-head-commit",
-        data["headRefOid"],
-        "--subject",
-        f"{data['title']} (#{number})",
-        "--body",
-        body,
-    )
+    if origin.lower() not in tuple(candidate.lower() for candidate in allowed):
+        raise ValueError("GitHub repository context differs from origin.")
+    return repository
+
+
+def _merge_runner(root: Path) -> pr_merge.GitHubRunner:
+    async def call(*args: str, write: bool = False, input_text: str | None = None) -> str:
+        try:
+            return await asyncio.to_thread(run, root, "gh", *args, capture=True, input_text=input_text)
+        except OSError, subprocess.SubprocessError:
+            raise pr_merge.MergeCommandError from None
+
+    return call
+
+
+def pr_merge_plan(root: Path, number: int) -> pr_merge.PlanReport:
+    try:
+        return asyncio.run(pr_merge.observe(_merge_runner(root), _merge_repository(root), number)).report()
+    except pr_merge.MergeCommandError:
+        raise ValueError("Cannot observe PR merge state. Inspect the remote before retrying.") from None
+
+
+def merge_pr(
+    root: Path, number: int, *, expected_head: str | None = None, expected_plan_digest: str | None = None
+) -> pr_merge.MergeResult:
+    if (expected_head is None) != (expected_plan_digest is None):
+        raise ValueError("Supply both expected head and merge plan digest, or neither.")
+    repository = _merge_repository(root)
+    runner = _merge_runner(root)
+
+    async def execute() -> pr_merge.MergeResult:
+        head, digest = expected_head, expected_plan_digest
+        if head is None or digest is None:
+            observed = await pr_merge.observe(runner, repository, number)
+            head, digest = observed.head, observed.digest
+        return await pr_merge.merge(runner, repository, number, head, digest)
+
+    try:
+        return asyncio.run(execute())
+    except pr_merge.MergeCommandError:
+        raise ValueError("Cannot observe PR merge state. Inspect the remote before retrying.") from None
 
 
 def configure_github(root: Path) -> None:
@@ -352,6 +376,9 @@ def main(argv: list[str] | None = None) -> int:
     hooks.add_argument("arguments", nargs="*")
     pr = commands.add_parser("merge-pr")
     pr.add_argument("number", type=int)
+    pr.add_argument("--plan-only", action="store_true")
+    pr.add_argument("--expected-head")
+    pr.add_argument("--expected-plan-digest")
     body = commands.add_parser("pr-body")
     operations = body.add_subparsers(dest="pr_body_command", required=True)
     collector = operations.add_parser("collect")
@@ -396,7 +423,19 @@ def main(argv: list[str] | None = None) -> int:
             case "merge-pr":
                 if args.number < 1:
                     raise ValueError("A positive PR number is required.")
-                merge_pr(root, args.number)
+                if args.plan_only:
+                    if args.expected_head is not None or args.expected_plan_digest is not None:
+                        raise ValueError("Plan preview does not accept expected merge inputs.")
+                    print(json.dumps(pr_merge_plan(root, args.number), indent=2, ensure_ascii=False))
+                else:
+                    result = merge_pr(
+                        root,
+                        args.number,
+                        expected_head=args.expected_head,
+                        expected_plan_digest=args.expected_plan_digest,
+                    )
+                    print(json.dumps(result, indent=2, ensure_ascii=False))
+                    return 0 if result["status"] == "merged_verified" else 2
             case "pr-body":
                 from . import workflow_pr
 

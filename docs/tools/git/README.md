@@ -2,7 +2,7 @@
 
 현재 Git 도구는 HEAD 조회와 status → diff → stage/unstage → commit의 로컬 흐름, 명시적인 새 로컬 브랜치 생성·전환, 사전 검증된 local main 통합을 제공한다.
 
-Private GitHub 원격의 상태 조회·main 추적 Ref Fetch·기능 브랜치 비강제 Push·Draft PR 생성은
+Private GitHub 원격의 상태 조회·main 추적 Ref Fetch·기능 브랜치 비강제 Push·Draft PR 생성·명시적 PR 병합은
 별도 권한의 [원격 PR 발행 MCP 계약](remote-pr.md)을 따른다. 일반 Git 권한만으로 원격 쓰기를 실행할 수 없다.
 
 도구 추가·공통 호출 기준은 [개발 규약](../../conventions.md#도구-정의와-호출-경계),
@@ -13,7 +13,7 @@ identity·서명 준비 오류는 commit에 한정한다. 다른 기능이나 �
 준비 부족은 [`get_tool_readiness`](../../configuration.md#도구-준비-상태)에서 확인하고 수정 후 재시작한다.
 권한 middleware와 직접 Git 준비·실행 경로의 검사도 유지한다.
 `GIT_COMMIT_SIGN=true`인 경우에만 commit이 gpg를 추가 요구한다.
-로컬 Git 도구에는 `git` 허용이 공통 적용된다. 원격 Git/PR 도구는 별도로 `gh`와 `git.remote.read`, `git.remote.write`, `gh.pr.create` 중 해당 논리 권한을 요구한다.
+로컬 Git 도구에는 `git` 허용이 공통 적용된다. 원격 Git/PR 도구는 별도로 `gh`와 `git.remote.read`, `git.remote.write`, `gh.pr.create`, `gh.pr.merge` 중 해당 논리 권한을 요구한다.
 선택한 workspace 자체가 working tree root여야 한다. 상위 저장소를 자동 채택하지 않는다.
 
 격리된 linked Worktree 준비·조회와 브랜치 기준 게시의 입력·실패 경계는 [Worktree 계약](worktrees.md)을 따른다.

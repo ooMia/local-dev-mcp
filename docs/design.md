@@ -164,3 +164,11 @@ GitHub의 Plan·Intent·Checkpoint·lineage·Attempt는 각 모델의 버전·�
 다른 모델이 Checkpoint 모델에서 보조 함수를 가져오는 의존을 제거하면서 DB Adapter와의 순수 모델 분리를 유지한다.
 JSON 파싱 mechanics만 공유하며, 외부 응답과 내부 증거의 길이·필드·오류 분류는 각 호출자가 처리한다.
 영속화·실행·복구 의미는 [Operation 계약](contracts/github-operation-plan.md)을 따른다.
+
+## PR 병합 메시지와 결과 관측
+
+[`tools/gh/pr_merge.py`](../src/local_dev_mcp/tools/gh/pr_merge.py)는 PR 메타데이터 검증,
+메시지·계획 digest 생성, 조건부 squash 요청과 실제 커밋 검증을 소유한다.
+개발 CLI는 기존 subprocess 실행을, Git MCP facade는 선택 origin 확인과 bounded Remote 실행을 연결한다.
+서로 다른 진입점이 메시지나 결과 판정을 따로 구현하지 않는다. 공개 권한·결과 의미는
+[원격 PR 계약](tools/git/remote-pr.md#명시적-pr-병합)을 따른다.

@@ -13,11 +13,13 @@ from .facades.get_main_head import GET_MAIN_HEAD
 from .facades.get_project_diff import GET_PROJECT_DIFF
 from .facades.get_project_head import GET_PROJECT_HEAD
 from .facades.get_project_pick_state import GET_PROJECT_PICK_STATE
+from .facades.get_project_pr_merge_plan import GET_PROJECT_PR_MERGE_PLAN
 from .facades.get_project_ref import GET_PROJECT_REF
 from .facades.get_project_status import GET_PROJECT_STATUS
 from .facades.inspect_project_commit_history import INSPECT_PROJECT_COMMIT_HISTORY
 from .facades.inspect_project_worktree import INSPECT_PROJECT_WORKTREE
 from .facades.merge_project_branch import MERGE_PROJECT_BRANCH
+from .facades.merge_project_pr import MERGE_PROJECT_PR
 from .facades.prepare_project_worktree import PREPARE_PROJECT_WORKTREE
 from .facades.prepare_project_worktree_assessment import PREPARE_PROJECT_WORKTREE_ASSESSMENT
 from .facades.publish_project_branch import (
@@ -61,6 +63,8 @@ __all__ = [
     "GET_PROJECT_PICK_STATE",
     "GET_PROJECT_STATUS",
     "MERGE_PROJECT_BRANCH",
+    "GET_PROJECT_PR_MERGE_PLAN",
+    "MERGE_PROJECT_PR",
     "RESTORE_PROJECT_PICK_PATHS",
     "INSPECT_PROJECT_REMOTE",
     "FETCH_PROJECT_REMOTE_MAIN",
