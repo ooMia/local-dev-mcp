@@ -4,6 +4,8 @@
 이 개발용 CLI는 MCP 서버·dotenv를 시작하지 않는다. Git·uv·인증된 gh와 기존 개발환경을 사용한다.
 새 Python dependency, 보존 태그, 별도 GitHub App 등록은 필요하지 않다.
 
+최초 정리 기준선은 [별도 초기 게시 절차](initial-baseline.md)를 따른다. 이후에는 아래 정상 PR 통합을 사용한다.
+
 PR 본문을 생성·갱신하는 별도 계약은 [PR Body Generator](pr-body.md)를 참고한다.
 
 ## 설치와 첫 활성화
@@ -76,6 +78,9 @@ Source-Head: <GitHub에서 조회한 전체 SHA>
 
 gh pr merge --squash --match-head-commit으로 실행하므로 관측 이후 PR head가 바뀌면 병합하지 않는다.
 최신 base·필수 검사·허용 병합 방법은 GitHub gates가 검사한다. 실패 시 자동 우회·강제 병합·재시도를 하지 않는다.
+보호 규칙이 비활성화된 저장소에서는 이 서버 강제를 기대할 수 없다. 현재 `merge-pr`는 PR head를 고정하지만
+`Project quality` 성공을 직접 조회하지 않는다. 해당 보완은 최초 게시 범위에서 보류했으므로, 후속 PR 통합은
+정확한 head의 검사 결과를 별도로 확인한 경우에만 운영한다. 원격 강제 부재를 CLI의 품질 보장으로 표현하지 않는다.
 원격 보호 활성화 전 bootstrap에서는 같은 명령을 직접 실행할 수 있다.
 
 ```sh
@@ -86,6 +91,9 @@ uv run --locked python -m local_dev_mcp.tools.workflow merge-pr 123
 실제 GitHub의 권한·규칙 상호작용이나 영속 보존의 증거가 아니다. PR의 기록을 사용하며 별도 archive 원장은 만들지 않는다.
 
 ## 로컬 main 검사
+
+Actions의 테스트 범위는 [단위 테스트와 정적 검사](../../testing.md#actions와-로컬-검증의-범위)로 제한한다.
+아래 전체 검사·hooks·평가 검증은 로컬의 별도 책임이며 `Project quality` 성공으로 대신하지 않는다.
 
 공통 check는 config.toml의 format_check, lint, typecheck, unit, integration recipe를 차례로 실행한다.
 선택한 recipe의 argv와 전체 default_targets를 재사용한다. 하나라도 실패하면 0으로 종료하지 않는다.

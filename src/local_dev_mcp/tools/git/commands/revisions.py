@@ -184,3 +184,17 @@ async def commit_paths(execution: GitExecution, oid: str) -> list[str]:
     if not data.endswith("\0"):
         raise ToolError("Git returned an incomplete commit path list.")
     return list(dict.fromkeys(data[:-1].split("\0")))
+
+
+async def tree(repo: GitExecution, head: str) -> str:
+    result = await repo.run("rev-parse", "--verify", f"{head}^{{tree}}", operation="Read snapshot tree")
+    tree = text_output(result.output).strip()
+    if re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", tree) is None:
+        raise ToolError("Git returned an invalid snapshot tree.")
+    return tree
+
+
+async def require_parent(repo: GitExecution, head: str, parent: str) -> None:
+    result = await repo.run("rev-list", "--parents", "-n", "1", head, operation="Verify candidate parent")
+    if text_output(result.output).strip() != f"{head} {parent}":
+        raise ToolError("Candidate parent verification failed; no destination ref was created.")

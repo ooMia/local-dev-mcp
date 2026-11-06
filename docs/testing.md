@@ -249,6 +249,16 @@ uv run python -m local_dev_mcp.tools.release plan
 symlink·stale 계획·소스/의존성/과거 changelog 변조·외부 working state 변화의 거부를 확인한다.
 이 리허설은 실제 선택 workspace의 릴리스·tag·게시를 실행한 증거가 아니다.
 
-CI의 Release assessment job은 PR의 정확한 base/head SHA로 같은 CLI 검사를 실행한다. workflow 파일의 존재를
-원격 실행 성공이나 required check 설정의 증거로 취급하지 않는다. merge queue를 사용하려면 merge_group 대상을
-추가 검증해야 하며 현재 workflow는 PR 전용이다.
+## Actions와 로컬 검증의 범위
+
+[ADR 0009](adr/0009-actions-unit-tests.md)에 따라 `Project checks` workflow의 `Project quality` job은
+main push와 main 대상 PR에서 형식·린트·타입 검사와 `pytest -n 0 -m unit tests`만 실행한다.
+테스트 선택은 `unit` marker로 고정하며 바이너리 의존성을 자동 감지해 skip하지 않는다.
+
+통합·설치·실제 Git snapshot 릴리스 검사와 wheel·sdist 빌드 검사는 로컬에서 수행한다.
+Actions에서는 전체 검사를 포함하는 `workflow check`를 호출하지 않는다. 로컬 `workflow check`와
+hooks의 검사 범위는 그대로 유지한다. PR의 정확한 base/head에 대한 릴리스 검사는 위 로컬 명령으로
+별도 수행해야 하며, CI 성공은 그 결과나 패키지 검증을 보장하지 않는다.
+
+workflow 파일의 존재를 원격 실행 성공이나 required check 설정의 증거로 취급하지 않는다.
+merge queue를 사용하려면 `merge_group` 대상을 별도로 추가·검증해야 한다.

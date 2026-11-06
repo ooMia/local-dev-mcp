@@ -1,6 +1,6 @@
 # ADR 0005: 평가 기록이 필요한 squash와 누적 릴리스
 
-- 상태: Partially superseded by [ADR 0006](0006-native-pr-workflow-mvp.md) — hook 경계만 대체; 명시적 평가·누적 릴리스는 유지
+- 상태: Partially superseded by [ADR 0006](0006-native-pr-workflow-mvp.md) 및 [ADR 0008](0008-initial-consolidated-baseline.md) — hook 경계와 최초 기준선의 잘못된 평가 메타데이터 보완만 대체; 명시적 평가·누적 릴리스는 유지
 - 범위: 저장소의 개발·통합·호환성 평가·릴리스 준비
 - 결정일: 2026-11-05
 

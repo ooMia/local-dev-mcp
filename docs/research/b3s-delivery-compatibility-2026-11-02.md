@@ -1,7 +1,7 @@
 # B3-S GitHub Durable Delivery — dependency and compatibility assessment
 
 - Date: 2026-11-02
-- Status: **PostgreSQL 18/Python 3.15 verified; experimental GitHub Receipt Adapter implemented, webhook/worker not connected**
+- Status at investigation date: **PostgreSQL 18/Python 3.15 verified; experimental GitHub Receipt Adapter implemented, webhook/worker not connected**
 - Scope: GitHub-only PostgreSQL + Procrastinate experiment; Local Task/Shellous unchanged
 - Authority: research evidence, not an Accepted ADR or operational contract
 
@@ -45,13 +45,13 @@ semantics, concurrent deduplication, crash recovery, GitHub mutation safety or
 webhook delivery correctness. It also does not prove all future versions
 allowed by the project's open-ended dependency constraints are compatible.
 
-## Current dependency boundary
+## Dependency boundary at investigation date
 
-The user's updated `pyproject.toml` now declares
+At the investigation date, `pyproject.toml` declared
 `procrastinate>=3.10.0` and `psycopg-pool>=3.3.3` in the main
 `[project].dependencies`, and the matching `uv.lock` was updated.
-Preserve these user changes. However, **main-dependency placement is broader
-than the chosen B3-S GitHub-only optional Delivery boundary**. Moving them
+The then-observed **main-dependency placement was broader
+than the chosen B3-S GitHub-only optional Delivery boundary**. Moving dependencies
 to an optional extra or a dedicated dependency group is a separate packaging
 decision, not something to infer from successful installation.
 
@@ -80,23 +80,12 @@ This section records the investigation snapshot on 2026-11-02. For current recei
   return follows a top-level Commit; silently nested savepoints are rejected.
   Duplicate/conflicting requests cannot enqueue a second Job.
 
-## Stage 1 remaining acceptance criteria
+## Historical follow-up boundary
 
-1. Review deployment ownership and validate the explicit empty-only migration
-   policy against any real GitHub delivery schema before applying it.
-2. Wire authenticated webhook admission and commit-aware HTTP ACK handling;
-   response/network failure is not proof the database transaction failed.
-3. Test commit-unknown connection faults and process crash windows; read-only
-   Receipt lookup is available, but no automatic replay decision is implemented.
-4. Apply Q65–Q69 Recovery Probe and Operation Contract before allowing any
-   Worker to perform or retry external GitHub mutations.
-5. Reconcile WIP ADR 0003's SQLite outbox implementation with B3-S rather
-   than silently merging that WIP branch or implementing another queue.
-6. Keep Worker, Receiver and MCP server lifecycles separate; review
-   production database permissions and sensitive output boundaries.
-
-Existing **Q65–Q69** decisions still forbid blind retries after uncertain
-external side effects. A Procrastinate job's retry configuration cannot replace
-proof that a GitHub mutation is safe to repeat.
-
-Retain `.trail/.gitignore` as local-only and defer `main` integration.
+The follow-up work listed in this investigation is not a current implementation plan.
+Current admission, recovery, worker and mutation boundaries are owned by
+[GitHub Durable Delivery](../contracts/github-durable-delivery.md),
+[Webhook verification](../contracts/github-webhook-verification.md), and
+[Operation plans](../contracts/github-operation-plan.md).
+Deployment ownership, database migration and live worker operation still require their own operating evidence;
+this historical experiment does not attest that they have run in production.

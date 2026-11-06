@@ -35,7 +35,7 @@ def test_installed_cli_stdio_signed_commit(
         (root / "config.toml").write_text(
             "[filesystem]\nallowed_paths="
             + json.dumps([str(root)])
-            + '\n[system]\nallowed_commands=["git", "gpg", "python.run.lint"]\n'
+            + '\n[system]\nallowed_commands=["git", "gpg", "uv.release", "python.run.lint"]\n'
             + "[jobs.packaged_lint]\nkind='lint'\npermission='python.run.lint'\nargv="
             + json.dumps([str(installed_package.python), "-I", "-c", "print('installed recipe verified')"])
             + "\n"

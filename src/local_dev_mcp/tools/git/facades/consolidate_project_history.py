@@ -11,9 +11,9 @@ from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from ....mcp.registry import ToolDefinition, safe_execution
-from .._execution import GitExecution, text_output
+from .._execution import GitExecution
 from .._prepare import PreparedGitCommit, commit_readiness, prepare_git_commit
-from ..commands import revisions, show, status, var
+from ..commands import commit_tree, revisions, show, status, update_ref, var
 from . import _repository, _visibility
 from ._refs import BranchName, ExpectedHead, require_absent_branch, resolve_local_ref
 from ._repository import observed_at
@@ -55,36 +55,12 @@ class ConsolidatedHistory(TypedDict):
     next_action: str
 
 
-async def snapshot_tree(repo: GitExecution, head: str) -> str:
-    result = await repo.run("rev-parse", "--verify", f"{head}^{{tree}}", operation="Read snapshot tree")
-    tree = text_output(result.output).strip()
-    if re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", tree) is None:
-        raise ToolError("Git returned an invalid snapshot tree.")
-    return tree
-
-
 async def require_checkout(repo: GitExecution, branch: str, head: str, index: str) -> None:
     current_branch, current_head, entries = await status.read_porcelain_v2(repo)
     if current_branch != branch or current_head != head or entries:
         raise ToolError("The controller checkout changed or is dirty; no further writes were attempted.")
     if await revisions.index_fingerprint(repo) != index:
         raise ToolError("The controller index changed; inspect before continuing.")
-
-
-async def require_direct_destination(repo: GitExecution, branch: str, *, absent: bool = False) -> None:
-    result = await repo.run(
-        "symbolic-ref",
-        "--quiet",
-        f"refs/heads/{branch}",
-        operation="Check candidate ref indirection",
-        allow_failure=True,
-    )
-    if result.code == 0:
-        raise ToolError("The candidate destination is symbolic; no indirect ref writes are allowed.")
-    if result.code != 1:
-        raise ToolError("Cannot establish whether the candidate destination is a direct ref.")
-    if absent:
-        await require_absent_branch(repo, branch)
 
 
 @dataclass(frozen=True)
@@ -124,7 +100,7 @@ class ConsolidateProjectHistoryTool:
         if not new_branch.startswith("consolidated/"):
             raise ToolError("Use a fresh consolidated/<topic> candidate branch; main cannot be updated.")
         await require_absent_branch(repo, new_branch)
-        await require_direct_destination(repo, new_branch, absent=True)
+        await update_ref.require_direct(repo, new_branch)
         index = await revisions.index_fingerprint(repo)
         await require_checkout(repo, expected_branch, expected_head, index)
         history = await InspectProjectCommitHistoryTool(self.settings).execute(
@@ -143,7 +119,7 @@ class ConsolidateProjectHistoryTool:
         snapshots: list[tuple[ConsolidationUnit, str]] = []
         previous_position = -1
         previous = base_head
-        previous_tree = await snapshot_tree(repo, base_head)
+        previous_tree = await revisions.tree(repo, base_head)
         for unit in units:
             position = positions.get(unit.source_head, -1)
             if position <= previous_position:
@@ -164,7 +140,7 @@ class ConsolidateProjectHistoryTool:
                 if path is not None
             ):
                 raise ToolError("A selected snapshot changes protected or unreadable paths.")
-            tree = await snapshot_tree(repo, unit.source_head)
+            tree = await revisions.tree(repo, unit.source_head)
             if tree == previous_tree:
                 raise ToolError("Each selected unit must change its preceding snapshot.")
             snapshots.append((unit, tree))
@@ -180,23 +156,10 @@ class ConsolidateProjectHistoryTool:
                 f"{unit.message.rstrip()}\n\nSource-Base: {source_base}\n"
                 f"Source-Head: {unit.source_head}\nSource-Tree: {tree}\n"
             )
-            result = await repo.run(
-                "commit-tree",
-                tree,
-                "-p",
-                parent,
-                *(("-S",) if prepared.signing is not None else ()),
-                "-m",
-                message,
-                operation="Create candidate snapshot commit",
-                write=True,
-            )
-            candidate = text_output(result.output).strip()
+            candidate = await commit_tree.create(repo, tree, parent, message, signing=prepared.signing is not None)
             await revisions.resolve_commit(repo, candidate)
-            lineage = await repo.run("rev-list", "--parents", "-n", "1", candidate, operation="Verify candidate parent")
-            if text_output(lineage.output).strip() != f"{candidate} {parent}":
-                raise ToolError("Candidate parent verification failed; no destination ref was created.")
-            if await snapshot_tree(repo, candidate) != tree:
+            await revisions.require_parent(repo, candidate, parent)
+            if await revisions.tree(repo, candidate) != tree:
                 raise ToolError("Candidate tree verification failed; no destination ref was created.")
             if prepared.signing is not None and not await show.verify_signature(
                 repo, candidate, prepared.signing.fingerprint
@@ -210,22 +173,12 @@ class ConsolidateProjectHistoryTool:
         await require_checkout(repo, expected_branch, expected_head, index)
         await require_absent_branch(repo, new_branch)
         # Compare-and-create: even a concurrent creator cannot be overwritten.
-        await repo.run(
-            "update-ref",
-            "--no-deref",
-            "-m",
-            "local-dev-mcp: create consolidated candidate",
-            f"refs/heads/{new_branch}",
-            parent,
-            "0" * len(parent),
-            operation="Publish absent local candidate ref",
-            write=True,
-        )
+        await update_ref.create_absent_branch(repo, new_branch, parent)
         try:
-            await require_direct_destination(repo, new_branch)
+            await update_ref.require_direct(repo, new_branch)
             _, observed = await resolve_local_ref(repo, new_branch)
             await require_checkout(repo, expected_branch, expected_head, index)
-            if observed != parent or await snapshot_tree(repo, observed) != snapshots[-1][1]:
+            if observed != parent or await revisions.tree(repo, observed) != snapshots[-1][1]:
                 raise ToolError("The candidate ref or final tree changed.")
         except ToolError as error:
             raise ToolError(
