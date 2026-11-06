@@ -46,8 +46,8 @@ class RemoteState(TypedDict):
     remote_main: str
     remote_feature: str | None
     tracking_is_fresh: bool
-    feature_contains_remote: bool
-    unpublished_main_in_feature: bool
+    feature_contains_remote: bool | None
+    unpublished_main_in_feature: bool | None
     observed_at: str
 
 
@@ -244,6 +244,7 @@ class InspectRemoteTool:
         main = await remote.main_sha(repo)
         tracking = await remote.local_sha("refs/remotes/origin/main")
         local_main = await remote.local_sha("refs/heads/main")
+        available = await remote.local_sha(main) is not None
         return {
             "project": str(remote.root),
             "repository": repo,
@@ -254,8 +255,10 @@ class InspectRemoteTool:
             "remote_main": main,
             "remote_feature": await remote.branch(branch) if branch != "main" else None,
             "tracking_is_fresh": tracking == main,
-            "feature_contains_remote": await remote.ancestor(main, head),
-            "unpublished_main_in_feature": await _unpublished_local_main_in_feature(remote, main, head),
+            "feature_contains_remote": await remote.ancestor(main, head) if available else None,
+            "unpublished_main_in_feature": await _unpublished_local_main_in_feature(remote, main, head)
+            if available
+            else None,
             "observed_at": observed_at(),
         }
 
@@ -274,16 +277,37 @@ class FetchRemoteMainTool:
         actual = await remote.main_sha(repository)
         if actual != expected_remote_main:
             raise ToolError("Remote main changed since observation. Inspect again before fetch.")
+        direct = await remote.git("symbolic-ref", "--quiet", "refs/remotes/origin/main", allow_failure=True)
+        if direct.code == 0:
+            raise ToolError("The tracking destination is symbolic; indirect ref updates are not permitted.")
+        if direct.code != 1:
+            raise ToolError("Cannot verify that the tracking destination is a direct ref.")
         before = await remote.local_sha("refs/remotes/origin/main")
-        if before is not None and before != actual and not await remote.ancestor(before, actual):
-            raise ToolError("Remote main was rewritten or diverged; automatic tracking update is not permitted.")
-        if before != actual:
+        # Download the observed main object without touching refs or FETCH_HEAD first.
+        # Ancestry cannot be checked against a newly merged SHA before it exists locally.
+        if before != actual and await remote.local_sha(actual) is None:
             await remote.git(
                 "fetch",
                 "--no-tags",
                 "--no-recurse-submodules",
+                "--no-write-fetch-head",
+                "--refmap=",
                 "origin",
-                "refs/heads/main:refs/remotes/origin/main",
+                actual,
+                write=True,
+            )
+        if before is not None and before != actual and not await remote.ancestor(before, actual):
+            raise ToolError("Remote main was rewritten or diverged; automatic tracking update is not permitted.")
+        if before != actual:
+            if await remote.main_sha(repository) != actual:
+                raise ToolError("Remote main changed during fetch; tracking ref was not updated. Inspect again.")
+            await _checked(remote, branch, head)
+            await remote.git(
+                "update-ref",
+                "--no-deref",
+                "refs/remotes/origin/main",
+                actual,
+                before or "0" * len(actual),
                 write=True,
             )
         after = await remote.local_sha("refs/remotes/origin/main")

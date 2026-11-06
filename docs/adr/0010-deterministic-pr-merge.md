@@ -1,6 +1,6 @@
 # ADR 0010: CLI와 MCP의 명시적 PR squash 및 결과 검증
 
-- 상태: Accepted
+- 상태: Partially superseded by [ADR 0011](0011-chat-pr-lifecycle.md) — Ready 전환 제외 범위만 대체
 - 결정일: 2026-11-06
 - 범위: 원격 PR 병합 메시지, 독립 MCP 병합 권한, 실제 결과 확인
 - 부분 대체: [ADR 0006](0006-native-pr-workflow-mvp.md)의 Actions 전용 통합 경로와 병합 요청만으로 끝나는 관측 범위. PR + squash 및 출처 정책은 유지한다.

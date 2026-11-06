@@ -271,3 +271,9 @@ merge queue를 사용하려면 `merge_group` 대상을 별도로 추가·검증�
 [MCP 공개 계약](../tests/tools/git/test_pr_merge_mcp.py)은 공통 구현 연결, origin 일치, strict 입력,
 독립 권한 거부와 중복 쓰기 방지를 확인한다. MCP 검사는 로컬 실제 framework와 Git root를 사용한다.
 실제 GitHub merge와 새 도구의 ChatGPT 호출은 별도 수용 증거이며, 이 테스트로 대체하지 않는다.
+
+[채팅 PR 수명 검사](../tests/tools/gh/test_pr_lifecycle.py)는 정확한 head, 공급자 구분, 부분 조회,
+중복 검사, Ready 응답 유실과 재관측을 순수 데이터로 검증한다.
+[공개 MCP 검사](../tests/tools/git/test_pr_lifecycle_mcp.py)는 strict 입력과 독립 권한 및 실제 호출 흐름을 확인한다.
+[새 원격 main 검사](../tests/tools/git/test_remote_main_fetch.py)는 임시 bare 원격의 실제 새 commit과
+재작성된 main을 취득해 추적 ref·로컬 main·기능 HEAD 보존을 검증한다. 실제 GitHub/ChatGPT 수용과 구분한다.
