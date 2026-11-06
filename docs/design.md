@@ -172,3 +172,7 @@ JSON 파싱 mechanics만 공유하며, 외부 응답과 내부 증거의 길이�
 개발 CLI는 기존 subprocess 실행을, Git MCP facade는 선택 origin 확인과 bounded Remote 실행을 연결한다.
 서로 다른 진입점이 메시지나 결과 판정을 따로 구현하지 않는다. 공개 권한·결과 의미는
 [원격 PR 계약](tools/git/remote-pr.md#명시적-pr-병합)을 따른다.
+
+CI 관측과 Ready 전환은 같은 selected-origin runner를 사용하는 `tools/gh/pr_status.py`와
+`tools/gh/pr_ready.py`가 소유한다. 검사 대상 commit과 PR head를 같은 응답에서 대조하고,
+Ready의 비원자적 쓰기는 결과 재관측으로 구분한다. 공개 계약은 위 PR 계약을 따른다.

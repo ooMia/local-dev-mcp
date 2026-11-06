@@ -87,6 +87,8 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `push_project_feature` | 미공개 main 혼입을 거부하고 기능 브랜치만 비강제 Push |
 | `create_project_draft_pr` | 신규 `.changes`와 커밋을 기반으로 중복 없이 Draft PR 생성 |
 | `get_project_pr_merge_plan` | 실제 PR head와 고정 squash 메시지·검토 Digest 조회 |
+| `get_project_pr_status` | 정확한 PR head의 CI·Draft·병합 가능 상태 조회 |
+| `mark_project_pr_ready` | 검토 head·Digest에 대해 명시적으로 Ready 전환하고 결과 확인 |
 | `merge_project_pr` | 검토 head·Digest로 조건부 squash하고 실제 결과 커밋 검증 |
 | `prepare_project_worktree` | 원본 checkout을 전환하지 않고 기존 topic 브랜치를 격리된 Worktree에 준비 |
 | `inspect_project_worktree` | 관리 Worktree의 absent·partial·ready, SHA와 clean 상태 조회 |

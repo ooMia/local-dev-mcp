@@ -63,6 +63,8 @@ class MockRemote:
             return self.local_main
         if ref == "HEAD":
             return self.head
+        if ref == self.remote_main:
+            return self.remote_main
         raise AssertionError(ref)
 
     async def branch(self, _branch: str) -> str | None:
@@ -78,8 +80,14 @@ class MockRemote:
     async def git(self, *args: str, write: bool = False, allow_failure: bool = False) -> _remote.Result:
         del write, allow_failure
         self.records.append(("git", *args))
+        if args[0] == "symbolic-ref":
+            return _remote.Result(1, "")
         if args[0] == "fetch":
-            self.tracking = self.remote_main
+            return _remote.Result(0, "")
+        if args[0] == "update-ref":
+            assert args[1:3] == ("--no-deref", "refs/remotes/origin/main")
+            assert args[4] == self.tracking or (self.tracking is None and args[4] == "0" * 40)
+            self.tracking = args[3]
             return _remote.Result(0, "")
         if args[0] == "push":
             self.branch_head = self.head
@@ -171,14 +179,15 @@ def test_fetch_requires_observed_sha_and_only_updates_tracking(monkeypatch: pyte
     assert result["tracking_main_after"] == A
     assert mock.local_main == C
     assert mock.records == [
+        ("git", "symbolic-ref", "--quiet", "refs/remotes/origin/main"),
         (
             "git",
-            "fetch",
-            "--no-tags",
-            "--no-recurse-submodules",
-            "origin",
-            "refs/heads/main:refs/remotes/origin/main",
-        )
+            "update-ref",
+            "--no-deref",
+            "refs/remotes/origin/main",
+            A,
+            earlier,
+        ),
     ]
 
 
@@ -188,7 +197,7 @@ def test_fetch_rejects_rewritten_remote_main_without_touching_refs(monkeypatch: 
     with pytest.raises(ToolError, match="rewritten or diverged"):
         asyncio.run(tool.execute("feat/example", B, A))
     assert mock.tracking == C
-    assert mock.records == []
+    assert not any(call[1] in ("fetch", "update-ref") for call in mock.records)
 
 
 def test_push_requires_clean_named_branch_and_fresh_main(monkeypatch: pytest.MonkeyPatch) -> None:

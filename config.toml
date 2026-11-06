@@ -10,7 +10,7 @@ allowed_paths = ["."]
 # 시스템 명령과 등록된 작업의 정확한 논리 권한 이름이다.
 # Git 도구에는 git이, 서명 true인 commit에는 gpg가, connect에는 tunnel-client가 필요하다.
 # Tunnel이 실행하는 sys.executable은 이 목록에서 별도 검사하지 않는다.
-allowed_commands = ["git", "gh", "git.worktree.write", "git.remote.read", "git.remote.write", "gh.pr.create", "gh.pr.merge", "tunnel-client", "gpg", "uv.release", "uv.run.ruff.lint", "uv.run.ruff.format_check", "uv.run.ruff.format", "uv.run.pyright", "uv.run.pytest.unit", "uv.run.pytest.integration"]
+allowed_commands = ["git", "gh", "git.worktree.write", "git.remote.read", "git.remote.write", "gh.pr.create", "gh.pr.merge", "gh.pr.ready", "tunnel-client", "gpg", "uv.release", "uv.run.ruff.lint", "uv.run.ruff.format_check", "uv.run.ruff.format", "uv.run.pyright", "uv.run.pytest.unit", "uv.run.pytest.integration"]
 
 # 이 목록은 외부 프로그램의 모든 간접 실행이나 파일 접근을 제한하지 않는다.
 # 범용 명령 실행과 전체 자식 트리 격리는 제공하지 않는다.

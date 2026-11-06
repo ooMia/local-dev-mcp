@@ -211,6 +211,8 @@ Git workspace는 시작 시 선택한 경로로 고정되며 호스트 서명 �
 원격 PR 메시지 계획 조회는 `git`, `gh`, `git.remote.read`가 필요하다. 명시적 병합은 별도
 `gh.pr.merge`가 있어야 하며 `git.remote.write` 또는 `gh.pr.create`로 대체되지 않는다.
 권한은 자동 활성화하지 않는다. 입력·결과 및 재시작 이후 절차는 [원격 PR 계약](tools/git/remote-pr.md#명시적-pr-병합)을 따른다.
+정확한 head의 CI 조회도 `git.remote.read`를 사용한다. Draft를 Ready로 전환하려면 별도 `gh.pr.ready`가
+필요하다. 게시·병합 권한만으로 전환할 수 없으며, 명시적 설정과 서버 재시작 이후 적용된다.
 workspace 허용 경로는 선택한 workspace의 설정 위치 기준으로 resolve한다.
 GnuPG 홈도 resolve하되 존재·디렉터리 유효성만 검사한다.
 논리 명령 `gpg` 허용은 선택한 실행 파일의 진위 검증을 뜻하지 않는다. PATH와 override는 사용자가 신뢰하고 관리한다.

@@ -50,6 +50,8 @@ SSH origin에는 HTTPS Credential Helper를 적용하지 않는다.
 | `push_project_feature` | 현재 브랜치를 동일 이름의 원격 기능 Ref로 비강제 Push | `git.remote.write` |
 | `create_project_draft_pr` | 같은 SHA의 원격 기능에서 `main` 대상으로 Draft PR 생성 | `gh.pr.create` |
 | `get_project_pr_merge_plan` | PR head·고정 squash 메시지·계획 digest 조회 | `git.remote.read` |
+| `get_project_pr_status` | 정확한 PR head의 검사·Draft·병합 가능 상태 조회 | `git.remote.read` |
+| `mark_project_pr_ready` | 검토한 PR head·계획 digest에 대해 Ready 전환 및 결과 관측 | `gh.pr.ready` |
 | `merge_project_pr` | 검토한 head·digest로 조건부 squash 및 실제 결과 검증 | `gh.pr.merge` |
 
 모든 도구는 `git`과 `gh` 실행 권한도 필요하다. `config.toml`의 `system.allowed_commands`에 논리 권한이
@@ -61,13 +63,13 @@ SSH origin에는 HTTPS Credential Helper를 적용하지 않는다.
 
 1. `get_project_status`로 작업 트리 Clean 및 기능 브랜치 HEAD 확보
 2. `inspect_project_remote`로 private GitHub에 대한 `gh` 인증, 원격 대상 URL, 실제 main SHA, 원격 기능 브랜치 SHA 관측
-3. `tracking_is_fresh=false`이면 `fetch_project_remote_main` 호출. 이 단계에서 로컬 main은 업데이트하지 않는다
+3. `tracking_is_fresh=false`이면 `fetch_project_remote_main` 호출. 아직 로컬에 없는 remote SHA에 대한 조상 관계는 `null`이다. 이 단계에서 로컬 main은 업데이트하지 않는다
 4. `feature_contains_remote=true`인지 확인. 거짓이면 **임의의 rebase/merge/reset을 수행하지 않고**
    차이와 충돌 가능성을 분석한다. 기능 브랜치 통합 정책이 확정되기 전에는 publish하지 않는다
 5. 등록된 `format_check`, `lint`, `typecheck`, `unit`, `integration` 작업으로 현재 HEAD 변경을 검증
 6. `push_project_feature`에 현재 브랜치·HEAD·원격 main·원격 feature의 직전 전체 SHA를 전달한다
 7. `create_project_draft_pr`로 제목과 필요한 경우만 검토된 목적/예외를 입력한다. PR은 항상 Draft 상태로 생성한다
-8. 생성된 PR URL, 실제 Head, GitHub Checks를 확인한다. Ready 전환은 별도 경로에서 수행하고, 병합은 아래 독립 권한과 절차를 사용한다
+8. `get_project_pr_merge_plan`과 `get_project_pr_status`로 생성된 PR과 정확한 head의 검사를 확인한다. Ready와 병합은 아래 독립 권한과 절차를 사용한다
 
 `main`을 직접 Fetch 대상으로 checkout하거나 `git push`로 업데이트하지 않는다.
 Force Push, `--no-verify`, 태그 Push, auto-merge와 Ruleset 구성은 이 도구의 기능이 아니다.
@@ -80,7 +82,8 @@ Force Push, `--no-verify`, 태그 Push, auto-merge와 Ruleset 구성은 이 도�
 
 1. `get_project_pr_merge_plan(number)`으로 선택한 origin의 실제 PR을 조회한다. 반환된 `repository`,
    `url`, `head`, `subject`, `body`, `plan_digest`와 `state`, `draft`를 검토한다.
-2. 정확한 head의 CI 결과와 필요한 로컬 검사를 별도로 확인한다. 이 도구는 CI를 조회하거나 강제하지 않는다.
+2. `get_project_pr_status(number, expected_head)`로 정확한 head의 CI와 필요한 로컬 검사 결과를 확인한다.
+   상태 조회와 병합은 분리돼 있으며 merge 도구 자체는 CI를 조회하거나 강제하지 않는다.
 3. `merge_project_pr(number, expected_head, expected_plan_digest)`에 검토한 값을 전달한다.
    메타데이터를 다시 조회하여 head 또는 메시지 계획이 바뀌면 쓰기 전에 거부한다. 사전 관측이 열린 Ready `main` PR인 경우만
    병합하며, 이미 병합된 PR은 추가 쓰기 없이 결과만 진단한다.
@@ -116,11 +119,55 @@ worktree clean을 요구하지 않는다. 원격 PR 메타데이터가 병합 �
 후속 조회가 실패해도 앞서 관측한 `merge_sha`가 있으면 결과에 유지한다. 원격 상태가 이미 MERGED이면
 그 메시지가 잘못됐더라도 수정·재병합·force push하지 않는다. 다른 UI/API 병합의 메시지는 별도 보호 없이는 강제하지 못한다.
 
+## 채팅 내 CI 관측과 Ready 전환
+
+[ADR 0011](../../adr/0011-chat-pr-lifecycle.md)에 따라 Draft 게시 이후의 수동 경계를 보완한다.
+`get_project_pr_status`는 관측한 head를 필수로 받으며, GitHub PR head와 마지막 커밋 oid를 모두 대조한다.
+고정 GraphQL 읽기에서 최대 100개 검사 context와 페이지 정보·전체 수를 확인한다.
+페이지 누락·부분 오류·알 수 없는 metadata는 `complete=false`, `quality_state=unknown`으로 반환한다.
+PR head가 다르면 새 관측을 요구하며 다른 커밋의 검사를 반환하지 않는다.
+
+`quality_state`는 GitHub Actions App(`github-actions`)의 `Project quality` CheckRun만 대상으로 한다.
+동일 이름의 commit status나 다른 App 결과로 대체하지 않는다. 해당 검사가 없으면 `missing`,
+모든 해당 실행이 완료 SUCCESS이면 `success`, 진행 중이면 `pending`, 실패·취소·skip·neutral이면 `failure`다.
+성공 한 건을 골라 다른 실패·진행 중 실행을 숨기지 않는다. `checks`와 `rollup_state`도 함께 반환한다.
+rollup이 없다는 정상 응답은 `complete=true`, `quality_state=missing`이다.
+관측 후 head나 검사 상태가 바뀌는 경쟁을 잠그는 기능이나 미래의 CI 완료 보장은 아니다.
+
+채팅 에이전트는 다음 순서로 통합한다.
+
+1. 검토한 정확한 head에 대해 `complete=true`, `quality_state=success`, `rollup_state=SUCCESS`,
+   `mergeable=MERGEABLE`을 확인한다. 실패·진행 중·누락·확인 불가·충돌에서는 병합하지 않는다.
+2. `mark_project_pr_ready(number, expected_head, expected_plan_digest)`를 명시적으로 호출한다.
+   열린 main PR과 검토 계획을 확인하고 Draft에서 Ready로만 전환한다. `gh.pr.ready`가 별도로 필요하다.
+3. `ready_verified`를 확인한 뒤 상태와 계획을 다시 조회하고 같은 head의 성공 조건을 재확인하여 병합한다.
+
+Ready 결과의 `write_requested`는 이번 전환 요청 여부, `request_uncertain`은 요청 실행 오류 여부다.
+이미 Ready이면 쓰지 않고 관측한다. 실패 응답 뒤에도 다시 관측하며 자동 재실행하지 않는다.
+head·계획·열림 상태가 달라지면 `ready_mismatch`, 전환이나 후속 조회가 확인되지 않으면 `unconfirmed`다.
+GitHub Ready에는 원자적 expected-head 조건이 없으므로 마지막 확인과 전환 사이에 다른 head가 Ready가 될 수 있다.
+후속 검증은 이 상태를 감지하지만 자동 Draft 복원·병합·리뷰 승인은 수행하지 않는다.
+
+## 새 원격 main의 안전한 취득
+
+`inspect_project_remote`는 원격 main 객체가 아직 로컬에 없으면 `feature_contains_remote`와
+`unpublished_main_in_feature`를 `null`로 반환한다. `false`는 확인된 부정이며 `null`은 미확인이다.
+기존 성공 상태의 boolean 결과는 유지한다. 소비자는 `null`을 조상 관계 실패로 단정하지 말고 먼저 취득한다.
+
+`fetch_project_remote_main`은 API로 관측한 main SHA만 refmap·FETCH_HEAD·tag·submodule 갱신 없이
+객체 저장소에 취득한다. 객체가 이미 있으면 재사용한다. 기존 추적 ref의 조상 관계와 원격 main을 다시
+확인한 뒤 예상 이전 SHA에 대한 `update-ref` 비교·교체로 `origin/main`만 이동한다.
+원격 재작성·확인된 원격 이동·예상 이전 SHA와 다른 추적 ref 값에서는 거부한다. 거부해도 다운로드한 객체는 남을 수 있으나
+이를 Ref 이동으로 해석하지 않는다. 로컬 main·기능 브랜치·작업 파일은 재작성하지 않는다.
+미리 관측한 추적 ref가 symbolic이면 거부하고, 최종 갱신은 항상 `--no-deref`로 다른 ref를 따라 쓰지 않는다.
+원자적 조건은 이전 SHA이며 ref 종류까지 잠그지는 않는다. 마지막 확인 뒤 같은 SHA로 해석되는 symbolic
+entry가 생기면 그 entry 자체가 direct ref로 교체될 수 있지만, 가리키던 main이나 다른 ref에는 쓰지 않는다.
+
 ## 보장 및 한계
 
 - `origin`은 `github.com/OWNER/REPO`에 대응하는 HTTPS/SSH URL만 허용하고 `gh repo view` 결과와 일치해야 한다.
 - 원격 `main` SHA는 `gh api`에서 매 작업 확인한다. `origin/main`이 오래됐으면 Push와 PR 생성은 거부한다.
-- Fetch는 원격 추적 Ref만 갱신한다. Non-fast-forward remote update는 자동 강제하지 않는다.
+- Fetch는 관측 객체를 먼저 취득하고 검증 후 원격 추적 Ref만 갱신한다. Non-fast-forward remote update는 자동 강제하지 않는다.
 - Push는 `feat/`, `fix/`, `refactor/`, `docs/`, `test/`, `build/`, `ci/`, `chore/` 접두사의 현재 브랜치만 허용한다.
 - 로컬 `main`의 미공개 커밋을 기능 브랜치가 포함한다면 원격 `main`을 조상으로 가지더라도 의도치 않은 변경 유입을 막기 위해 게시를 거부한다.
 - 동시 변경은 사전 확인과 비강제 Push로 거부한다. 네트워크 결과가 불확실하면 재시도 전에 Ref를 다시 조회한다.

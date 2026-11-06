@@ -78,3 +78,8 @@ _Avoid_: 모든 E2E recipe를 ChatGPT 수용 검증으로 해석하기
 실제 PR의 repository·URL·head·title에서 만든 고정 squash 제목·본문과 검토 digest다.
 수명 상태와 별개로 의도한 입력을 식별하며, 권한·CI 성공·병합 완료를 증명하지 않는다.
 _Avoid_: GitHub 기본 메시지, 병합 성공 영수증
+
+**정확한 head의 CI 관측**:
+PR의 관측 head와 검사 대상 commit이 같음을 확인하고 그 시점의 검사 결과·완전성을 보고하는 읽기다.
+검사 성공을 미래 병합까지 잠그거나 merge 명령의 서버 강제로 대체하지 않는다.
+_Avoid_: 로컬 검사 성공, 다른 head의 초록 표시, Ready 전환
