@@ -38,6 +38,8 @@ TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
     git.FETCH_PROJECT_REMOTE_MAIN,
     git.PUSH_PROJECT_FEATURE,
     git.CREATE_PROJECT_DRAFT_PR,
+    git.GET_PROJECT_PR_MERGE_PLAN,
+    git.MERGE_PROJECT_PR,
     git.PREPARE_PROJECT_WORKTREE,
     git.INSPECT_PROJECT_WORKTREE,
     git.INSPECT_PROJECT_BRANCH_REMOTE,
@@ -119,7 +121,10 @@ def create_server(policy: Policy) -> FastMCP:
             "Use get_release_plan to inspect committed impact and recommendation; prepare_project_release requires "
             "matching HEAD, digest, version and clean release branch. It never commits or publishes. "
             "Scoped remote inspection, main fetch, feature push and Draft PR require gh auth and separate permissions. "
-            "Remote tools never force-push, update main or bypass gates. No pull or stash; "
+            "Preview an exact PR squash message with get_project_pr_merge_plan; merge_project_pr separately requires "
+            "gh.pr.merge and the reviewed head/digest. Only merged_verified confirms the actual merge message. "
+            "CI success must be checked separately. Remote tools never force-push or bypass gates; "
+            "only merge_project_pr can update remote main through a conditional PR squash. No pull or stash; "
             "merge_project_branch requires assessed squash for opted-in workflows "
             "and otherwise guarded main fast-forward."
         ),

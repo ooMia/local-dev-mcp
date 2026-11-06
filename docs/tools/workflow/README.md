@@ -68,7 +68,8 @@ writer의 bypass는 별도 gates 규칙을 우회하지 않는다. 새 App이나
 gh workflow run integrate.yml --ref main -f pr_number=123
 ```
 
-workflow는 main의 신뢰하는 코드만 checkout하고 PR URL·title·정확한 head를 GitHub에서 조회한다.
+workflow는 main의 신뢰하는 코드만 checkout한다. CLI와 MCP의 [공통 병합 구현](../git/remote-pr.md#명시적-pr-병합)은
+PR URL·title·정확한 head를 GitHub에서 조회한다.
 draft·닫힌 PR·main 외 base를 거부한다. 최종 commit에는 기능 제목과 다음 출처가 들어간다.
 
 ```text
@@ -76,16 +77,24 @@ Source-PR: https://github.com/OWNER/REPO/pull/123
 Source-Head: <GitHub에서 조회한 전체 SHA>
 ```
 
-gh pr merge --squash --match-head-commit으로 실행하므로 관측 이후 PR head가 바뀌면 병합하지 않는다.
-최신 base·필수 검사·허용 병합 방법은 GitHub gates가 검사한다. 실패 시 자동 우회·강제 병합·재시도를 하지 않는다.
+고정 REST direct squash 요청에 예상 head와 제목·본문을 명시하므로 실제 병합 시 PR head가 바뀌면 거부된다.
+병합 뒤 PR의 merge SHA와 실제 커밋의 단일 부모·제목·본문을 다시 확인한다. 확인한 결과만
+`merged_verified`로 보고하며 불일치·확인 불가는 JSON으로 반환하고 CLI는 종료 2다.
+최신 base·필수 검사·허용 병합 방법의 서버 강제는 실제 GitHub gates 활성화에 달려 있다.
+실패 시 자동 우회·강제 병합·재시도를 하지 않는다.
 보호 규칙이 비활성화된 저장소에서는 이 서버 강제를 기대할 수 없다. 현재 `merge-pr`는 PR head를 고정하지만
 `Project quality` 성공을 직접 조회하지 않는다. 해당 보완은 최초 게시 범위에서 보류했으므로, 후속 PR 통합은
 정확한 head의 검사 결과를 별도로 확인한 경우에만 운영한다. 원격 강제 부재를 CLI의 품질 보장으로 표현하지 않는다.
 원격 보호 활성화 전 bootstrap에서는 같은 명령을 직접 실행할 수 있다.
 
 ```sh
-uv run --locked python -m local_dev_mcp.tools.workflow merge-pr 123
+uv run --locked python -m local_dev_mcp.tools.workflow merge-pr 123 --plan-only
+uv run --locked python -m local_dev_mcp.tools.workflow merge-pr 123 --expected-head <head> --expected-plan-digest <digest>
 ```
+
+`--plan-only`는 원격 쓰기 없이 메시지와 검토 digest를 출력한다. expected 두 인자는 함께 전달해야 한다.
+둘 다 생략하면 같은 호출에서 계획을 관측한 뒤 재확인하여 실행하므로 기존 Actions 호출은 유지된다.
+MCP는 두 검토값을 항상 요구하며, [독립 병합 권한과 결과 계약](../git/remote-pr.md#명시적-pr-병합)을 따른다.
 
 원격이 실제 요구대로 거부하는지는 활성화 후 별도 수용 검증으로 확인한다. Python 경계 테스트는
 실제 GitHub의 권한·규칙 상호작용이나 영속 보존의 증거가 아니다. PR의 기록을 사용하며 별도 archive 원장은 만들지 않는다.
