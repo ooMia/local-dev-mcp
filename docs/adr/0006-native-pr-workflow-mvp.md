@@ -1,6 +1,6 @@
 # ADR 0006: 기본 PR 기능과 로컬 품질 게이트로 구성한 MVP
 
-- 상태: Partially superseded by [ADR 0007](0007-project-owned-hook-configuration.md) — 로컬 hook 설치·설정만 대체
+- 상태: Partially superseded by [ADR 0007](0007-project-owned-hook-configuration.md) 및 [ADR 0008](0008-initial-consolidated-baseline.md) — 로컬 hook 설치·설정과 최초 정리 기준선의 PR 출처 예외만 대체
 - 결정일: 2026-11-05
 - 범위: 개발 과정 참조, 기본 브랜치 품질, 릴리스 배포물
 - 대체: ADR 0005의 hook 강제성 확대 제외 부분. 명시적 평가와 누적 릴리스 결정은 유지한다.

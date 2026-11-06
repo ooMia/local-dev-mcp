@@ -3,6 +3,7 @@
 `consolidate_project_history`는 검토한 기능 경계의 Git tree를 재사용해 새 `consolidated/<topic>`
 브랜치에 의미 단위 커밋을 만든다. 기존 브랜치와 원본 커밋을 보존하며 checkout·index·main·원격을 변경하지 않는다.
 이 도구는 후보 이력 생성만 맡는다. main 채택·게시·릴리스는 별도 작업이다.
+이 저장소의 최초 정리 기준선은 [ADR 0008](../../adr/0008-initial-consolidated-baseline.md)의 한정 절차를 따른다.
 
 ## 입력과 결과
 
@@ -17,7 +18,9 @@
 따라서 파일 모드·바이너리·symlink·삭제·기존 평가 기록도 Git 객체 수준에서 동일하게 유지된다.
 이력 재구성은 기존 평가의 호환성 판단을 새로 추정하거나 평가 파일을 정정하지 않는다.
 메시지의 `Source-Base`, `Source-Head`, `Source-Tree`가 원본 구간과 snapshot을 가리킨다.
-원본 브랜치를 보존해 구간 내 개발 기록도 조회할 수 있게 한다.
+원본 브랜치를 로컬에 보존해 구간 내 개발 기록도 조회할 수 있게 한다.
+원본 브랜치를 원격에 게시하지 않았다면 이 출처 SHA를 새 원격 clone에서 조회할 수 없다.
+출처 trailer 자체는 원본 객체의 원격 보존이나 fetch 가능성을 보장하지 않는다.
 
 결과는 새 브랜치·HEAD, 원본 구간별 새 커밋·tree, 서명 및 checkout 보존 검증 여부를 반환한다.
 Git commit identity와 서명 준비는 [기본 Git 계약](README.md)을 재사용한다.

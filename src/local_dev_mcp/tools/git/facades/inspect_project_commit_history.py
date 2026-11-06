@@ -1,6 +1,5 @@
 """Bounded, immutable local commit history for safe feature-by-feature PR reconstruction."""
 
-import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, TypedDict
 
@@ -8,9 +7,10 @@ from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from ....mcp.registry import ToolDefinition
-from .._execution import GitExecution, text_output
+from .._execution import GitExecution
 from .._prepare import git_readiness
-from ..commands import revisions
+from ..commands import log, revisions
+from ..commands.log import HistoryCommit
 from . import _repository
 from ._refs import ExpectedHead
 from ._repository import observed_at
@@ -19,12 +19,6 @@ if TYPE_CHECKING:
     from ....app.runtime import ServerSettings
 
 MAX_COMMITS: Final = 64
-
-
-class HistoryCommit(TypedDict):
-    sha: str
-    parents: list[str]
-    title: str
 
 
 class ProjectCommitHistory(TypedDict):
@@ -60,33 +54,7 @@ class InspectProjectCommitHistoryTool:
             raise ToolError("The base must be an ancestor of the target before listing publication history.")
         if count > MAX_COMMITS:
             raise ToolError(f"History contains over {MAX_COMMITS} commits. Narrow the reference range.")
-        commits: list[HistoryCommit] = []
-        if count:
-            result = await repo.run(
-                "log",
-                "--reverse",
-                "--topo-order",
-                "-z",
-                "--format=%H%x00%P%x00%s",
-                f"{base}..{target}",
-                operation="Read bounded local commit history",
-            )
-            raw = text_output(result.output)
-            if not raw.endswith("\0"):
-                raise ToolError("Git returned an incomplete history stream.")
-            parts = raw[:-1].split("\0")
-            if len(parts) != count * 3:
-                raise ToolError("Git returned an incomplete or ambiguous commit history.")
-            for i in range(0, len(parts), 3):
-                sha, parent_string, subject = parts[i : i + 3]
-                if re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", sha) is None:
-                    raise ToolError("History contains an invalid commit SHA.")
-                parents = parent_string.split()
-                if not parents or any(re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", p) is None for p in parents):
-                    raise ToolError("History contains an invalid commit parent.")
-                if not subject or len(subject) > 200 or any(ord(c) < 32 for c in subject):
-                    raise ToolError("Commit title contains invalid characters or exceeds the display limit.")
-                commits.append({"sha": sha, "parents": parents, "title": subject})
+        commits = await log.history(repo, base, target, count=count)
         # A concurrent branch update must not yield an apparently current snapshot.
         if await revisions.resolve(repo, base_ref) != base or await revisions.resolve(repo, target_ref) != target:
             raise ToolError("A selected ref moved during history enumeration; inspect it again.")

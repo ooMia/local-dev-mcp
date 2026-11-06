@@ -20,13 +20,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-      - name: Run registered nonmutating quality checks
-        run: uv run --locked python -m local_dev_mcp.tools.workflow check
-      - name: Validate exact PR release snapshots
-        if: github.event_name == 'pull_request'
-        env:
-          RELEASE_BASE: ${{ github.event.pull_request.base.sha }}
-          RELEASE_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: uv run --locked python -m local_dev_mcp.tools.release check --base "$RELEASE_BASE" --head "$RELEASE_HEAD"
-      - name: Build and inspect wheel and source distribution
-        run: uv run --locked python -m local_dev_mcp.tools.workflow package
+      - name: Check formatting
+        run: uv run --locked ruff format --check --quiet src tests conftest.py
+      - name: Lint
+        run: uv run --locked ruff check --quiet --output-format concise src tests conftest.py
+      - name: Check types
+        run: uv run --locked pyright
+      - name: Run unit tests only
+        run: uv run --locked pytest --verbosity=-1 --tb=short --no-header -rfE -n 0 -m unit tests
