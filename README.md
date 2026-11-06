@@ -120,6 +120,7 @@ format 뒤에는 파일을 다시 읽어 새 `read_ref`를 사용한다. 새 파
 - [CLI 작업 계약](docs/tools/tasks/README.md): 선택 실행·실행 ID·취소·응답 복구·제한된 진단.
 - [연결 원리](docs/design.md): CLI·MCP·Tunnel의 흐름과 import·오류·취소 처리의 이유.
 - [검사와 환경](docs/testing.md): 실행 절차·fixture 자원·설치 검증의 범위.
+- [B3-S 개발 DB (Podman)](infra/postgres/README.md): GitHub 영속 전달 검증을 위한 로컬 PostgreSQL 구성.
 - [테스트 정책 근거](docs/research/testing-policy-research.md): 검증 계층·소유권 배치·의존 실행·품질 판단의 조사 근거.
 - [CLI 작업 정책 근거](docs/research/cli-task-policy-research.md): 명령 권한·공통 환경·출력 보호의 조사 근거와 한계.
 - [ChatGPT 사용 확인](tests/e2e/README.md): 외부 클라이언트에서 수행하는 선택적 수용 검증.

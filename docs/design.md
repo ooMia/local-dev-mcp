@@ -154,3 +154,13 @@ Git 실행은 shellous가 직접 프로세스를 정리한 뒤 억제한 취소�
 Tunnel의 `_TunnelRun`은 라이브러리 handle로 직접 종료 여부를 관찰한다.
 반복 SIGINT가 코루틴의 취소 처리를 건너뛰더라도 이 handle을 확인해 정리 성공을 추정하지 않게 한다.
 직접 프로세스와 공유 daemon의 구분·정리 보장 범위는 [프로세스 정리 계약](configuration.md#프로세스-정리-보장)을 따른다.
+
+
+## GitHub 증거 모델의 내부 공유
+
+GitHub의 Plan·Intent·Checkpoint·lineage·Attempt는 각 모델의 버전·필드와 직렬화 계약을 소유한다.
+공통 해시·canonical 객체 처리와 strict JSON hook은 내부 순수 module
+[`_canonical.py`](../src/local_dev_mcp/tools/gh/delivery/_canonical.py)에 둔다.
+다른 모델이 Checkpoint 모델에서 보조 함수를 가져오는 의존을 제거하면서 DB Adapter와의 순수 모델 분리를 유지한다.
+JSON 파싱 mechanics만 공유하며, 외부 응답과 내부 증거의 길이·필드·오류 분류는 각 호출자가 처리한다.
+영속화·실행·복구 의미는 [Operation 계약](contracts/github-operation-plan.md)을 따른다.

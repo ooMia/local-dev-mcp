@@ -215,3 +215,18 @@ export 목록이 누락 의존성을 공급할 수 있어 wheel metadata만의 �
 [PyPA 의존성과 환경 목록](https://packaging.python.org/en/latest/discussions/install-requires-vs-requirements/),
 [uv build constraints](https://docs.astral.sh/uv/concepts/projects/build/#build-constraints),
 [xdist session fixture](https://pytest-xdist.readthedocs.io/en/stable/how-to.html#making-session-scoped-fixtures-execute-only-once).
+
+
+## GitHub Delivery 검증
+
+[Receipt 검사](../tests/tools/gh/test_delivery_receipts.py)를 비롯한 GitHub 통합 테스트는
+테스트별 임시 PostgreSQL schema를 만들고 자기 자원만 정리한다. 연결·명시적 Task 준비는
+[공용 지원](../tests/support/gh_delivery.py), Label Scope의 두 독립 세션과 공통 증거 준비는
+[해당 지원 module](../tests/support/gh_label_scope.py)이 소유한다.
+실패 주입·claim 변경·schema 손상은 각 시나리오에서 명시하며 공용 준비의 모드로 숨기지 않는다.
+DB 환경 부재에 따른 skip는 실제 영속성 검증의 성공으로 세지 않는다.
+
+[고정 canonical 벡터](../tests/tools/gh/test_canonical_evidence.py)는 저장된 증거의 bytes·digest와
+strict JSON 오류 의미를 검증한다. README의 도구 표와 수동 TOOLS 목록의 동등성은
+[문서 검사](../tests/system/test_documentation_links.py)가 확인한다.
+이 검사는 문서 설명의 의미나 실제 원격 GitHub 실행 성공을 증명하지 않는다.
