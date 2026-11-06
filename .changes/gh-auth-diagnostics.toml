@@ -1,0 +1,7 @@
+impact = "patch"
+summary = "Restore GitHub CLI authentication and add opt-in token injection for Tunnel"
+reason = "The Tunnel connection returned gh exit 4 despite forwarding configuration paths, and gh recreated state files in the workspace. Restore the OS account home, reject relative auth paths, expose non-secret diagnostics and optionally forward only a GH_TOKEN explicitly supplied in the protected workspace .env, without forwarding ambient token variables."
+contract = "MCP GitHub authentication environment and diagnostics"
+assessed_by = "agent"
+migration = "Restart the LOCAL-DEV-MCP connection to expose diagnose_project_remote_auth and the safer host account environment."
+supersedes = []

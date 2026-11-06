@@ -21,6 +21,7 @@ from shellous import Runner, sh
 from ...redaction import BoundedRedactedOutput, Redactor
 from ...settings import JobDefinition, Policy
 from ._response import TaskInfo, TaskResult, TaskState
+from ._worktree import TaskWorktree
 
 SHORT_WAIT_SECONDS = 1.0
 RETENTION_SECONDS = 30 * 60
@@ -60,6 +61,9 @@ class _Execution:
     all_tests: bool
     stdout: BoundedRedactedOutput
     stderr: BoundedRedactedOutput
+    policy: Policy
+    worktree: TaskWorktree | None = None
+    worktree_verified: bool | None = None
     state: TaskState = "running"
     exit_code: int | None = None
     termination_confirmed: bool = False
@@ -103,6 +107,7 @@ class TaskManager:
         self._requests: dict[str, tuple[str, str]] = {}
         self._active: str | None = None
         self._closed = False
+        self._submission = asyncio.Lock()
 
     def _prepare(self, recipe: JobDefinition) -> _Prepared:
         try:
@@ -179,14 +184,16 @@ class TaskManager:
                 selected.append(normalized)
         return tuple(selected)
 
-    def _require_targets(self, targets: tuple[str, ...]) -> None:
+    def _require_targets(self, targets: tuple[str, ...], *, policy: Policy | None = None) -> None:
+        selected_policy = self._policy if policy is None else policy
         for value in targets:
             try:
-                target = (self._policy.root / value.partition("::")[0]).resolve()
-                if not target.is_relative_to(self._policy.root):
+                target = (selected_policy.root / value.partition("::")[0]).resolve()
+                if not target.is_relative_to(selected_policy.root):
                     raise ValueError
                 # A runner may recurse through this target; navigation-only
                 # ancestors cannot grant access to their other descendants.
+                selected_policy.require_path_access(target)
                 self._policy.require_path_access(target)
             except OSError, ValueError, PermissionError:
                 raise ToolError("Test selector path is unavailable or outside the permitted workspace scope.") from None
@@ -231,7 +238,7 @@ class TaskManager:
             for name, output in (("stdout", result.stdout), ("stderr", result.stderr))
             if output.reason is not None
         ]
-        return TaskResult(
+        snapshot = TaskResult(
             job_id=result.job_id,
             request_id=result.request_id,
             task=result.prepared.recipe.name,
@@ -258,23 +265,70 @@ class TaskManager:
             ),
             may_have_changed_files=result.may_have_changed_files,
         )
+        if result.worktree is not None:
+            context = result.worktree
+            snapshot["worktree"] = {
+                "branch": context.branch,
+                "head": context.head,
+                "original_branch": context.original_branch,
+                "original_head": context.original_head,
+                "path": result.policy.root.relative_to(self._policy.root).as_posix(),
+                "verified": result.worktree_verified,
+                "verification_error": (
+                    "Git state verification did not succeed; inspect both worktrees before proceeding."
+                    if result.worktree_verified is False
+                    else None
+                ),
+            }
+            if result.worktree_verified is False:
+                snapshot["next_action"] = (
+                    "Inspect original and target Git state; process exit does not verify this worktree."
+                )
+        return snapshot
 
     async def start(
-        self, task: str, request_id: str, targets: list[str] | None = None, all_tests: bool = False
+        self,
+        task: str,
+        request_id: str,
+        targets: list[str] | None = None,
+        all_tests: bool = False,
+        *,
+        worktree: TaskWorktree | None = None,
     ) -> TaskResult:
+        async with self._submission:
+            result, created = await self._submit(task, request_id, targets, all_tests, worktree)
+        if created and result.task is not None:
+            try:
+                await asyncio.wait_for(asyncio.shield(result.task), timeout=SHORT_WAIT_SECONDS)
+            except TimeoutError:
+                pass
+        return self._snapshot(result)
+
+    async def _submit(
+        self,
+        task: str,
+        request_id: str,
+        targets: list[str] | None,
+        all_tests: bool,
+        worktree: TaskWorktree | None,
+    ) -> tuple[_Execution, bool]:
         if re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", request_id) is None:
             raise ToolError("request_id must be 1..128 ASCII letters, digits, dots, underscores, colons or hyphens.")
         prepared = self._prepared.get(task)
         if prepared is None:
             raise ToolError("Unknown project task. Use list_project_tasks and select a configured name.")
         selection = self._selection(prepared.recipe, targets, all_tests)
-        fingerprint = hashlib.sha256(json.dumps([task, selection, all_tests], ensure_ascii=True).encode()).hexdigest()
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                [task, selection, all_tests, worktree.identity if worktree else None], ensure_ascii=True
+            ).encode()
+        ).hexdigest()
         self._prune()
         previous = self._requests.get(request_id)
         if previous is not None:
             if previous[0] != fingerprint:
                 raise ToolError("This request_id already names different task arguments; use a new request_id.")
-            return self._snapshot(self._lookup(previous[1]))
+            return self._lookup(previous[1]), False
         if self._closed:
             raise ToolError("This task manager is closing. Reconnect to a running server before starting work.")
         if len(self._requests) >= MAX_REQUESTS:
@@ -300,7 +354,12 @@ class TaskManager:
                 "Task is not ready (executable_unavailable). Check its installation and configured executable path, "
                 "then restart the server."
             )
-        self._require_targets(selection)
+        if worktree is not None and prepared.recipe.kind == "format":
+            raise ToolError("Managed worktree checks do not run modifying format recipes.")
+        policy = self._policy if worktree is None else await worktree.prepare()
+        if self._closed:
+            raise ToolError("This task manager closed during preparation; no process was submitted.")
+        self._require_targets(selection, policy=policy)
         job_id = token_urlsafe(24)
         result = _Execution(
             job_id,
@@ -310,16 +369,14 @@ class TaskManager:
             all_tests,
             BoundedRedactedOutput(self._redactor, limit=OUTPUT_BYTES),
             BoundedRedactedOutput(self._redactor, limit=OUTPUT_BYTES),
+            policy=policy,
+            worktree=worktree,
         )
         self._results[job_id] = result
         self._requests[request_id] = (fingerprint, job_id)
         self._active = job_id
         result.task = asyncio.create_task(self._execute(result), name="local-dev-mcp-project-task")
-        try:
-            await asyncio.wait_for(asyncio.shield(result.task), timeout=SHORT_WAIT_SECONDS)
-        except TimeoutError:
-            pass
-        return self._snapshot(result)
+        return result, True
 
     def get(self, job_id: str, *, include_output: bool = False) -> TaskResult:
         return self._snapshot(self._lookup(job_id), include_output=include_output)
@@ -374,16 +431,19 @@ class TaskManager:
         token = _TASK_LOG_CONTEXT.set(True)
         result.started_at = _now()
         try:
-            self._policy.require_project_access()
-            self._policy.require_command(result.prepared.recipe.permission)
-            self._require_targets(result.targets)
+            if result.worktree is not None:
+                if await result.worktree.prepare() != result.policy:
+                    raise ToolError("Managed worktree execution policy changed before process start.")
+            result.policy.require_project_access()
+            result.policy.require_command(result.prepared.recipe.permission)
+            self._require_targets(result.targets, policy=result.policy)
             binary = result.prepared.executable
             if binary is None:
                 raise FileNotFoundError
             command = (
                 sh.result(str(binary), *result.prepared.recipe.argv[1:], *result.targets)
                 .set(
-                    cwd=self._policy.root,
+                    cwd=result.policy.root,
                     env=self._environment,
                     inherit_env=False,
                     timeout=result.prepared.recipe.timeout_seconds,
@@ -422,11 +482,31 @@ class TaskManager:
         except Exception:
             self._interrupted(result, "failed")
         finally:
-            self._finish(result)
-            _TASK_LOG_CONTEXT.reset(token)
+            try:
+                if result.worktree is not None:
+                    final_state = result.state
+                    result.state = "running"
+                    try:
+                        await result.worktree.verify()
+                        result.worktree_verified = True
+                    except asyncio.CancelledError:
+                        result.worktree_verified = False
+                        if final_state == "succeeded":
+                            final_state = "cancelled"
+                    except Exception:
+                        result.worktree_verified = False
+                        if final_state == "succeeded":
+                            final_state = "failed"
+                    finally:
+                        result.state = final_state
+            finally:
+                self._finish(result)
+                _TASK_LOG_CONTEXT.reset(token)
 
     def _interrupted(self, result: _Execution, state: TaskState) -> None:
         process = result.process
         result.exit_code = process.returncode if process is not None else None
-        result.termination_confirmed = process is not None and process.returncode is not None
+        result.termination_confirmed = (process is not None and process.returncode is not None) or (
+            process is None and not result.may_have_changed_files
+        )
         result.state = state if result.termination_confirmed else "cleanup_unconfirmed"

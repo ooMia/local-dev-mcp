@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "Expose bounded read-only Git commit history for source-preserving PR reconstruction"
+reason = "The origin main is an ancestor of 17 unpublished local-main commits and 10 subsequent feature commits. Existing comparison tools omit individual source commit IDs, preventing safe feature-scoped reconstruction without arbitrary shell execution. Add exact-SHA-validated read-only commit title and parent listing with a fixed 64-commit limit."
+contract = "Local Git MCP commit history"
+assessed_by = "agent"
+migration = ""
+supersedes = []

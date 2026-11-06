@@ -12,7 +12,7 @@ from fastmcp.exceptions import ToolError
 import local_dev_mcp.tools.tasks._manager as task_runtime
 from local_dev_mcp.redaction import WITHHELD, Redactor
 from local_dev_mcp.settings import JobDefinition, JobKind, Policy
-from local_dev_mcp.tools.tasks import TaskManager
+from local_dev_mcp.tools.tasks import TaskManager, TaskWorktree
 from local_dev_mcp.tools.tasks._response import TaskResult
 
 pytestmark = pytest.mark.integration
@@ -489,5 +489,123 @@ def test_invalid_environment_is_unready_without_locking_workspace(tmp_path: Path
                 await tasks.start("check", "invalid-env-two")
         finally:
             await tasks.close()
+
+    asyncio.run(scenario())
+
+
+def test_worktree_job_remains_running_until_post_verification(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(task_runtime, "SHORT_WAIT_SECONDS", 0.02)
+    tasks = manager(tmp_path, "print('done')")
+
+    async def scenario() -> None:
+        selected = tmp_path / "target"
+        selected.mkdir()
+        scoped = Policy(selected, (selected,), ("task.check",))
+        verifying, release = asyncio.Event(), asyncio.Event()
+
+        async def prepare() -> Policy:
+            return scoped
+
+        async def verify() -> None:
+            verifying.set()
+            await release.wait()
+
+        context = TaskWorktree("feat/check", "a" * 40, "main", "b" * 40, prepare, verify)
+        try:
+            job = await tasks.start("check", "post-verify", worktree=context)
+            await asyncio.wait_for(verifying.wait(), timeout=5)
+            observed = tasks.get(job["job_id"])
+            assert observed["state"] == "running"
+            assert observed.get("worktree") is not None
+            with pytest.raises(ToolError, match="active"):
+                await tasks.start("check", "other")
+            release.set()
+            result = await finished(tasks, job["job_id"])
+            assert result["state"] == "succeeded"
+            details = result.get("worktree")
+            assert details is not None and details["verified"] is True
+        finally:
+            release.set()
+            await tasks.close()
+
+    asyncio.run(scenario())
+
+
+def test_cancel_during_worktree_post_verification_is_not_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(task_runtime, "SHORT_WAIT_SECONDS", 0.02)
+    tasks = manager(tmp_path, "print('done')")
+
+    async def scenario() -> None:
+        selected = tmp_path / "target"
+        selected.mkdir()
+        verifying, release = asyncio.Event(), asyncio.Event()
+
+        async def prepare() -> Policy:
+            return Policy(selected, (selected,), ("task.check",))
+
+        async def verify() -> None:
+            verifying.set()
+            await release.wait()
+
+        context = TaskWorktree("feat/check", "a" * 40, "main", "b" * 40, prepare, verify)
+        try:
+            job = await tasks.start("check", "cancel-post", worktree=context)
+            await asyncio.wait_for(verifying.wait(), timeout=5)
+            result = await tasks.cancel(job["job_id"])
+            assert result["state"] == "cancelled" and result["termination_confirmed"] is True
+            details = result.get("worktree")
+            assert details is not None and details["verified"] is False
+        finally:
+            release.set()
+            await tasks.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("close_during_prepare", [False, True])
+def test_async_worktree_preparation_retains_single_slot_and_honors_close(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, close_during_prepare: bool
+) -> None:
+    monkeypatch.setattr(task_runtime, "SHORT_WAIT_SECONDS", 0.02)
+    tasks = manager(tmp_path, "import time; time.sleep(20)")
+
+    async def scenario() -> None:
+        selected = tmp_path / "target"
+        selected.mkdir()
+        preparing, release = asyncio.Event(), asyncio.Event()
+
+        async def prepare() -> Policy:
+            preparing.set()
+            await release.wait()
+            return Policy(selected, (selected,), ("task.check",))
+
+        async def verify() -> None:
+            pass
+
+        context = TaskWorktree("feat/check", "a" * 40, "main", "b" * 40, prepare, verify)
+        submission = asyncio.create_task(tasks.start("check", "preflight", worktree=context))
+        try:
+            await asyncio.wait_for(preparing.wait(), timeout=5)
+            if close_during_prepare:
+                await tasks.close()
+                release.set()
+                with pytest.raises(ToolError, match="closed"):
+                    await submission
+            else:
+                other = asyncio.create_task(tasks.start("check", "concurrent"))
+                await asyncio.sleep(0.02)
+                assert not other.done()
+                release.set()
+                job = await submission
+                with pytest.raises(ToolError, match="active"):
+                    await other
+                await tasks.cancel(job["job_id"])
+        finally:
+            release.set()
+            await tasks.close()
+            if not submission.done():
+                await asyncio.gather(submission, return_exceptions=True)
 
     asyncio.run(scenario())

@@ -20,7 +20,9 @@ TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
     git.GET_PROJECT_STATUS,
     git.GET_PROJECT_DIFF,
     git.GET_PROJECT_REF,
+    git.INSPECT_PROJECT_COMMIT_HISTORY,
     git.COMPARE_PROJECT_REFS,
+    git.CONSOLIDATE_PROJECT_HISTORY,
     git.STAGE_PROJECT_PATHS,
     git.UNSTAGE_PROJECT_PATHS,
     git.COMMIT_PROJECT_CHANGES,
@@ -31,6 +33,19 @@ TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
     git.GET_PROJECT_PICK_STATE,
     git.CHERRY_PICK_PROJECT_COMMIT,
     git.RESTORE_PROJECT_PICK_PATHS,
+    git.DIAGNOSE_PROJECT_REMOTE_AUTH,
+    git.INSPECT_PROJECT_REMOTE,
+    git.FETCH_PROJECT_REMOTE_MAIN,
+    git.PUSH_PROJECT_FEATURE,
+    git.CREATE_PROJECT_DRAFT_PR,
+    git.PREPARE_PROJECT_WORKTREE,
+    git.INSPECT_PROJECT_WORKTREE,
+    git.INSPECT_PROJECT_BRANCH_REMOTE,
+    git.PUSH_PROJECT_BRANCH,
+    git.CREATE_PROJECT_BRANCH_DRAFT_PR,
+    git.PREPARE_PROJECT_WORKTREE_ASSESSMENT,
+    git.COMMIT_PROJECT_WORKTREE_ASSESSMENT,
+    git.START_PROJECT_WORKTREE_TASK,
     release.GET_RELEASE_PLAN,
     release.PREPARE_PROJECT_RELEASE,
     get_tool_readiness.GET_TOOL_READINESS,
@@ -103,7 +118,9 @@ def create_server(policy: Policy) -> FastMCP:
             "Branch creation/switching requires the observed HEAD and branch and may carry dirty edits. "
             "Use get_release_plan to inspect committed impact and recommendation; prepare_project_release requires "
             "matching HEAD, digest, version and clean release branch. It never commits or publishes. "
-            "No fetch, pull, push or stash; merge_project_branch requires assessed squash for opted-in workflows "
+            "Scoped remote inspection, main fetch, feature push and Draft PR require gh auth and separate permissions. "
+            "Remote tools never force-push, update main or bypass gates. No pull or stash; "
+            "merge_project_branch requires assessed squash for opted-in workflows "
             "and otherwise guarded main fast-forward."
         ),
     )

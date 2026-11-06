@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "격리 Worktree의 명시적 평가 작성과 Digest 기반 커밋 도구를 추가한다."
+reason = "기존 checkout과 공개 호출 계약을 유지하며 과거 기능 브랜치에 검토한 평가 하나를 기록·커밋하는 선택적 MCP 기능을 추가한다."
+contract = "MCP Git managed worktree assessment"
+assessed_by = "agent"
+migration = ""
+supersedes = []

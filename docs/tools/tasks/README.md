@@ -39,6 +39,19 @@ test 작업은 대상과 전체 실행 중 하나를 명시한다.
 unit의 `-n 0`, integration의 `-n 4` 등 실행 옵션은 recipe가 소유한다. 대상 프로젝트의 `level="e2e"`는
 그 프로젝트의 runner 분류이며 실제 ChatGPT에서 local-dev-mcp를 사용했다는 증거가 아니다.
 
+## 과거 버전의 검사 recipe
+
+원격 기준에서 기능별 이력을 게시할 때에는 대상 SHA의 검사 문서와 recipe를 대조한다.
+이 저장소의 `historical_lint`·`historical_format_check`는 루트 `conftest.py`가 없던 버전의 `src tests`를 검사한다.
+`historical_tests`는 Unit·Integration marker 도입 이전의 전체 일반 회귀를 `not packaging`으로 선택한다.
+같은 `typecheck` recipe를 함께 사용하며 설치·배포물 검증은 이 일반 회귀에 포함하지 않는다.
+
+`historical_tests`의 `level=integration`은 실행 프로필 분류다. 그 결과를 현재 Unit·Integration 각각의 통과 수로
+나눠 보고하지 않고 과거 버전의 일반 회귀로 보고한다. 현재 브랜치에는 해당 브랜치가 정한 검사 recipe를 사용한다.
+프로필은 명시적으로 선택하며 검사 실패·테스트 미수집을 이유로 자동 변경하지 않는다.
+특히 pytest 종료 코드 5와 전부 deselected인 결과는 통과가 아니다.
+새 recipe 설정은 서버 시작 시 반영되므로 수정 후 연결을 재시작한다.
+
 ## 제출·조회·취소와 복구
 
 새 실행에는 새 `request_id`를 사용한다. 허용 문자는 ASCII 영숫자·점·밑줄·콜론·하이픈이며 최대 128자다.
@@ -55,7 +68,9 @@ unit의 `-n 0`, integration의 `-n 4` 등 실행 옵션은 recipe가 소유한�
 이 조회는 작업을 다시 실행하지 않고 이미 수집·마스킹한 출력만 반환한다.
 클라이언트 호출이 중단됐다는 이유로 제출된 job의 종료나 무변경을 추정하지 않는다. 조회하거나 명시적으로 취소한다.
 
-workspace·서버당 한 작업만 실행하며 대기열은 없다. 다른 작업이 실행 중이면 새 제출을 거부한다.
+원본과 관리 Worktree를 합쳐 서버당 한 작업만 실행하며 대기열은 없다. 다른 작업이 실행 중이면 새 제출을 거부한다.
+비동기 제출 준비는 직렬로 검사하고 서버 종료가 시작되면 새 프로세스를 제출하지 않는다.
+관리 Worktree에서의 recipe 선택·ref 입력·추가 결과는 [Worktree 검사 계약](../git/worktrees.md#worktree-검사-실행)을 따른다.
 작업 중에는 입력 파일 편집을 피하고 종료 후 현재 상태를 읽는다. IDE·외부 도구와 공유하는 OS 배타 잠금은 제공하지 않는다.
 직접 종료를 확인하지 못한 `cleanup_unconfirmed` 작업도 새 실행을 차단하며 로컬 상태 확인과 재시작을 안내한다.
 
@@ -69,7 +84,7 @@ ID는 인증된 Chat 대화 구분이 아니며, 다른 서버·workspace로의 
 | state | 의미 |
 | --- | --- |
 | `running` | 실행 중. 조회하거나 취소 요청 |
-| `succeeded` | 직접 프로세스가 exit code 0으로 종료 |
+| `succeeded` | 직접 프로세스가 exit code 0으로 종료; Worktree job은 추가 Git 검증까지 성공 |
 | `failed` | 비정상 종료 또는 실행 실패. 진단과 현재 파일 확인 |
 | `timed_out` | 시간 예산 소진, 직접 종료 확인 |
 | `cancelled` | 취소 처리, 직접 종료 확인 |
@@ -78,7 +93,7 @@ ID는 인증된 Chat 대화 구분이 아니며, 다른 서버·workspace로의 
 
 결과는 `job_id`, `request_id`, `task`, `kind`, `level`, `targets`, `all_tests`, `state`, `exit_code`,
 `termination_confirmed`, UTC `started_at`·`finished_at`, `stdout`, `stderr`, `output_included`, `output_complete`, `output_reason`,
-`may_have_changed_files`, `next_action`을 제공한다. 종료 코드는 CLI 결과이며 수집·통과 테스트 수를 추론하지 않는다.
+`may_have_changed_files`, `next_action`을 제공한다. 관리 Worktree job은 선택적 `worktree` 맥락을 추가한다. 종료 코드는 CLI 결과이며 수집·통과 테스트 수를 추론하지 않는다.
 진단이 보류되거나 선택한 범위가 제한된 경우를 포함해, exit code 0만으로 전체 회귀 성공을 주장하지 않는다.
 
 `output_included=false`이면 이번 응답의 stdout·stderr는 빈 문자열이다. 출력 수집을 중단했다거나 실제 출력이

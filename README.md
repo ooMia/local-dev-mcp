@@ -3,7 +3,7 @@
 ChatGPT chat 세션에서 지정한 로컬 개발 workspace를 다루기 위한 MCP 실행 프로젝트다.
 현재 파일 목록·경로/내용 검색·텍스트 읽기·관측 구간 수정·파일 생성·단일 파일 삭제,
 등록된 lint·format·test 실행과 로컬 Git 작업을 제공한다.
-임의 명령 실행·원격 Git 작업·OS 격리는 제공하지 않는다.
+임의 명령 실행·OS 격리는 제공하지 않는다. GitHub 원격 조회·기능 브랜치 게시·Draft PR 생성은 별도 권한과 인증된 호스트 `gh`가 있을 때만 제공한다.
 
 ## 준비와 실행
 
@@ -67,6 +67,8 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `get_main_head` | 로컬 main HEAD commit SHA |
 | `get_project_ref` | 로컬 브랜치·전체 SHA를 해석하여 비교 기준 확인 |
 | `compare_project_refs` | 로컬 Git ref 사이 커밋·경로·patch 비교 |
+| `inspect_project_commit_history` | 확인된 두 Commit 사이의 SHA·부모·제목 이력 조회(최대 64개) |
+| `consolidate_project_history` | 검토한 기능 경계의 원본 tree를 보존한 로컬 후보 이력 생성 |
 | `get_project_status` | branch/HEAD와 경로별 index·working-tree 상태 |
 | `get_project_diff` | working tree 또는 staged patch |
 | `stage_project_paths` | 명시한 상대 경로의 추가·수정·삭제 stage |
@@ -79,6 +81,19 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `cherry_pick_project_commit` | 선택한 로컬 커밋을 현재 브랜치에 적용 |
 | `restore_project_pick_paths` | cherry-pick 관련 명시적 경로 복원 |
 | `merge_project_branch` | 평가 기록 기반 squash 또는 미설정 workspace의 fast-forward 통합 |
+| `diagnose_project_remote_auth` | 인증 설정·GitHub 로그인·private 저장소 접근을 비밀값 없이 진단 |
+| `inspect_project_remote` | private GitHub origin 및 로컬·원격 `main`과 기능 Ref 상태 조회 |
+| `fetch_project_remote_main` | 관측 SHA가 일치할 때 `origin/main`만 비강제 Fetch |
+| `push_project_feature` | 미공개 main 혼입을 거부하고 기능 브랜치만 비강제 Push |
+| `create_project_draft_pr` | 신규 `.changes`와 커밋을 기반으로 중복 없이 Draft PR 생성 |
+| `prepare_project_worktree` | 원본 checkout을 전환하지 않고 기존 topic 브랜치를 격리된 Worktree에 준비 |
+| `inspect_project_worktree` | 관리 Worktree의 absent·partial·ready, SHA와 clean 상태 조회 |
+| `start_project_worktree_task` | 지정 Worktree에서 등록 검사 실행; 기존 job 조회·취소와 실행 슬롯 공유 |
+| `prepare_project_worktree_assessment` | 명시적으로 검토한 평가 TOML을 관리 Worktree에 새로 작성하고 Digest 반환 |
+| `commit_project_worktree_assessment` | Digest가 일치하는 새 평가 하나만 검증·Stage·서명 설정에 따라 Commit |
+| `inspect_project_branch_remote` | 준비된 지정 브랜치를 기준으로 원격 refs·기준선 관계 조회 |
+| `push_project_branch` | 원본을 보존하며 관리 Worktree의 관측 SHA를 동일 원격 기능 ref에 비강제 Push |
+| `create_project_branch_draft_pr` | 현재 템플릿과 대상 커밋·평가로 지정 브랜치 Draft PR 게시 |
 | `diagnose_documents` | 등록된 문서의 진단·관계 승인 대기 상태 확인 |
 
 파일 탐색·읽기·변경은 Git·identity 없이 사용할 수 있다. 보호 파일과 symlink는 읽지 않는다.

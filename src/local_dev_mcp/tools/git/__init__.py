@@ -4,7 +4,9 @@ from ._environment import command_environment
 from ._prepare import PreparedGitCommit, commit_configuration, git_configuration
 from .facades.cherry_pick_project_commit import CHERRY_PICK_PROJECT_COMMIT
 from .facades.commit_project_changes import COMMIT_PROJECT_CHANGES
+from .facades.commit_project_worktree_assessment import COMMIT_PROJECT_WORKTREE_ASSESSMENT
 from .facades.compare_project_refs import COMPARE_PROJECT_REFS
+from .facades.consolidate_project_history import CONSOLIDATE_PROJECT_HISTORY
 from .facades.create_project_branch import CREATE_PROJECT_BRANCH
 from .facades.create_project_branch_from_ref import CREATE_PROJECT_BRANCH_FROM_REF
 from .facades.get_main_head import GET_MAIN_HEAD
@@ -13,13 +15,39 @@ from .facades.get_project_head import GET_PROJECT_HEAD
 from .facades.get_project_pick_state import GET_PROJECT_PICK_STATE
 from .facades.get_project_ref import GET_PROJECT_REF
 from .facades.get_project_status import GET_PROJECT_STATUS
+from .facades.inspect_project_commit_history import INSPECT_PROJECT_COMMIT_HISTORY
+from .facades.inspect_project_worktree import INSPECT_PROJECT_WORKTREE
 from .facades.merge_project_branch import MERGE_PROJECT_BRANCH
+from .facades.prepare_project_worktree import PREPARE_PROJECT_WORKTREE
+from .facades.prepare_project_worktree_assessment import PREPARE_PROJECT_WORKTREE_ASSESSMENT
+from .facades.publish_project_branch import (
+    CREATE_PROJECT_BRANCH_DRAFT_PR,
+    INSPECT_PROJECT_BRANCH_REMOTE,
+    PUSH_PROJECT_BRANCH,
+)
+from .facades.remote_pr import (
+    CREATE_PROJECT_DRAFT_PR,
+    DIAGNOSE_PROJECT_REMOTE_AUTH,
+    FETCH_PROJECT_REMOTE_MAIN,
+    INSPECT_PROJECT_REMOTE,
+    PUSH_PROJECT_FEATURE,
+)
 from .facades.restore_project_pick_paths import RESTORE_PROJECT_PICK_PATHS
 from .facades.stage_project_paths import STAGE_PROJECT_PATHS
+from .facades.start_project_worktree_task import START_PROJECT_WORKTREE_TASK
 from .facades.switch_project_branch import SWITCH_PROJECT_BRANCH
 from .facades.unstage_project_paths import UNSTAGE_PROJECT_PATHS
 
 __all__ = [
+    "CONSOLIDATE_PROJECT_HISTORY",
+    "START_PROJECT_WORKTREE_TASK",
+    "PREPARE_PROJECT_WORKTREE_ASSESSMENT",
+    "COMMIT_PROJECT_WORKTREE_ASSESSMENT",
+    "PREPARE_PROJECT_WORKTREE",
+    "INSPECT_PROJECT_WORKTREE",
+    "INSPECT_PROJECT_BRANCH_REMOTE",
+    "PUSH_PROJECT_BRANCH",
+    "CREATE_PROJECT_BRANCH_DRAFT_PR",
     "CHERRY_PICK_PROJECT_COMMIT",
     "COMMIT_PROJECT_CHANGES",
     "COMPARE_PROJECT_REFS",
@@ -29,10 +57,16 @@ __all__ = [
     "GET_PROJECT_DIFF",
     "GET_PROJECT_HEAD",
     "GET_PROJECT_REF",
+    "INSPECT_PROJECT_COMMIT_HISTORY",
     "GET_PROJECT_PICK_STATE",
     "GET_PROJECT_STATUS",
     "MERGE_PROJECT_BRANCH",
     "RESTORE_PROJECT_PICK_PATHS",
+    "INSPECT_PROJECT_REMOTE",
+    "FETCH_PROJECT_REMOTE_MAIN",
+    "PUSH_PROJECT_FEATURE",
+    "CREATE_PROJECT_DRAFT_PR",
+    "DIAGNOSE_PROJECT_REMOTE_AUTH",
     "STAGE_PROJECT_PATHS",
     "SWITCH_PROJECT_BRANCH",
     "UNSTAGE_PROJECT_PATHS",

@@ -4,6 +4,8 @@
 이 개발용 CLI는 MCP 서버·dotenv를 시작하지 않는다. Git·uv·인증된 gh와 기존 개발환경을 사용한다.
 새 Python dependency, 보존 태그, 별도 GitHub App 등록은 필요하지 않다.
 
+PR 본문을 생성·갱신하는 별도 계약은 [PR Body Generator](pr-body.md)를 참고한다.
+
 ## 설치와 첫 활성화
 
 소스를 editable 설치해 사용하는 경우, 먼저 workflow 구현을 main에 반영한 뒤 선택한 저장소 root에서 실행한다.

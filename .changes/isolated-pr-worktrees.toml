@@ -1,0 +1,4 @@
+impact = "minor"
+summary = "격리형 Worktree 준비와 지정 브랜치 원격 게시 도구를 추가한다."
+reason = "원본 checkout을 전환하지 않고 과거 기능 브랜치를 검증하여 게시할 수 있도록 준비 상태 조회와 기존 원격 검사 재사용 경로를 제공한다."
+migration = "새 도구와 git.worktree.write 권한은 MCP 서버 재시작 후 적용된다. 관리 경로 .lab/worktrees는 Git에서 ignore되어야 한다."

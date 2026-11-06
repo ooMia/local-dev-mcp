@@ -1,6 +1,6 @@
 """Public task preparation and process outcomes, without test-count inference."""
 
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 from ...settings import JobKind, TestLevel
 
@@ -19,6 +19,16 @@ class TaskInfo(TypedDict):
     next_action: str
     timeout_seconds: int
     default_targets: list[str]
+
+
+class WorktreeTaskResult(TypedDict):
+    branch: str
+    head: str
+    original_branch: str
+    original_head: str
+    path: str
+    verified: bool | None
+    verification_error: str | None
 
 
 class TaskResult(TypedDict):
@@ -41,3 +51,4 @@ class TaskResult(TypedDict):
     all_tests: bool
     next_action: str
     may_have_changed_files: bool
+    worktree: NotRequired[WorktreeTaskResult]

@@ -352,6 +352,20 @@ def main(argv: list[str] | None = None) -> int:
     hooks.add_argument("arguments", nargs="*")
     pr = commands.add_parser("merge-pr")
     pr.add_argument("number", type=int)
+    body = commands.add_parser("pr-body")
+    operations = body.add_subparsers(dest="pr_body_command", required=True)
+    collector = operations.add_parser("collect")
+    collector.add_argument("--base", default="origin/main")
+    collector.add_argument("--head", default="HEAD")
+    renderer = operations.add_parser("render")
+    renderer.add_argument("--input", required=True, type=Path)
+    renderer.add_argument("--context", type=Path)
+    renderer.add_argument("--number", type=int)
+    synchronizer = operations.add_parser("sync")
+    synchronizer.add_argument("--pr", required=True, type=int)
+    synchronizer.add_argument("--base", default="main")
+    synchronizer.add_argument("--base-ref", default="origin/main")
+    synchronizer.add_argument("--accept-new-head", action="store_true")
     args = parser.parse_args(argv)
     try:
         root = args.workspace.resolve(strict=True)
@@ -383,6 +397,29 @@ def main(argv: list[str] | None = None) -> int:
                 if args.number < 1:
                     raise ValueError("A positive PR number is required.")
                 merge_pr(root, args.number)
+            case "pr-body":
+                from . import workflow_pr
+
+                match args.pr_body_command:
+                    case "collect":
+                        snapshot = workflow_pr.collect(root, run, args.base, args.head)
+                        print(json.dumps(snapshot, indent=2, ensure_ascii=False))
+                    case "render":
+                        snapshot = json.loads(args.input.read_text(encoding="utf-8"))
+                        context = json.loads(args.context.read_text(encoding="utf-8")) if args.context else None
+                        print(workflow_pr.render(root, snapshot, context, args.number), end="")
+                    case "sync":
+                        workflow_pr.sync(
+                            root,
+                            run,
+                            args.pr,
+                            args.base,
+                            base_ref=args.base_ref,
+                            accept_new_head=args.accept_new_head,
+                        )
+                        print(f"PR #{args.pr} body synchronized.")
+                    case _:
+                        raise ValueError("Unknown PR body command.")
             case _:
                 raise ValueError("Unknown workflow command.")
     except subprocess.CalledProcessError:

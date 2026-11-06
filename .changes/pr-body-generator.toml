@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "Generate concise PR bodies from Git history and change assessments"
+reason = "Adds a developer CLI for deterministic PR metadata, preserved reviewed context and guarded PR body synchronization without changing the existing release calculation."
+contract = "Developer workflow"
+assessed_by = "agent"
+migration = ""
+supersedes = []

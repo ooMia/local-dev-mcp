@@ -46,7 +46,10 @@ def fake_tunnel(bindir: Path, launcher: Path, marker: Path) -> dict[str, str]:
         "child = shlex.split(command.removeprefix('command='))\n"
         "observed = {'cwd': str(Path.cwd().resolve()), 'argv': child,\n"
         "            'tunnel_id': os.environ['CONTROL_PLANE_TUNNEL_ID'],\n"
-        "            'tunnel_key': os.environ['CONTROL_PLANE_API_KEY']}\n"
+        "            'tunnel_key': os.environ['CONTROL_PLANE_API_KEY'],\n"
+        "            'home': os.environ.get('HOME'),\n"
+        "            'gh_config_dir': os.environ.get('GH_CONFIG_DIR'),\n"
+        "            'gh_token_forwarded': 'GH_TOKEN' in os.environ}\n"
         f"completed = subprocess.run(child, cwd={str(launcher)!r}, env=dict(os.environ),\n"
         "                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15)\n"
         "observed['child_exit_code'] = completed.returncode\n"
@@ -91,6 +94,9 @@ def test_connect_pins_target_for_preflight_tunnel_and_child_even_if_child_cwd_ch
     original = {name: (launcher / name).read_bytes() for name in ("config.toml", ".env")}
     marker = target / "tunnel-observation.json"
     environment = fake_tunnel(tmp_path / "bin", launcher, marker)
+    environment["HOME"] = str(tmp_path / "home")
+    environment["GH_CONFIG_DIR"] = str(tmp_path / "gh-config")
+    environment["GH_TOKEN"] = "ambient-token-must-not-reach-tunnel"
     value = os.path.relpath(target, launcher) if relative else str(target)
 
     result = connect(launcher, value, environment, allow_policy_edits=allow_policy_edits)
@@ -112,6 +118,9 @@ def test_connect_pins_target_for_preflight_tunnel_and_child_even_if_child_cwd_ch
     ]
     assert observed["tunnel_id"] == TUNNEL_ID
     assert observed["tunnel_key"] == TUNNEL_KEY
+    assert observed["home"] == environment["HOME"]
+    assert observed["gh_config_dir"] == environment["GH_CONFIG_DIR"]
+    assert observed["gh_token_forwarded"] is True
     assert observed["child_exit_code"] == ExitCode.SUCCESS, observed["child_stderr"]
     assert "Checking local MCP server startup configuration" in result.stderr
     assert "Tunnel client started" in result.stderr

@@ -104,6 +104,17 @@ Git/GPG 비동기 작업은 기존 shellous를 사용하고 새로운 프로세�
 | `run`의 서명 true | gpg 허용, 키 fingerprint, 명시 또는 탐색한 홈의 유효성, GPG·wrapper 실행 경로 |
 | `connect` | tunnel-client 허용, Tunnel 두 값, client 실행 경로·환경. 시작 전 별도 프로세스로 run의 정적 설정도 검사 |
 
+`connect`는 기본 프로세스 환경 및 Tunnel 전용 자격증명 외에 호스트의 GitHub CLI 인증
+**설정 위치**(`HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`,
+`XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `GH_CONFIG_DIR`)를 자식에 전달한다.
+같은 셸에서 명시적으로 주입한 `GH_TOKEN`도 Tunnel/MCP/gh 프로세스에 전달된다.
+보호된 workspace `.env`에 `GH_TOKEN`이 명시되면 `.env` 값이 우선한다.
+`GITHUB_TOKEN` 및 그 밖의 주변 인증 토큰은 전파하지 않는다. `GH_TOKEN`은 저장된 `gh` 로그인보다 우선하며
+정적 환경 토큰은 자동 갱신되지 않는다. 이 방식은 GitHub CLI API 인증을 제공하지만,
+HTTPS/SSH `git push`의 자격증명 설정까지 보증하지 않는다.
+기존 `gh` 로그인 저장소를 읽을 권한은 같은 OS 계정의 호스트 정책에 따른다.
+인증 방법이 어느 쪽이든 GitHub 원격에 실제 접근할 수 있는지는 별도로 검증한다.
+
 공통 정책 파일의 문법·스키마 오류, workspace 접근 거부, 필수 .env를 읽을 수 없는 경우는 시작 실패다.
 Git 미설치·미허용은 Git 도구만, identity·서명 설정의 알려진 누락·무효·준비 오류는 commit만 사용 불가로 만든다.
 예상하지 못한 내부 예외는 준비 부족으로 숨기지 않고 시작 실패로 처리한다.
