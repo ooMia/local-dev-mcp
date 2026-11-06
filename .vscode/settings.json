@@ -3,10 +3,15 @@
   "editor.formatOnSave": true,
   "editor.formatOnSaveMode": "file",
   "editor.defaultFormatter": "charliermarsh.ruff",
-  "python.analysis.typeCheckingMode": "strict",
   "python.testing.pytestArgs": [
     "tests"
   ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
+  "python.analysis.autoImportCompletions": true,
+  "[python]": {
+    "editor.codeActionsOnSave": {
+      "source.organizeImports.ruff": "always"
+    }
+  },
 }

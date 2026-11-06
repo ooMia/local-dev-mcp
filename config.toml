@@ -1,0 +1,53 @@
+# 선택 workspace의 파일·명령 정책. 경로 선택·정책 파일 편집 모드는 CLI 옵션을 따른다.
+# 현재 Git 도구는 호스트에서 실행하며 OS sandbox를 제공하지 않는다.
+
+[filesystem]
+# 설정 위치 기준의 허용 경로와 하위 경로. 현재 디렉터리만 도구의 조회 대상이다.
+# 예: allowed_paths = ["."]
+allowed_paths = ["."]
+
+[system]
+# 시스템 명령과 등록된 작업의 정확한 논리 권한 이름이다.
+# Git 도구에는 git이, 서명 true인 commit에는 gpg가, connect에는 tunnel-client가 필요하다.
+# Tunnel이 실행하는 sys.executable은 이 목록에서 별도 검사하지 않는다.
+allowed_commands = ["git", "tunnel-client", "gpg", "uv.run.ruff.lint", "uv.run.ruff.format_check", "uv.run.ruff.format", "uv.run.pyright", "uv.run.pytest.unit", "uv.run.pytest.integration"]
+
+# 이 목록은 외부 프로그램의 모든 간접 실행이나 파일 접근을 제한하지 않는다.
+# 범용 명령 실행과 전체 자식 트리 격리는 제공하지 않는다.
+
+# 명시적으로 등록한 검사 명령만 실행한다. 설정 변경 후 MCP 서버를 재시작해야 한다.
+[jobs.lint]
+kind = "lint"
+permission = "uv.run.ruff.lint"
+argv = ["uv", "run", "--locked", "ruff", "check", "--quiet", "--output-format", "concise", "src", "tests", "conftest.py"]
+
+[jobs.format_check]
+kind = "lint"
+permission = "uv.run.ruff.format_check"
+argv = ["uv", "run", "--locked", "ruff", "format", "--check", "--quiet", "src", "tests", "conftest.py"]
+
+[jobs.format]
+kind = "format"
+permission = "uv.run.ruff.format"
+argv = ["uv", "run", "--locked", "ruff", "format", "--quiet", "src", "tests", "conftest.py"]
+
+[jobs.typecheck]
+kind = "lint"
+permission = "uv.run.pyright"
+argv = ["uv", "run", "--locked", "pyright"]
+
+[jobs.unit]
+kind = "test"
+level = "unit"
+permission = "uv.run.pytest.unit"
+argv = ["uv", "run", "--locked", "pytest", "--verbosity=-1", "--tb=short", "--no-header", "-rfE", "-n", "0", "-m", "unit"]
+default_targets = ["tests"]
+timeout_seconds = 600
+
+[jobs.integration]
+kind = "test"
+level = "integration"
+permission = "uv.run.pytest.integration"
+argv = ["uv", "run", "--locked", "pytest", "--verbosity=-1", "--tb=short", "--no-header", "-rfE", "-n", "4", "-m", "integration and not packaging"]
+default_targets = ["tests"]
+timeout_seconds = 900

@@ -1,11 +1,3 @@
-"""
-Module Entrypoint for VSCode debugpy execution.
+from .app.cli import main
 
-aliases:
-    - ctrl + F5 (in VSCode)
-    - uv run python -m local_dev_mcp
-"""
-
-from .cli import main
-
-main()
+raise SystemExit(main())
