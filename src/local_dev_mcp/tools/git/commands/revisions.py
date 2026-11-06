@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from fastmcp.exceptions import ToolError
 
 from .._execution import GitExecution, text_output
+from .._names import branch_name_allowed
 
-_BRANCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*(?:/[A-Za-z0-9][A-Za-z0-9-]*)*")
 _SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 
 
@@ -21,7 +21,7 @@ class ChangedPath:
 
 def checked_revision(value: str) -> str:
     """Accept only local branch names or full object IDs; never revision expressions."""
-    if len(value) > 128 or not (_BRANCH.fullmatch(value) or _SHA.fullmatch(value)):
+    if not (branch_name_allowed(value) or _SHA.fullmatch(value)):
         raise ToolError("Use a local branch name or full commit SHA without revision operators.")
     if _SHA.fullmatch(value):
         return value

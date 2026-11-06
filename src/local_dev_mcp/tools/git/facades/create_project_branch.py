@@ -1,6 +1,5 @@
 """Create and switch to a new local branch without discarding existing edits."""
 
-import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Final, TypedDict
 
@@ -13,6 +12,7 @@ from .._execution import GitExecution
 from .._prepare import git_readiness
 from ..commands import status
 from . import _repository
+from ._refs import check_branch_name
 from ._repository import observed_at
 
 if TYPE_CHECKING:
@@ -52,13 +52,7 @@ class CreateProjectBranchTool:
     settings: ServerSettings
 
     async def execute(self, new_branch: BranchName, expected_branch: str, expected_head: ExpectedHead) -> BranchResult:
-        if (
-            len(new_branch) > 128
-            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*(?:/[A-Za-z0-9][A-Za-z0-9-]*)*", new_branch) is None
-        ):
-            raise ToolError(
-                "Branch name must contain only ASCII letters, digits, hyphens and slash-separated components."
-            )
+        check_branch_name(new_branch)
         if not expected_branch or "\0" in expected_branch:
             raise ToolError("Supply the currently observed branch name.")
 

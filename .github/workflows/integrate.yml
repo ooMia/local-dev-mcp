@@ -1,0 +1,35 @@
+name: Integrate feature PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Ready feature or release PR number
+        type: number
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integrate-main
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Squash observed PR head with its source reference
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: uv run --locked python -m local_dev_mcp.tools.workflow merge-pr "$PR_NUMBER"

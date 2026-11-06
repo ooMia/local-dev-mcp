@@ -1,6 +1,6 @@
 # 로컬 Git 작업 계약
 
-현재 Git 도구는 HEAD 조회와 status → diff → stage/unstage → commit의 로컬 흐름, 명시적인 새 로컬 브랜치 생성·전환, 사전 검증된 local main fast-forward 병합을 제공한다.
+현재 Git 도구는 HEAD 조회와 status → diff → stage/unstage → commit의 로컬 흐름, 명시적인 새 로컬 브랜치 생성·전환, 사전 검증된 local main 통합을 제공한다.
 
 도구 추가·공통 호출 기준은 [개발 규약](../../conventions.md#도구-정의와-호출-경계),
 module의 연결 원리는 [실행 흐름](../../design.md)을 참조한다.
@@ -27,7 +27,7 @@ identity·서명 준비 오류는 commit에 한정한다. 다른 기능이나 �
 | `unstage_project_paths` | `paths` | 작업 파일을 유지하면서 선택 범위 staging 해제 |
 | `commit_project_changes` | `message` | 현재 index 전체를 commit |
 | `create_project_branch` | `new_branch`, `expected_branch`, `expected_head` | 현재 HEAD에서 새 로컬 브랜치를 만들고 전환; 미커밋 변경 유지 |
-| `merge_project_branch` | `expected_source_branch`, `expected_source_head`, `expected_main_head` | Clean source에서 로컬 main으로만 `--ff-only` 병합 |
+| `merge_project_branch` | `expected_source_branch`, `expected_source_head`, `expected_main_head`, `message=null` | 설정된 workflow는 평가 기록을 검증한 squash; 미설정은 `--ff-only` |
 | `create_project_branch_from_ref` | `new_branch`, `base_ref`, `expected_base_head`, `expected_branch`, `expected_head` | 확인된 Ref에서 checkout 없이 새 브랜치 생성 |
 | `switch_project_branch` | `target_branch`, `expected_target_head`, `expected_branch`, `expected_head` | 추적 변경이 없는 상태에서 기존 로컬 브랜치 전환 |
 | `get_project_pick_state` | 없음 | HEAD·Index SHA-256 지문·변경 경로 관측 |
@@ -138,7 +138,7 @@ unmerged index가 있으면 쓰기를 거부한다. linked worktree의 상태도
 
 `create_project_branch`는 기존 로컬 브랜치에서 현재 HEAD를 기준으로 새 브랜치를 만들고 즉시 전환한다.
 `expected_branch`와 전체 `expected_head`는 호출 직전에 조회한 정확한 값이어야 하며, 불일치하면 쓰기를 시작하지 않는다.
-브랜치 이름은 영문·숫자·하이픈 및 슬래시로 구분된 이름만 허용한다. 기존 브랜치 이름과 충돌하면 거부한다.
+브랜치 이름은 영문·숫자·하이픈 및 슬래시로 구분된 이름과 `release/<canonical-X.Y.Z>`를 허용한다. 기존 브랜치 이름과 충돌하면 거부한다.
 Index가 stage된 상태, Git integration 작업 중 또는 분리 HEAD에서는 거부한다. 작업 트리의 추적·미추적 변경을
 stash/reset/commit하지 않고 새 브랜치로 함께 가져간다. 전환 후 반환하는 `status_unchanged`는 경로 상태가
 같다는 관측일 뿐 파일 원문까지 독립적으로 보존했음을 증명하지 않는다.
@@ -219,3 +219,27 @@ hooks가 .env를 바꾸어도 현재 서버는 시작 snapshot을 유지한다.
 `signature_verified=false`와 안전한 `signature_error`를 반환한다. HEAD를 관측하지 못한 경우도 검증 불가다.
 Git/GPG 원문 출력·identity·fingerprint는 Chat 결과나 기본 진단에 포함하지 않는다.
 동시 HEAD 변경·hooks의 임의 동작·전체 자식 트리 관리에 대한 기존 한계는 유지한다.
+
+## 평가 기록에 근거한 main 통합
+
+[릴리스 workflow](../release/README.md)를 opt-in한 base/source에서는 일반 병합에 새 호환성 평가 기록이 필요하다.
+과거 기록·상위 설정을 지우거나 변경해 우회할 수 없다. 기록의 실제 의미는 사용자 또는 에이전트가 판단하고,
+도구는 존재·형식·집계와 정확한 SHA를 검사한다. MCP에서 필요한 모든 입력 경로를 내용 조회 전에 승인하며,
+변경 경로 또는 기존 평가 기록이 읽기 범위 밖이면 통합을 거부한다.
+
+기존 세 expected 입력은 그대로 필요하다. 설정된 workspace는 최종 Conventional Commit `message`가 추가로
+필수이며 type/topic 브랜치를 사용한다. 일반 통합에서 version은 그대로 유지한다. 검사가 통과하면 clean source에서
+main으로 전환하고 squash를 stage한 뒤 index tree가 관측한 source와 같은지 확인한다. 기존 identity·서명 의도로
+새 커밋을 만들고 단일 parent·tree·실제 제목·서명·최종 status를 확인한다. source의 서명을 새 squash의 서명으로
+간주하지 않는다. 원래 source branch는 이동하거나 삭제하지 않는다.
+
+workflow가 없는 workspace는 기존 fast-forward·source 서명 검사 계약을 유지한다. source는 두 경우 모두
+현재 main을 포함해야 하며, divergence는 자동 해결하지 않는다. 반환 `mode`는 `squash` 또는 `fast-forward`,
+`assessments`는 이번 통합의 평가 ID이며 `main_head_after`는 실제로 관측·검증한 커밋이다.
+`merged=true`는 후속 검증까지 통과했다는 뜻이다.
+
+hook 거부·제목 변경·서명 검증 실패·취소·관측 실패 뒤에는 main 전환·staging 또는 commit 생성이 이미
+이루어졌을 수 있다. 오류를 무변경으로 해석하지 말고 상태와 HEAD를 조회한다. 자동 rollback·reset·재시도를 하지 않는다.
+
+[프로젝트 hook](../workflow/README.md#로컬-main-검사)을 설치하면 main commit에는 Source-PR이 필요하며,
+전체 품질 검사와 ref guard가 추가로 실행된다. Git 쓰기의 60초 제한과 실패 후 관측 계약은 유지한다.

@@ -1,0 +1,7 @@
+impact = "patch"
+summary = "Activate project-owned Git hooks despite user hook-path settings"
+reason = "Fixes optional workflow installation and adds activation diagnostics without changing existing MCP inputs or release calculations."
+contract = "Developer workflow"
+assessed_by = "agent"
+migration = ""
+supersedes = []

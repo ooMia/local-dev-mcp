@@ -56,6 +56,8 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `replace_workspace_file` | 읽기 참조가 가리키는 구간 전체를 새 문자열로 교체 |
 | `create_workspace_file` | 기존 파일을 덮어쓰지 않고 UTF-8 파일 생성; 부모 생성은 명시적으로 선택 |
 | `delete_workspace_file` | 읽기 참조와 전체 버전을 확인한 단일 파일 삭제 |
+| `get_release_plan` | 커밋된 변경 영향·권장 버전·SHA/Digest·현재 상태 조회 |
+| `prepare_project_release` | 관측한 릴리스 버전·Digest와 일치할 때 버전·Lock·Changelog·Receipt 갱신 |
 | `get_tool_readiness` | 시작 snapshot의 도구별 준비 여부·안전한 수정 안내 |
 | `list_project_tasks` | 등록된 lint·format·test recipe와 각각의 준비 여부 |
 | `start_project_task` | 등록한 작업을 시작하고 짧은 결과 또는 실행 ID 반환 |
@@ -76,7 +78,7 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `get_project_pick_state` | cherry-pick 진행 상태 확인 |
 | `cherry_pick_project_commit` | 선택한 로컬 커밋을 현재 브랜치에 적용 |
 | `restore_project_pick_paths` | cherry-pick 관련 명시적 경로 복원 |
-| `merge_project_branch` | 검증된 로컬 브랜치를 main으로 fast-forward 병합 |
+| `merge_project_branch` | 평가 기록 기반 squash 또는 미설정 workspace의 fast-forward 통합 |
 | `diagnose_documents` | 등록된 문서의 진단·관계 승인 대기 상태 확인 |
 
 파일 탐색·읽기·변경은 Git·identity 없이 사용할 수 있다. 보호 파일과 symlink는 읽지 않는다.
@@ -124,3 +126,12 @@ format 뒤에는 파일을 다시 읽어 새 `read_ref`를 사용한다. 새 파
 - [테스트 정책 근거](docs/research/testing-policy-research.md): 검증 계층·소유권 배치·의존 실행·품질 판단의 조사 근거.
 - [CLI 작업 정책 근거](docs/research/cli-task-policy-research.md): 명령 권한·공통 환경·출력 보호의 조사 근거와 한계.
 - [ChatGPT 사용 확인](tests/e2e/README.md): 외부 클라이언트에서 수행하는 선택적 수용 검증.
+
+## 개발 통합과 릴리스
+
+Chat에서 `get_release_plan`으로 현재 커밋의 호환성 평가와 `next_version`을 확인한다. `main`이 Clean이면 `create_project_branch`로 정확한 HEAD에서 `release/<next_version>`을 만들고, `prepare_project_release(expected_head, expected_plan, expected_version)`으로 버전·Lock·릴리스 기록을 준비한다. 쓰기 준비에는 `config.toml`의 `uv.release` 명시 허용이 필요하다. 변경된 파일을 검토·검증한 다음 기존 Git 도구로 stage·commit·main squash 통합한다. Prepare는 commit·tag·push·publish를 하지 않으며 중간 실패 시 파일이 일부 변경됐을 수 있으므로 status를 먼저 확인한다. 자세한 절차는 [릴리스 MCP 흐름](docs/tools/release/README.md#chat-mcp-릴리스-흐름)을 따른다.
+
+작업 종류 중심 브랜치·평가 기록·squash·누적 릴리스는 [개발 규약](docs/conventions.md#git-workflow와-호환성-평가)을 따른다.
+누적 최대 영향과 원인은 `uv run python -m local_dev_mcp.tools.release plan`으로 조회한다.
+설정·평가 형식·prepare·실패 후 조치는 [릴리스 도구 계약](docs/tools/release/README.md)을 참조한다.
+원격 보호 규칙은 저장소 조건이 지원할 때만 추가할 수 있으며 로컬 개발의 필수 준비가 아니다.

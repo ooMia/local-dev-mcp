@@ -63,3 +63,15 @@ async def merge_fast_forward(execution: GitExecution, source_commit: str) -> Non
         write=True,
         capture=False,
     )
+
+
+async def merge_squash(execution: GitExecution, source_commit: str) -> None:
+    await execution.run(
+        "merge",
+        "--squash",
+        "--no-commit",
+        source_commit,
+        operation="Stage assessed squash integration",
+        write=True,
+        capture=False,
+    )

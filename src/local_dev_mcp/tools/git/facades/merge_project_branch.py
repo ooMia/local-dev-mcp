@@ -1,8 +1,8 @@
-"""Safely fast-forward local main from an observed clean source branch."""
+"""Guarded local integration, with mandatory assessed squash for opted-in workspaces."""
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Annotated, Final, TypedDict
+from typing import TYPE_CHECKING, Annotated, Final, Literal, TypedDict
 
 from fastmcp.dependencies import Depends
 from fastmcp.exceptions import ToolError
@@ -10,11 +10,12 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from ....mcp.registry import ToolDefinition, safe_execution
-from .._execution import GitExecution
+from .._execution import GitExecution, text_output
 from .._prepare import PreparedGitCommit, commit_readiness, prepare_git_commit
-from ..commands import merge, show, status
-from . import _repository
+from ..commands import merge, show, status, var
+from . import _release_integration, _repository
 from ._repository import observed_at
+from .commit_project_changes import CommitMessage, CommitProjectChangesTool
 
 if TYPE_CHECKING:
     from ....app.runtime import ServerSettings
@@ -38,6 +39,8 @@ class ProjectMerge(TypedDict):
     main_head_before: str
     main_head_after: str
     signature_verified: bool | None
+    mode: Literal["fast-forward", "squash"]
+    assessments: list[str]
     observed_at: str
 
 
@@ -55,9 +58,10 @@ class MergeProjectBranchTool:
             expected_source_branch: str,
             expected_source_head: ExpectedHead,
             expected_main_head: ExpectedHead,
+            message: CommitMessage | None = None,
             prepared: PreparedGitCommit = Depends(provide),
         ) -> ProjectMerge:
-            return await self.merge(expected_source_branch, expected_source_head, expected_main_head, prepared)
+            return await self.merge(expected_source_branch, expected_source_head, expected_main_head, prepared, message)
 
         return invoke
 
@@ -67,6 +71,7 @@ class MergeProjectBranchTool:
         expected_source_head: str,
         expected_main_head: str,
         prepared: PreparedGitCommit,
+        message: str | None = None,
     ) -> ProjectMerge:
         if not expected_source_branch or expected_source_branch == "main" or "\0" in expected_source_branch:
             raise ToolError("Provide a checked-out source branch other than main.")
@@ -82,9 +87,16 @@ class MergeProjectBranchTool:
         if main_before != expected_main_head:
             raise ToolError("Local main moved. Re-observe its HEAD before attempting a merge.")
         await merge.require_fast_forward(repo, main_before, expected_source_head)
+        checked = await _release_integration.validate(
+            repo, main_before, expected_source_head, expected_source_branch, message
+        )
+        squash = checked["kind"] != "legacy"
+        expected_tree = await _release_integration.tree(repo, expected_source_head) if squash else ""
+        if squash:
+            await var.require_commit_identity(repo)
 
         signature_verified: bool | None = None
-        if prepared.signing is not None:
+        if prepared.signing is not None and not squash:
             try:
                 signature_verified = await show.verify_signature(
                     repo, expected_source_head, prepared.signing.fingerprint
@@ -98,14 +110,37 @@ class MergeProjectBranchTool:
 
         # Git refuses switching to a branch checked out in another worktree.
         # After a successful switch, never automatically roll back on a failure.
+        branch, head, entries = await status.read_porcelain_v2(repo)
+        if (branch, head, entries) != (expected_source_branch, expected_source_head, []):
+            raise ToolError("Source changed during integration checks; inspect status before retrying.")
         await merge.switch_to_main(repo)
         try:
             branch, head, entries = await status.read_porcelain_v2(repo)
             if branch != "main" or head != expected_main_head or entries:
                 raise ToolError("Post-switch main baseline differs; no merge attempted. Inspect project status.")
-            await merge.merge_fast_forward(repo, expected_source_head)
+            if squash:
+                commit_message = _release_integration.require_message(message)
+                await merge.merge_squash(repo, expected_source_head)
+                index_tree = text_output(
+                    (await repo.run("write-tree", operation="Verify squash index tree", write=True)).output
+                ).strip()
+                if index_tree != expected_tree:
+                    raise ToolError("Staged squash tree differs from the checked source. Inspect the index.")
+                created = await CommitProjectChangesTool(self.settings).commit(commit_message, prepared)
+                created_head = created["head_after"]
+                if created_head is None or not created["head_observed"]:
+                    raise ToolError("Squash commit may exist but HEAD was not observed. Inspect the repository.")
+                signature_verified = created["signature_verified"]
+                if prepared.signing is not None and signature_verified is not True:
+                    raise ToolError(
+                        f"Created commit {created_head} signature verification failed. Inspect HEAD; do not replay."
+                    )
+                await _release_integration.verify_commit(repo, created_head, main_before, expected_tree, commit_message)
+            else:
+                await merge.merge_fast_forward(repo, expected_source_head)
+                created_head = expected_source_head
             after_branch, after_head, after_entries = await status.read_porcelain_v2(repo)
-            if after_branch != "main" or after_head != expected_source_head or after_entries:
+            if after_branch != "main" or after_head != created_head or after_entries:
                 raise ToolError("Merge result could not be confirmed. Inspect main, index and Working Tree.")
         except ToolError as error:
             raise ToolError(
@@ -120,8 +155,10 @@ class MergeProjectBranchTool:
             "branch_after": "main",
             "source_head": expected_source_head,
             "main_head_before": main_before,
-            "main_head_after": expected_source_head,
+            "main_head_after": created_head,
             "signature_verified": signature_verified,
+            "mode": "squash" if squash else "fast-forward",
+            "assessments": checked["assessments"],
             "observed_at": observed_at(),
         }
 
@@ -133,10 +170,13 @@ def merge_commands(settings: ServerSettings) -> tuple[str, ...]:
 MERGE_PROJECT_BRANCH: Final = ToolDefinition(
     name="merge_project_branch",
     description=(
-        "Fast-forward local main from the currently checked-out clean source branch. "
+        "Integrate the currently checked-out clean source into local main with exact expected refs. "
+        "An opted-in release workflow requires a new explicit assessment and a Conventional Commit message; "
+        "it creates and verifies one squash commit using configured identity/signing. "
+        "Unconfigured workspaces retain fast-forward behavior. "
         "Requires exact observed source branch/HEAD and main HEAD. Verifies ancestry, "
         "requires a clean index/Working Tree, and checks the source HEAD signature when signing is enabled. "
-        "Switches to main and uses git merge --ff-only; never auto-resolves conflicts, resets, pulls, pushes, "
+        "Switches to main; never auto-resolves conflicts, resets, pulls, pushes, "
         "rebases or creates a merge commit. On failure inspect status and HEAD; no automatic rollback."
     ),
     annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False),

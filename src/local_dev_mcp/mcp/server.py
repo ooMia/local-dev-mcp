@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import replace
+from importlib import metadata
 from typing import Final
 
 from fastmcp import FastMCP
@@ -10,7 +11,7 @@ from fastmcp import FastMCP
 from ..app.runtime import ServerSettings
 from ..diagnostics import warn_preparation
 from ..settings import Policy
-from ..tools import documents, get_tool_readiness, git, tasks, workspace
+from ..tools import documents, get_tool_readiness, git, release, tasks, workspace
 from . import registry
 
 TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
@@ -30,6 +31,8 @@ TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
     git.GET_PROJECT_PICK_STATE,
     git.CHERRY_PICK_PROJECT_COMMIT,
     git.RESTORE_PROJECT_PICK_PATHS,
+    release.GET_RELEASE_PLAN,
+    release.PREPARE_PROJECT_RELEASE,
     get_tool_readiness.GET_TOOL_READINESS,
     tasks.LIST_PROJECT_TASKS,
     tasks.START_PROJECT_TASK,
@@ -70,7 +73,7 @@ def create_server(policy: Policy) -> FastMCP:
 
     server = FastMCP(
         "local-dev-mcp",
-        version="0.1.0",
+        version=metadata.version("local-dev-mcp"),
         strict_input_validation=True,
         mask_error_details=True,
         on_duplicate="error",
@@ -98,7 +101,10 @@ def create_server(policy: Policy) -> FastMCP:
             "Commit records the entire current index. Writes may have taken effect even when an error is reported; "
             "inspect status and HEAD before retrying. "
             "Branch creation/switching requires the observed HEAD and branch and may carry dirty edits. "
-            "No fetch, pull, push or stash; merge_project_branch only fast-forwards local main after strict checks."
+            "Use get_release_plan to inspect committed impact and recommendation; prepare_project_release requires "
+            "matching HEAD, digest, version and clean release branch. It never commits or publishes. "
+            "No fetch, pull, push or stash; merge_project_branch requires assessed squash for opted-in workflows "
+            "and otherwise guarded main fast-forward."
         ),
     )
     registry.register_tools(server, policy, TOOLS, settings, readiness=settings.readiness)

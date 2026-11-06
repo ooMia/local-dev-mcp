@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "등록한 문서 Guide의 읽기 전용 진단 제공"
+reason = "새 MCP 진단을 추가한다. 관계 미승인의 정상 Blocked 결과를 명시하며 내부 Document Core가 Stable Python API가 됐다고 선언하지 않는다."
+contract = "문서 진단 MCP; 내부 Core는 Experimental"
+assessed_by = "agent"
+migration = ""
+supersedes = []

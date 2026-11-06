@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "Chat에서 릴리스 평가 요약과 검증된 버전 준비를 실행하는 MCP 도구 추가"
+reason = "커밋된 평가·정확한 HEAD와 Digest로 권장 버전을 제시하고 명시적 uv.release 권한 및 clean release 브랜치에서 준비 파일을 작성한다. 기존 Release CLI의 계산·검증 로직을 공유하며 기존 MCP·CLI 계약은 유지한다."
+contract = "공개 MCP get_release_plan 및 prepare_project_release, 설정 명령 권한 uv.release"
+assessed_by = "agent"
+migration = ""
+supersedes = []

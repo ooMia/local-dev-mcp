@@ -195,7 +195,7 @@ denied_paths = ["credentials.json"]
 allowed_commands = ["git", "tunnel-client"]
 ```
 
-서명 true인 경우 `allowed_commands`에 `gpg`만 추가한다. 키 저장소 경로를 `allowed_paths`에 추가하지 않는다.
+서명 true인 경우 `allowed_commands`에 `gpg`를 추가한다. Chat에서 `prepare_project_release`로 버전과 릴리스 파일을 갱신하려면 별도로 `uv.release`를 명시적으로 허용하고 `uv`를 설치해야 한다. `get_release_plan`의 조회에는 `git`만 필요하다. 이 권한은 등록된 CLI 작업의 `uv.run.*`과 별개이며, 서버 재시작 후 적용된다. 버전 준비는 임의 명령 실행이나 Git push 권한을 부여하지 않는다. 키 저장소 경로를 `allowed_paths`에 추가하지 않는다.
 Git workspace는 시작 시 선택한 경로로 고정되며 호스트 서명 권한이 작업 범위를 확대하지 않는다.
 workspace 허용 경로는 선택한 workspace의 설정 위치 기준으로 resolve한다.
 GnuPG 홈도 resolve하되 존재·디렉터리 유효성만 검사한다.

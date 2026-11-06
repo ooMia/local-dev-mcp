@@ -89,7 +89,11 @@ def test_stdio_workflow_obeys_dependencies_and_overlaps_independent_reads(
                 tools = content["tools"]
                 assert len(tools) == len(TOOLS)
                 for tool in tools:
-                    assert tool["ready"] is True and tool["issue"] is None
+                    if tool["name"] == "prepare_project_release":
+                        # Version writes are a separate opt-in capability, not required for Git DAG work.
+                        assert tool["ready"] is False and tool["issue"] is not None
+                    else:
+                        assert tool["ready"] is True and tool["issue"] is None
 
             async def readiness() -> None:
                 await ready_read("readiness", check_readiness)

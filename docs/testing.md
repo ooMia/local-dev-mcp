@@ -12,6 +12,10 @@
 그 [사용 확인 절차](../tests/e2e/README.md)는 연결 환경이나 실제 사용 흐름을 확인할 때 적용하며,
 서버 기능 변경의 필수 완료 조건이나 서버가 스스로 수행할 기능으로 두지 않는다.
 
+공통 [workflow 검사](tools/workflow/README.md)는 아래 등록된 비수정 검사들을 재사용한다.
+실제 hook·다중 커밋 출처·배포 archive 검사는 tests/tools/test_workflow*.py가 담당한다.
+GitHub ruleset payload·조건부 병합의 경계 테스트와 실제 원격 활성화 검증은 구분한다.
+
 ## 실행 경로
 
 ```sh
@@ -230,3 +234,21 @@ DB 환경 부재에 따른 skip는 실제 영속성 검증의 성공으로 세�
 strict JSON 오류 의미를 검증한다. README의 도구 표와 수동 TOOLS 목록의 동등성은
 [문서 검사](../tests/system/test_documentation_links.py)가 확인한다.
 이 검사는 문서 설명의 의미나 실제 원격 GitHub 실행 성공을 증명하지 않는다.
+
+## Git 통합·누적 릴리스 검사
+
+```sh
+uv run --locked pytest tests/tools/release tests/tools/git/test_release_merge.py tests/mcp/test_package_version.py
+uv run python -m local_dev_mcp.tools.release check --base <전체 SHA> --head <전체 SHA>
+uv run python -m local_dev_mcp.tools.release plan
+```
+
+순수 모델 검사는 영향 집계·정정 관계·canonical version·digest를 검사한다. 실제 Git snapshot과 MCP 검사는
+평가 누락/변조·설정 우회·경로 권한·관측 HEAD·squash tree/parent/title·새 commit 서명과 hook 이후 상태를 검사한다.
+릴리스 검사는 의존성 없는 별도 임시 프로젝트에서 실제 uv/Towncrier로 prepare→commit→check와 MCP 통합을 수행하고
+symlink·stale 계획·소스/의존성/과거 changelog 변조·외부 working state 변화의 거부를 확인한다.
+이 리허설은 실제 선택 workspace의 릴리스·tag·게시를 실행한 증거가 아니다.
+
+CI의 Release assessment job은 PR의 정확한 base/head SHA로 같은 CLI 검사를 실행한다. workflow 파일의 존재를
+원격 실행 성공이나 required check 설정의 증거로 취급하지 않는다. merge queue를 사용하려면 merge_group 대상을
+추가 검증해야 하며 현재 workflow는 PR 전용이다.

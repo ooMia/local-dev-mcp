@@ -7,6 +7,7 @@ from fastmcp.exceptions import ToolError
 from pydantic import Field
 
 from .._execution import GitExecution, text_output
+from .._names import branch_name_allowed
 
 type BranchName = Annotated[
     str,
@@ -23,13 +24,12 @@ type ExpectedHead = Annotated[
 ]
 type RefKind = Literal["branch", "commit"]
 
-_BRANCH_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*(?:/[A-Za-z0-9][A-Za-z0-9-]*)*")
 _SHA_RE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 
 
 def check_branch_name(name: str) -> str:
-    if len(name) > 128 or _BRANCH_RE.fullmatch(name) is None:
-        raise ToolError("Use an ASCII branch name with letters, digits, hyphens and slash-separated segments.")
+    if not branch_name_allowed(name):
+        raise ToolError("Use an ASCII topic branch or release/<canonical-X.Y.Z> branch name.")
     return name
 
 
