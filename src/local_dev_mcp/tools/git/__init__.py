@@ -18,6 +18,7 @@ from .facades.get_project_pr_status import GET_PROJECT_PR_STATUS
 from .facades.get_project_ref import GET_PROJECT_REF
 from .facades.get_project_status import GET_PROJECT_STATUS
 from .facades.inspect_project_commit_history import INSPECT_PROJECT_COMMIT_HISTORY
+from .facades.inspect_project_policy import INSPECT_PROJECT_POLICY
 from .facades.inspect_project_worktree import INSPECT_PROJECT_WORKTREE
 from .facades.mark_project_pr_ready import MARK_PROJECT_PR_READY
 from .facades.merge_project_branch import MERGE_PROJECT_BRANCH
@@ -62,6 +63,7 @@ __all__ = [
     "GET_PROJECT_HEAD",
     "GET_PROJECT_REF",
     "INSPECT_PROJECT_COMMIT_HISTORY",
+    "INSPECT_PROJECT_POLICY",
     "GET_PROJECT_PICK_STATE",
     "GET_PROJECT_STATUS",
     "MERGE_PROJECT_BRANCH",
