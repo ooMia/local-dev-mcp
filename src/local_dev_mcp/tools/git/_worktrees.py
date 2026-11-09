@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import stat
 from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, TypedDict, cast
 
 from fastmcp.exceptions import ToolError
 
+from ...settings import protected_name
 from ._execution import GitExecution
 from ._remote import feature_name, valid_sha
 from .commands import status, worktree
@@ -107,20 +110,79 @@ def write_receipt(receipt: Path, branch: str, head: str, *, prepared: bool) -> N
     temporary.replace(receipt)
 
 
-async def original_snapshot(settings: ServerSettings, branch: str, head: str) -> str:
+def _dirty_contents_digest(settings: ServerSettings, entries: list[status.StatusEntry]) -> str:
+    """Fingerprint visible dirty files without following links or returning file contents."""
+    if len(entries) > 256:
+        raise ToolError("Too many dirty paths to verify safely.")
+    digest = hashlib.sha256()
+    digest.update(json.dumps(entries, sort_keys=True, ensure_ascii=False).encode("utf-8"))
+    total_bytes = 0
+    for entry in entries:
+        relative = Path(entry["path"])
+        candidate = settings.policy.root / relative
+        if any(protected_name(part) for part in relative.parts):
+            raise ToolError("A protected dirty path prevents original-state verification.")
+        try:
+            settings.policy.require_path_access(candidate)
+            metadata = candidate.lstat()
+        except FileNotFoundError, NotADirectoryError:
+            digest.update(b"missing")
+            continue
+        except (PermissionError, OSError) as error:
+            raise ToolError("Cannot safely inspect a dirty path under the workspace policy.") from error
+        digest.update(entry["path"].encode("utf-8", errors="surrogateescape"))
+        if stat.S_ISLNK(metadata.st_mode):
+            try:
+                digest.update(b"link")
+                digest.update(os.readlink(candidate).encode("utf-8", errors="surrogateescape"))
+            except OSError as error:
+                raise ToolError("Cannot verify a changed symlink.") from error
+            continue
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ToolError("A non-regular dirty path prevents original-state verification.")
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        try:
+            with os.fdopen(os.open(candidate, flags), "rb") as stream:
+                opened = os.fstat(stream.fileno())
+                total_bytes += opened.st_size
+                if not stat.S_ISREG(opened.st_mode) or total_bytes > 64 * 1024 * 1024:
+                    raise ToolError("Dirty snapshot exceeds the safe regular-file limit.")
+                digest.update(b"file")
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+                finished = os.fstat(stream.fileno())
+                if (opened.st_size, opened.st_mtime_ns) != (finished.st_size, finished.st_mtime_ns):
+                    raise ToolError("A dirty file changed during snapshot inspection.")
+        except OSError as error:
+            raise ToolError("Cannot safely read a dirty file for state verification.") from error
+    return digest.hexdigest()
+
+
+async def original_snapshot(settings: ServerSettings, branch: str, head: str, *, allow_dirty: bool = False) -> str:
     repo = GitExecution(settings)
     await _repository.verify_root(repo)
     await _repository.require_writable_state(repo)
     actual_branch, actual_head, entries = await status.read_porcelain_v2(repo)
-    if actual_branch != branch or actual_head != valid_sha(head) or entries:
+    if actual_branch != branch or actual_head != valid_sha(head):
+        raise ToolError("Original checkout branch or HEAD changed. Re-observe status and HEAD.")
+    if entries and not allow_dirty:
         raise ToolError("Original checkout changed or is not clean. Re-observe status and HEAD.")
+    if any(entry["kind"] == "unmerged" for entry in entries):
+        raise ToolError("Unmerged original index prevents worktree operations.")
     index = await repo.run("ls-files", "--stage", "-z", operation="Observe original index")
-    return hashlib.sha256(index.output).hexdigest()
+    if not entries:
+        return hashlib.sha256(index.output).hexdigest()
+    digest = hashlib.sha256(index.output)
+    digest.update(b"dirty-original-v1")
+    digest.update(_dirty_contents_digest(settings, entries).encode("ascii"))
+    return digest.hexdigest()
 
 
-async def confirm_original(settings: ServerSettings, branch: str, head: str, fingerprint: str) -> None:
-    if await original_snapshot(settings, branch, head) != fingerprint:
-        raise ToolError("Original checkout index changed; inspect both worktrees before continuing.")
+async def confirm_original(
+    settings: ServerSettings, branch: str, head: str, fingerprint: str, *, allow_dirty: bool = False
+) -> None:
+    if await original_snapshot(settings, branch, head, allow_dirty=allow_dirty) != fingerprint:
+        raise ToolError("Original checkout state changed; inspect both worktrees before continuing.")
 
 
 def bound_git_pointer(path: Path, common: Path) -> bool:

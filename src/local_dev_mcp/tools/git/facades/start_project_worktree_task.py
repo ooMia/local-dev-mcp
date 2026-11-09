@@ -39,9 +39,11 @@ class StartProjectWorktreeTaskTool:
 
         async def prepare() -> Policy:
             nonlocal fingerprint
-            observed = await _worktrees.original_snapshot(self.settings, expected_branch, expected_head)
+            observed = await _worktrees.original_snapshot(
+                self.settings, expected_branch, expected_head, allow_dirty=True
+            )
             if fingerprint is not None and fingerprint != observed:
-                raise ToolError("Original index changed before the worktree check started.")
+                raise ToolError("Original checkout state changed before the worktree check started.")
             fingerprint = observed
             target = await _worktrees.require_ready(self.settings, branch, expected_branch_head)
             _worktrees.locations(self.settings, branch, write=True)
@@ -53,7 +55,9 @@ class StartProjectWorktreeTaskTool:
             finally:
                 if fingerprint is None:
                     raise ToolError("Original state was not captured; inspect both worktrees.")
-                await _worktrees.confirm_original(self.settings, expected_branch, expected_head, fingerprint)
+                await _worktrees.confirm_original(
+                    self.settings, expected_branch, expected_head, fingerprint, allow_dirty=True
+                )
 
         context = TaskWorktree(branch, expected_branch_head, expected_branch, expected_head, prepare, verify)
         return await self.settings.tasks.start(task, request_id, targets, all_tests, worktree=context)
