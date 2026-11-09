@@ -11,6 +11,7 @@ Git hooks·필터나 다른 프로세스의 부작용을 OS 수준으로 차단�
 | --- | --- | --- |
 | `prepare_project_worktree` | `branch`, `expected_branch_head`, `expected_branch`, `expected_head` | `git`, `git.worktree.write` |
 | `inspect_project_worktree` | `branch` | `git` |
+| `finalize_project_worktree` | `branch`, `expected_branch_head`, `expected_branch`, `expected_head`, `merged_pr_number`, `delete_branch=false` | `git`, `git.worktree.write`, `gh`, `git.remote.read` |
 | `start_project_worktree_task` | 준비 입력 4개, `task`, `request_id`, `targets=null`, `all_tests=false` | `git`, `git.worktree.write`, 선택 recipe 권한 |
 | `prepare_project_worktree_assessment` | 준비 입력 4개, `assessment_id`, `assessment_toml` | `git`, `git.worktree.write` |
 | `commit_project_worktree_assessment` | 준비 입력 4개, `assessment_id`, `expected_digest`, `message` | 시작 commit 권한, `git.worktree.write` |
@@ -44,6 +45,20 @@ Worktree 준비·등록 lint/test는 원본에 미커밋 변경이 있어도 진
 `ready`만으로 게시 가능함을 의미하지 않는다. 수정된 Worktree는 `clean=false`다.
 준비·게시 실패는 일부 적용됐을 수 있으며 자동 reset·stash·prune·Worktree 제거를 하지 않는다.
 준비 기록은 인증이나 사용자 승인 토큰이 아니다. 같은 OS 계정이 기록·Git 메타데이터를 수정하는 행위까지 방어하지 않는다.
+
+## 병합 이후 명시적 종료
+
+[ADR 0012](../../adr/0012-managed-worktree-finalization.md)에 따라
+`finalize_project_worktree(branch, expected_branch_head, expected_branch, expected_head, merged_pr_number, delete_branch=false)`를 제공한다.
+이 도구는 PR을 병합하거나 Ready로 전환하지 않고, 이미 `MERGED`인 해당 GitHub PR의 정확한 source branch·head와
+실제 squash 결과의 단일 부모·`Source-PR`/`Source-Head` 메시지를 읽기 전용으로 확인한다.
+GitHub `Project quality` 확인이나 PR 병합 절차를 대체하지 않는다.
+
+- 정상 `ready` 상태에서는 대상 Worktree가 clean이고 Git ignored/untracked 파일까지 없어야 한다. 같은 서버에서 진행 중이거나 종료 미확인된 작업이 있으면 거부한다.
+- `git worktree remove`는 강제 제거 없이 실행한다. `delete_branch=true`를 명시한 경우에만 병합된 정확한 local branch를 `git branch -D`로 제거하며, 원격 브랜치는 변경하지 않는다.
+- 외부에서 정상 제거해 경로·Git 등록이 모두 없어지고 유효한 준비 기록만 남은 `partial` 상태는 해당 기록만 제거한다. 경로 또는 등록이 남았거나 기록이 변경·훼손됐으면 거부한다.
+- 최초 요청과 결과 사이에 원본 Checkout, 대상 HEAD, 준비 기록, PR 정체성이 바뀌면 거부한다. Git 제거 이후 오류·응답 유실은 일부 단계만 완료됐을 수 있으므로 `inspect_project_worktree`로 재관측한다.
+- OS 수준의 외부 동시 수정·프로세스 생명주기는 보장하지 않는다. 정리는 요청된 managed 경로에만 적용되고 다른 checkout, 로컬 `main`, 원격 refs에 영향을 주지 않는다.
 
 ## 게시 절차와 실행 경계
 
@@ -120,7 +135,7 @@ Hook이 commit 내용을 바꿨다면 검증이 거부하더라도 그 commit을
 이 검사는 동시 OS 작업을 잠그거나 Git hook을 sandbox하지 않는다.
 
 일반 파일 편집과 `start_project_task`의 workspace는 원본 checkout으로 유지된다.
-Worktree 일반 편집과 제거는 이번 인터페이스에 포함하지 않는다.
+Worktree 일반 편집은 이번 인터페이스에 포함하지 않는다. Worktree 종료는 아래 명시적 별도 도구로만 수행한다.
 
 원격 사전 관측과 GitHub 생성 사이에는 원자적 transaction이 없다.
 관측 뒤 원격 feature가 source의 조상으로 진전되면 정상 fast-forward Push가 성공할 수 있다.

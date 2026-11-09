@@ -93,6 +93,7 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `merge_project_pr` | 검토 head·Digest로 조건부 squash하고 실제 결과 커밋 검증 |
 | `prepare_project_worktree` | 원본 checkout을 전환하지 않고 기존 topic 브랜치를 격리된 Worktree에 준비 |
 | `inspect_project_worktree` | 관리 Worktree의 absent·partial·ready, SHA와 clean 상태 조회 |
+| `finalize_project_worktree` | 검증된 병합 PR과 clean 상태를 확인하고 관리 Worktree·준비 기록을 제거; 로컬 브랜치 삭제는 명시적 선택 |
 | `start_project_worktree_task` | 지정 Worktree에서 등록 검사 실행; 기존 job 조회·취소와 실행 슬롯 공유 |
 | `prepare_project_worktree_assessment` | 명시적으로 검토한 평가 TOML을 관리 Worktree에 새로 작성하고 Digest 반환 |
 | `commit_project_worktree_assessment` | Digest가 일치하는 새 평가 하나만 검증·Stage·서명 설정에 따라 Commit |

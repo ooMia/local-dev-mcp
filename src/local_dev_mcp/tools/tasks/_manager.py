@@ -8,7 +8,8 @@ import os
 import re
 import shutil
 import time
-from collections.abc import Mapping
+from collections.abc import AsyncGenerator, Mapping
+from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -108,6 +109,17 @@ class TaskManager:
         self._active: str | None = None
         self._closed = False
         self._submission = asyncio.Lock()
+
+    @asynccontextmanager
+    async def exclusive_git_cleanup(self) -> AsyncGenerator[None]:
+        """Serialize destructive worktree removal against task submission."""
+        async with self._submission:
+            if self._closed or self._active is not None:
+                raise ToolError(
+                    "A task is running, unconfirmed, or the server is closing; "
+                    "inspect project jobs before finalizing a worktree."
+                )
+            yield
 
     def _recipe_cwd(self, recipe: JobDefinition, policy: Policy) -> Path:
         """Resolve one registered recipe's directory against the actual execution root."""

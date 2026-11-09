@@ -44,6 +44,7 @@ TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
     git.MARK_PROJECT_PR_READY,
     git.MERGE_PROJECT_PR,
     git.PREPARE_PROJECT_WORKTREE,
+    git.FINALIZE_PROJECT_WORKTREE,
     git.INSPECT_PROJECT_WORKTREE,
     git.INSPECT_PROJECT_BRANCH_REMOTE,
     git.PUSH_PROJECT_BRANCH,
