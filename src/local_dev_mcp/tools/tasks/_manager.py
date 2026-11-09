@@ -109,6 +109,31 @@ class TaskManager:
         self._closed = False
         self._submission = asyncio.Lock()
 
+    def _recipe_cwd(self, recipe: JobDefinition, policy: Policy) -> Path:
+        """Resolve one registered recipe's directory against the actual execution root."""
+        try:
+            relative = PurePosixPath(recipe.cwd)
+            if (
+                not recipe.cwd
+                or "\\" in recipe.cwd
+                or relative.is_absolute()
+                or PureWindowsPath(recipe.cwd).drive
+                or ".." in relative.parts
+            ):
+                raise ValueError("Invalid recipe directory")
+            cwd = (policy.root / Path(*relative.parts)).resolve()
+            if not cwd.is_relative_to(policy.root) or not cwd.is_dir():
+                raise ValueError("Recipe directory is missing or outside the execution root")
+            policy.require_path_access(cwd, traverse=True)
+            if policy is not self._policy:
+                original = (self._policy.root / Path(*relative.parts)).resolve()
+                self._policy.require_path_access(original, traverse=True)
+            return cwd
+        except OSError, PermissionError, ValueError:
+            raise ToolError(
+                "Recipe working directory is unavailable or outside the permitted workspace scope."
+            ) from None
+
     def _prepare(self, recipe: JobDefinition) -> _Prepared:
         try:
             self._policy.require_project_access()
@@ -117,6 +142,10 @@ class TaskManager:
             return _Prepared(recipe, None, "permission_denied")
         if not self._environment_valid:
             return _Prepared(recipe, None, "environment_invalid")
+        try:
+            self._recipe_cwd(recipe, self._policy)
+        except ToolError:
+            return _Prepared(recipe, None, "cwd_unavailable")
         try:
             command = recipe.argv[0]
             if "/" in command or "\\" in command:
@@ -151,10 +180,16 @@ class TaskManager:
                 next_action=(
                     "Start this configured task with start_project_task."
                     if item.reason is None
-                    else "Correct the task permission, environment or executable and restart the server."
+                    else (
+                        "Correct the recipe cwd and restart the server."
+                        if item.reason == "cwd_unavailable"
+                        else "Correct the task permission, environment or executable and restart the server."
+                    )
                 ),
                 timeout_seconds=item.recipe.timeout_seconds,
                 default_targets=[self._redactor.sanitize(value) for value in item.recipe.default_targets],
+                cwd=self._redactor.sanitize(item.recipe.cwd),
+                targets_relative_to="recipe_cwd",
             )
             for item in self._prepared.values()
         ]
@@ -184,17 +219,24 @@ class TaskManager:
                 selected.append(normalized)
         return tuple(selected)
 
-    def _require_targets(self, targets: tuple[str, ...], *, policy: Policy | None = None) -> None:
+    def _require_targets(
+        self, targets: tuple[str, ...], *, recipe: JobDefinition, policy: Policy | None = None
+    ) -> None:
         selected_policy = self._policy if policy is None else policy
+        cwd = self._recipe_cwd(recipe, selected_policy)
         for value in targets:
             try:
-                target = (selected_policy.root / value.partition("::")[0]).resolve()
-                if not target.is_relative_to(selected_policy.root):
+                relative = value.partition("::")[0]
+                target = (cwd / relative).resolve()
+                if not target.is_relative_to(cwd):
                     raise ValueError
                 # A runner may recurse through this target; navigation-only
                 # ancestors cannot grant access to their other descendants.
                 selected_policy.require_path_access(target)
                 self._policy.require_path_access(target)
+                if selected_policy is not self._policy:
+                    original = (self._policy.root / recipe.cwd / relative).resolve()
+                    self._policy.require_path_access(original)
             except OSError, ValueError, PermissionError:
                 raise ToolError("Test selector path is unavailable or outside the permitted workspace scope.") from None
 
@@ -256,6 +298,8 @@ class TaskManager:
             finished_at=result.finished_at,
             targets=[self._redactor.sanitize(value) for value in result.targets],
             all_tests=result.all_tests,
+            cwd=self._redactor.sanitize(result.prepared.recipe.cwd),
+            targets_relative_to="recipe_cwd",
             next_action=_action(result.state)
             + (
                 ""
@@ -349,6 +393,11 @@ class TaskManager:
                 "Task is not ready (environment_invalid). Correct invalid names or NUL-containing values "
                 "in its environment source and restart the server."
             )
+        if prepared.reason == "cwd_unavailable":
+            raise ToolError(
+                "Task is not ready (cwd_unavailable). Check the recipe working directory, access policy "
+                "and symlinks, then restart the server."
+            )
         if prepared.reason is not None:
             raise ToolError(
                 "Task is not ready (executable_unavailable). Check its installation and configured executable path, "
@@ -359,7 +408,7 @@ class TaskManager:
         policy = self._policy if worktree is None else await worktree.prepare()
         if self._closed:
             raise ToolError("This task manager closed during preparation; no process was submitted.")
-        self._require_targets(selection, policy=policy)
+        self._require_targets(selection, recipe=prepared.recipe, policy=policy)
         job_id = token_urlsafe(24)
         result = _Execution(
             job_id,
@@ -436,14 +485,14 @@ class TaskManager:
                     raise ToolError("Managed worktree execution policy changed before process start.")
             result.policy.require_project_access()
             result.policy.require_command(result.prepared.recipe.permission)
-            self._require_targets(result.targets, policy=result.policy)
+            self._require_targets(result.targets, recipe=result.prepared.recipe, policy=result.policy)
             binary = result.prepared.executable
             if binary is None:
                 raise FileNotFoundError
             command = (
                 sh.result(str(binary), *result.prepared.recipe.argv[1:], *result.targets)
                 .set(
-                    cwd=result.policy.root,
+                    cwd=self._recipe_cwd(result.prepared.recipe, result.policy),
                     env=self._environment,
                     inherit_env=False,
                     timeout=result.prepared.recipe.timeout_seconds,

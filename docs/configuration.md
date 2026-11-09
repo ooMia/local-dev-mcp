@@ -279,6 +279,7 @@ recipe의 `permission`과 정확히 같은 값을 `allowed_commands`에서 허�
 | `argv` | 필수 1..128개 문자열. 첫 원소는 executable, 이후는 고정 옵션·인자 |
 | `level` | test에서만 필수 `unit`, `integration`, `e2e` |
 | `default_targets` | test에서만 필수인 1..128개 전체 실행 대상. 호출의 `all_tests=true`일 때 사용 |
+| `cwd` | 선택 사항. 선택 workspace 기준 상대 디렉터리. 기본값 `.`이며 test의 명시·기본 targets는 해당 디렉터리 상대 |
 | `timeout_seconds` | 생략 시 300, 정수 1..3600. 종료 정리 시간까지 포함한 정확한 반환 시각은 아님 |
 | `jobs_environment.public_names` | 생략·`[]`는 추가 공개 분류 없음. 중복 없는 환경 이름 최대 128개 |
 
@@ -286,7 +287,10 @@ argv·기본 대상은 항목당 최대 4096자·목록별 UTF-8 합계 32 KiB�
 test의 기본 대상은 base argv에 넣지 않는다. 명시한 `targets`가 기본 대상을 대체해야 선택 실행이 전체 실행으로 넓어지지 않는다.
 `level`은 분류이며 worker 옵션을 자동 삽입하지 않는다. 대상 프로젝트의 E2E는 해당 runner의 병렬 옵션을 설정한다.
 
-실행 cwd는 선택 workspace다. executable에 경로 구분자가 있으면 workspace 기준 절대 호출 경로로 고정하고,
+실행 cwd는 기본적으로 선택 workspace이며, recipe에 `cwd`가 있으면 `workspace/cwd`로 이동한다.
+`cwd`는 최대 1024자의 상대 디렉터리만 허용하며 절대 경로·상위 이동·Windows drive·역슬래시·제어 문자를 거부한다.
+해당 디렉터리의 존재·허용 범위·symlink를 시작 시와 실행 직전에 검사하고, 준비 실패는 그 recipe에만 적용한다.
+executable에 경로 구분자가 있으면 원본 workspace 기준 절대 호출 경로로 고정하고,
 이름만 있으면 고정한 작업 환경의 PATH에서 찾는다. Python 가상환경 선택을 보존하기 위해 실행 파일 symlink의
 호출 경로를 유지한다. 환경 활성화·라이브러리별 옵션 변환·shell 확장은 하지 않는다.
 `npm run` 등에 필요한 `--`도 고정 argv에 명시한다. 실행·조회·복구 계약은 [CLI 작업](tools/tasks/README.md)을 따른다.
@@ -294,6 +298,40 @@ test의 기본 대상은 base argv에 넣지 않는다. 명시한 `targets`가 �
 위 pytest 예시는 프로젝트 기본 `-v`를 `--verbosity=-1`로 덮어 성공 항목별 출력을 줄이고, 실패·경고·집계를 유지한다.
 `--show-capture=no`·`--no-summary`로 원인을 생산 단계에서 없애는 방식은 기본으로 사용하지 않는다.
 Ruff는 `--quiet`와 concise 진단을 사용한다. 진단 생략과 상세 조회는 CLI 옵션과 별개인 [응답 계약](tools/tasks/README.md#결과와-다음-행동)이다.
+
+## 모노레포의 하위 프로젝트 recipe
+
+Git root 및 기존 workspace 파일 권한은 유지하면서, 각 recipe의 작업 디렉터리만 지정할 수 있다.
+호출자에게 임의 cwd나 argv를 선택할 권한은 주지 않으며 시작 설정 변경에는 서버 재시작이 필요하다.
+
+```toml
+[jobs.server_unit]
+kind = "test"
+level = "unit"
+permission = "uv.run.pytest.unit"
+cwd = "apps/server"
+argv = ["uv", "run", "--locked", "pytest", "-m", "unit"]
+default_targets = ["tests"]
+
+[jobs.profile_unit]
+kind = "test"
+level = "unit"
+permission = "uv.run.pytest.unit"
+cwd = "packages/fde-profile"
+argv = ["uv", "run", "--locked", "pytest"]
+default_targets = ["tests"]
+```
+
+두 recipe에서 `targets=["tests/test_example.py::test_case"]`는 서로 다른 하위 프로젝트 파일을 가리킨다.
+`all_tests=true`의 `default_targets`도 recipe cwd 상대다. `cwd`가 생략된 기존 recipe의 대상은
+workspace root 상대이므로 변경되지 않는다. root-relative와 recipe-relative 입력을 자동 추측해 혼용하지 않는다.
+대상 파일은 실제 실행할 디렉터리에서 resolve해 기존 workspace 접근 정책으로 검사하고,
+managed Worktree에서는 대상 Worktree root의 동일한 cwd에 매핑한다. 선택한 cwd로 권한을 확장하지 않는다.
+
+시작 시 고정한 executable·PATH·환경은 하위 프로젝트별로 자동 변경하지 않는다.
+특히 원본에서 생성된 editable Python 가상환경을 사용하는 Worktree 검사는 원본 checkout을 import할 수 있다.
+`worktree.verified=true`는 Git 상태 검사이며 대상 소스 import를 증명하지 않는다.
+각 Python 프로젝트의 실제 import 경로와 의존성, runner 옵션은 별도로 검증한다.
 
 ## 파일 접근 정책
 

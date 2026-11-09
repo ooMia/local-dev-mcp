@@ -235,3 +235,67 @@ def test_worktree_task_schema_rejects_extra_execution_controls(
             await failure(session, START, {**args, "all_tests": "true"})
 
     asyncio.run(scenario())
+
+
+def test_nested_recipe_uses_target_worktree_file_not_controller_copy(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    async def scenario() -> None:
+        await seed(tmp_path, workspace_factory)
+        nested = tmp_path / "apps/server/tests"
+        nested.mkdir(parents=True)
+        (nested / "case.txt").write_text("controller")
+        await git(tmp_path, "add", "apps/server/tests/case.txt")
+        await git(tmp_path, "commit", "-m", "test: add nested workspace")
+        controller_head = await git(tmp_path, "rev-parse", "HEAD")
+        await git(tmp_path, "branch", "-f", "feat/publish", controller_head)
+        await git(tmp_path, "switch", "feat/publish")
+        (nested / "case.txt").write_text("target")
+        await git(tmp_path, "add", "apps/server/tests/case.txt")
+        await git(tmp_path, "commit", "-m", "test: diverge nested target")
+        target_head = await git(tmp_path, "rev-parse", "HEAD")
+        await git(tmp_path, "switch", "main")
+        await configure(tmp_path)
+        context: dict[str, object] = {
+            "branch": "feat/publish",
+            "expected_branch_head": target_head,
+            "expected_branch": "main",
+            "expected_head": controller_head,
+        }
+        code = (
+            "import json,os,sys; from pathlib import Path; "
+            "path=Path(sys.argv[1].partition('::')[0]).resolve(); "
+            "print(json.dumps({'cwd':os.getcwd(),'file':str(path),'value':path.read_text()}))"
+        )
+        recipe = JobDefinition(
+            "nested",
+            "test",
+            "task.unit",
+            (sys.executable, "-c", code),
+            level="unit",
+            default_targets=("tests/case.txt",),
+            cwd="apps/server",
+        )
+        selected = replace(task_policy(tmp_path), jobs=(recipe,))
+        async with Client(create_server(selected)) as session:
+            ready = await success(session, "prepare_project_worktree", context)
+            worktree = tmp_path / str(ready["path"])
+            started = await success(
+                session, START, {**context, "task": "nested", "request_id": "nested-target", "all_tests": True}
+            )
+            finished_job = await terminal(session, str(started["job_id"]))
+            payload = json.loads(str(finished_job["stdout"]))
+            assert finished_job["state"] == "succeeded"
+            assert finished_job["cwd"] == "apps/server"
+            assert finished_job["targets_relative_to"] == "recipe_cwd"
+            assert payload == {
+                "cwd": str(worktree / "apps/server"),
+                "file": str(worktree / "apps/server/tests/case.txt"),
+                "value": "target",
+            }
+            worktree_context = finished_job["worktree"]
+            assert isinstance(worktree_context, dict) and worktree_context["verified"] is True
+        assert (nested / "case.txt").read_text() == "controller"
+        assert await git(tmp_path, "status", "--porcelain") == ""
+
+    asyncio.run(scenario())

@@ -609,3 +609,174 @@ def test_async_worktree_preparation_retains_single_slot_and_honors_close(
                 await asyncio.gather(submission, return_exceptions=True)
 
     asyncio.run(scenario())
+
+
+def test_subproject_recipe_runs_in_its_own_directory_and_checks_same_target(tmp_path: Path) -> None:
+    code = (
+        "import json,os,sys; from pathlib import Path; "
+        "relative=sys.argv[1].partition('::')[0]; path=Path(relative).resolve(); "
+        "print(json.dumps({'cwd':os.getcwd(),'path':str(path),'value':path.read_text(),"
+        "'selector':sys.argv[1]}))"
+    )
+    recipes: list[JobDefinition] = []
+    for name, location in (("server", "apps/server"), ("profile", "packages/fde-profile")):
+        folder = tmp_path / location / "tests"
+        folder.mkdir(parents=True)
+        (folder / "case.txt").write_text(name)
+        recipes.append(
+            JobDefinition(
+                name,
+                "test",
+                "task.unit",
+                (sys.executable, "-c", code),
+                level="unit",
+                default_targets=("tests/case.txt",),
+                cwd=location,
+            )
+        )
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "case.txt").write_text("incorrect-root")
+    tasks = TaskManager(
+        Policy(tmp_path, (tmp_path,), ("task.unit",)), tuple(recipes), {"PATH": os.defpath}, Redactor.from_values({})
+    )
+
+    async def scenario() -> None:
+        try:
+            catalogue = {item["name"]: item for item in tasks.catalogue()}
+            assert catalogue["server"]["cwd"] == "apps/server"
+            assert catalogue["profile"]["targets_relative_to"] == "recipe_cwd"
+            for name, location in (("server", "apps/server"), ("profile", "packages/fde-profile")):
+                selected = "tests/case.txt::test_value[param/../unchanged]"
+                for tag in ("all", "selected"):
+                    if tag == "all":
+                        start = await tasks.start(name, f"{name}-{tag}", all_tests=True)
+                    else:
+                        start = await tasks.start(name, f"{name}-{tag}", targets=[selected])
+                    result = await finished(tasks, start["job_id"], include_output=True)
+                    payload = json.loads(result["stdout"])
+                    assert result["state"] == "succeeded" and result["cwd"] == location
+                    assert result["targets_relative_to"] == "recipe_cwd"
+                    assert payload["cwd"] == str(tmp_path / location)
+                    assert payload["path"] == str(tmp_path / location / "tests/case.txt")
+                    assert payload["value"] == name
+                    assert payload["selector"] == ("tests/case.txt" if tag == "all" else selected)
+        finally:
+            await tasks.close()
+
+    asyncio.run(scenario())
+
+
+def test_recipe_target_denial_does_not_check_a_different_root_file(tmp_path: Path) -> None:
+    nested = tmp_path / "apps/server/tests"
+    nested.mkdir(parents=True)
+    (nested / "case.txt").write_text("denied")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests/case.txt").write_text("allowed-but-wrong")
+    policy = Policy(tmp_path, (tmp_path,), ("task.unit",), denied_paths=(nested / "case.txt",))
+    recipe = JobDefinition(
+        "unit",
+        "test",
+        "task.unit",
+        (sys.executable, "-c", "print('must not run')"),
+        level="unit",
+        default_targets=("tests/case.txt",),
+        cwd="apps/server",
+    )
+    tasks = TaskManager(policy, (recipe,), {"PATH": os.defpath}, Redactor.from_values({}))
+
+    async def scenario() -> None:
+        try:
+            with pytest.raises(ToolError, match="permitted workspace scope"):
+                await tasks.start("unit", "denied", all_tests=True)
+        finally:
+            await tasks.close()
+
+    asyncio.run(scenario())
+
+
+def test_missing_cwd_is_scoped_and_replaced_cwd_never_launches(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    nested = root / "apps/server"
+    nested.mkdir(parents=True)
+    (nested / "tests").mkdir()
+    (nested / "tests/case.txt").write_text("original")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    code = "from pathlib import Path; Path('executed').touch()"
+    recipes = (
+        JobDefinition(
+            "valid",
+            "test",
+            "task.check",
+            (sys.executable, "-c", code),
+            level="unit",
+            default_targets=("tests/case.txt",),
+            cwd="apps/server",
+        ),
+        JobDefinition(
+            "missing",
+            "test",
+            "task.check",
+            (sys.executable, "-c", code),
+            level="unit",
+            default_targets=("tests/case.txt",),
+            cwd="apps/missing",
+        ),
+    )
+    tasks = TaskManager(Policy(root, (root,), ("task.check",)), recipes, {"PATH": os.defpath}, Redactor.from_values({}))
+    catalogue = {item["name"]: item for item in tasks.catalogue()}
+    assert catalogue["valid"]["ready"] is True
+    assert catalogue["missing"]["ready"] is False
+    assert catalogue["missing"]["reason"] == "cwd_unavailable"
+    nested.rename(root / "apps/renamed")
+    try:
+        nested.symlink_to(outside, target_is_directory=True)
+    except OSError, NotImplementedError:
+        pytest.skip("Directory symlinks are unavailable on this host.")
+
+    async def scenario() -> None:
+        try:
+            with pytest.raises(ToolError, match="cwd_unavailable"):
+                await tasks.start("missing", "missing-cwd", all_tests=True)
+            with pytest.raises(ToolError, match="working directory"):
+                await tasks.start("valid", "swapped-cwd", all_tests=True)
+            assert not (outside / "executed").exists()
+            assert not (root / "executed").exists()
+        finally:
+            await tasks.close()
+
+    asyncio.run(scenario())
+
+
+def test_recipe_target_symlink_cannot_select_another_subproject(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    nested = root / "apps/server/tests"
+    nested.mkdir(parents=True)
+    other = root / "packages/profile"
+    other.mkdir(parents=True)
+    (other / "case.txt").write_text("other subproject")
+    try:
+        (nested / "case.txt").symlink_to(other / "case.txt")
+    except OSError, NotImplementedError:
+        pytest.skip("File symlinks are unavailable on this host.")
+    recipe = JobDefinition(
+        "unit",
+        "test",
+        "task.check",
+        (sys.executable, "-c", "raise AssertionError('must not run')"),
+        level="unit",
+        default_targets=("tests/case.txt",),
+        cwd="apps/server",
+    )
+    tasks = TaskManager(
+        Policy(root, (root,), ("task.check",)), (recipe,), {"PATH": os.defpath}, Redactor.from_values({})
+    )
+
+    async def scenario() -> None:
+        try:
+            with pytest.raises(ToolError, match="permitted workspace scope"):
+                await tasks.start("unit", "symlink-cross-project", all_tests=True)
+        finally:
+            await tasks.close()
+
+    asyncio.run(scenario())

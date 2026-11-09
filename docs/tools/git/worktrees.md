@@ -73,11 +73,14 @@ PR 생성 후에는 이력 길이와 관계없이 실제 base/head/body 및 Draf
 원본·대상은 시작 시 clean하고 관측한 SHA여야 한다. 제출 준비와 프로세스 시작 직전에 상태를 검사한다.
 종료·취소 뒤 대상 branch/HEAD/clean 상태와 원본 branch/HEAD/index/clean 상태를 다시 확인한다.
 프로세스가 종료돼도 검증이 진행 중이면 job은 `running`이고 슬롯을 유지한다.
-test selector는 대상 Worktree 상대 경로이며 매핑된 정책과 실제 물리 경로의 접근 정책을 모두 검사한다.
+test selector는 대상 Worktree root에 매핑된 recipe `cwd` 상대 경로이며, 명시·기본 targets에 같은 기준을 적용한다.
+실제 resolve된 대상에 매핑된 정책과 원본 workspace의 접근 정책을 모두 검사한다. `cwd`는 Git root나 정책 root를 변경하지 않는다.
 
 Worktree job 결과에는 `worktree`가 추가된다. `branch`, `head`, `original_branch`, `original_head`,
 원본 상대 `path`, `verified`, `verification_error`를 제공한다.
 `verified=true`는 해당 Git 상태 검사 성공이며 테스트 수·성공이나 의미상 호환성을 보장하지 않는다.
+원본에서 고정한 executable이 원본 editable Python 환경을 가리키면 Worktree에서 실행하더라도 원본 패키지가 import될 수 있다.
+대상 소스 실행을 주장하려면 대표 Python recipe의 `module.__file__` 및 기대 값 등을 별도로 대조한다. 자동 venv 생성·import provenance 검증은 제공하지 않는다.
 `null`은 검증 전, `false`는 검사 실패·중단이다. 종료 코드 0이어도 Git 검증 실패는 `succeeded`로 보고하지 않는다.
 진단은 기존 마스킹·보관 상한을 따른다. 외부 recipe가 파일을 바꿀 수 있으며 실패 시 자동 복원하지 않는다.
 

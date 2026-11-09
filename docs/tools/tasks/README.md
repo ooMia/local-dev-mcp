@@ -13,8 +13,9 @@ recipe·권한·공통 환경·시작 모드는 [설정 계약](../../configurat
 | `get_project_task` | `job_id`, `include_output=false` | 상태 조회; 명시적으로 보관된 진단 포함 |
 | `cancel_project_task` | `job_id` | 취소 요청 후 직접 프로세스 정리 결과 조회 |
 
-먼저 목록의 `ready`, `reason`, `next_action`을 확인한다. `permission_denied`·`executable_unavailable`·`environment_invalid`는
+먼저 목록의 `ready`, `reason`, `next_action`을 확인한다. `permission_denied`·`executable_unavailable`·`environment_invalid`·`cwd_unavailable`은
 해당 recipe만 사용 불가로 만들며, 설정·설치 수정 후 재시작한다. 목록에는 argv나 환경값을 반환하지 않는다.
+`cwd_unavailable`은 등록 작업 디렉터리의 미존재·접근 거부·외부 symlink 등을 나타낸다. 준비 상태는 실제 테스트 수집·import 성공을 증명하지 않는다.
 
 test 작업은 대상과 전체 실행 중 하나를 명시한다.
 
@@ -29,9 +30,12 @@ test 작업은 대상과 전체 실행 중 하나를 명시한다.
 `targets`는 기본 전체 대상을 대체한다. 생략·빈 목록·대상과 `all_tests=true` 동시 지정은 거부하고,
 선택 오류나 일치 없음에서 전체 실행으로 자동 확대하지 않는다. lint·format은 고정 recipe만 사용하므로 두 선택 필드를 받지 않는다.
 
-공개 targets는 1..32개, 각 1..1024자다. workspace 상대 경로와 `파일::클래스::함수[매개변수]` 같은 node ID를
+공개 targets는 1..32개, 각 1..1024자다. recipe cwd 상대 경로와 `파일::클래스::함수[매개변수]` 같은 node ID를
 각각 한 토큰으로 전달한다. 절대 경로·외부 경로·상위 이동·제어 문자·`-` 또는 `@`로 시작하는 인자는 거부한다.
 파일 경로 부분의 접근 권한을 확인하되 실제 테스트 존재와 node ID의 의미는 CLI가 판단한다.
+명시 targets·default_targets 모두 해당 recipe에 등록된 `cwd` 상대 경로다. `cwd` 생략 시 workspace root가 기준이므로 기존 recipe와 호환된다.
+검사 대상은 실행 위치에서 resolve한 동일한 절대 경로이며, 금지 대상·상위 이동·외부 symlink·cwd 밖으로 향하는 link를 거부한다.
+목록과 결과의 `cwd`는 workspace 상대 등록 경로이고 `targets_relative_to="recipe_cwd"`는 대상 경로의 좌표계를 뜻한다.
 허용 경로의 조상으로 이동하는 권한만으로 그 조상 전체를 검사할 수는 없다. 이름이 `-`·`@`로 시작하는 파일은
 `./-file.py`·`./@file.py`처럼 명시하며, 정규화 후에도 그 경로 접두사를 유지한다.
 매개변수 안의 공백·중간 `-`는 shell 문자열로 다시 해석하지 않는다. runner별 selector 의미를 확인해야 한다.
@@ -71,6 +75,8 @@ unit의 `-n 0`, integration의 `-n 4` 등 실행 옵션은 recipe가 소유한�
 원본과 관리 Worktree를 합쳐 서버당 한 작업만 실행하며 대기열은 없다. 다른 작업이 실행 중이면 새 제출을 거부한다.
 비동기 제출 준비는 직렬로 검사하고 서버 종료가 시작되면 새 프로세스를 제출하지 않는다.
 관리 Worktree에서의 recipe 선택·ref 입력·추가 결과는 [Worktree 검사 계약](../git/worktrees.md#worktree-검사-실행)을 따른다.
+그때 cwd·targets는 대상 Worktree root를 기준으로 다시 해석하고, 원본 설정의 executable·환경 고정 및 기존 이중 접근 검사를 유지한다.
+원본 editable 설치가 대상 Worktree 대신 원본 패키지를 import할 수 있으므로, `worktree.verified`는 대상 코드가 실제 실행됐다는 보증이 아니다.
 작업 중에는 입력 파일 편집을 피하고 종료 후 현재 상태를 읽는다. IDE·외부 도구와 공유하는 OS 배타 잠금은 제공하지 않는다.
 직접 종료를 확인하지 못한 `cleanup_unconfirmed` 작업도 새 실행을 차단하며 로컬 상태 확인과 재시작을 안내한다.
 
@@ -91,7 +97,7 @@ ID는 인증된 Chat 대화 구분이 아니며, 다른 서버·workspace로의 
 | `start_failed` | 프로세스를 시작하지 못함. 준비·실행 경로 확인 |
 | `cleanup_unconfirmed` | 직접 프로세스 종료를 확인하지 못함. 로컬 프로세스·파일 상태부터 확인 |
 
-결과는 `job_id`, `request_id`, `task`, `kind`, `level`, `targets`, `all_tests`, `state`, `exit_code`,
+결과는 `job_id`, `request_id`, `task`, `kind`, `level`, `targets`, `all_tests`, `cwd`, `targets_relative_to`, `state`, `exit_code`,
 `termination_confirmed`, UTC `started_at`·`finished_at`, `stdout`, `stderr`, `output_included`, `output_complete`, `output_reason`,
 `may_have_changed_files`, `next_action`을 제공한다. 관리 Worktree job은 선택적 `worktree` 맥락을 추가한다. 종료 코드는 CLI 결과이며 수집·통과 테스트 수를 추론하지 않는다.
 진단이 보류되거나 선택한 범위가 제한된 경우를 포함해, exit code 0만으로 전체 회귀 성공을 주장하지 않는다.

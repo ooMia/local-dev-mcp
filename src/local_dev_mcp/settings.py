@@ -5,7 +5,7 @@ import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from io import StringIO
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Literal, cast
 
 from dotenv import dotenv_values
@@ -25,6 +25,7 @@ class JobDefinition:
     level: TestLevel | None = None
     default_targets: tuple[str, ...] = ()
     timeout_seconds: int = 300
+    cwd: str = "."
 
 
 @dataclass(frozen=True)
@@ -72,6 +73,21 @@ def _job_strings(value: object, target: str, *, maximum: int = 128) -> tuple[str
     return tuple(result)
 
 
+def _job_cwd(value: object, target: str) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > 1024
+        or "\\" in value
+        or any(ord(char) < 32 for char in value)
+    ):
+        raise _job_setting(target, "Expected a workspace-relative directory without control characters.")
+    path = PurePosixPath(value)
+    if path.is_absolute() or PureWindowsPath(value).drive or ".." in path.parts:
+        raise _job_setting(target, "The job working directory must stay within the workspace.")
+    return path.as_posix()
+
+
 def _jobs(data: Mapping[str, object]) -> tuple[JobDefinition, ...]:
     if "jobs" not in data:
         return ()
@@ -82,7 +98,7 @@ def _jobs(data: Mapping[str, object]) -> tuple[JobDefinition, ...]:
     if len(definitions) > 64:
         raise _job_setting("jobs", "Expected a TOML table with at most 64 named jobs.")
     jobs: list[JobDefinition] = []
-    fields = {"kind", "permission", "argv", "level", "default_targets", "timeout_seconds"}
+    fields = {"kind", "permission", "argv", "level", "default_targets", "timeout_seconds", "cwd"}
     for name, entry in definitions.items():
         if re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name) is None:
             raise _job_setting("jobs", "Job names must use lowercase snake_case and contain at most 64 characters.")
@@ -116,7 +132,8 @@ def _jobs(data: Mapping[str, object]) -> tuple[JobDefinition, ...]:
         timeout = values.get("timeout_seconds", 300)
         if type(timeout) is not int or not 1 <= timeout <= 3600:
             raise _job_setting(f"{target}.timeout_seconds", "Expected an integer from 1 to 3600.")
-        jobs.append(JobDefinition(name, kind, permission, argv, cast(TestLevel | None, level), targets, timeout))
+        cwd = _job_cwd(values.get("cwd", "."), f"{target}.cwd")
+        jobs.append(JobDefinition(name, kind, permission, argv, cast(TestLevel | None, level), targets, timeout, cwd))
     return tuple(jobs)
 
 
