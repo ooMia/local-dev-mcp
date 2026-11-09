@@ -609,3 +609,74 @@ def test_async_worktree_preparation_retains_single_slot_and_honors_close(
                 await asyncio.gather(submission, return_exceptions=True)
 
     asyncio.run(scenario())
+
+
+def test_monorepo_recipes_execute_and_check_the_same_subproject_targets(tmp_path: Path) -> None:
+    code = (
+        "import json,os,sys; from pathlib import Path; "
+        "path=Path(sys.argv[1].partition('::')[0]).resolve(); "
+        "print(json.dumps({'cwd':os.getcwd(),'path':str(path),'value':path.read_text(),"
+        "'target':sys.argv[1]}))"
+    )
+    recipes = []
+    for name, marker in (("server", "SERVER"), ("profile", "PROFILE")):
+        directory = tmp_path / ("apps/server" if name == "server" else "packages/fde-profile")
+        tests_dir = directory / "tests"
+        tests_dir.mkdir(parents=True)
+        (tests_dir / "case.txt").write_text(marker)
+        recipes.append(
+            JobDefinition(name, "test", "task.unit", (sys.executable, "-c", code),
+                          level="unit", default_targets=("tests/case.txt",),
+                          cwd=directory.relative_to(tmp_path).as_posix())
+        )
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "case.txt").write_text("WRONG_ROOT")
+    policy = Policy(tmp_path, (tmp_path,), ("task.unit",))
+    tasks = TaskManager(policy, tuple(recipes), {"PATH": os.defpath}, Redactor.from_values({}))
+
+    async def scenario() -> None:
+        try:
+            catalogue = {item["name"]: item for item in tasks.catalogue()}
+            assert catalogue["server"]["cwd"] == "apps/server"
+            assert catalogue["profile"]["targets_relative_to"] == "recipe_cwd"
+            for name, marker in (("server", "SERVER"), ("profile", "PROFILE")):
+                relative_cwd = "apps/server" if name == "server" else "packages/fde-profile"
+                selected = "tests/case.txt::test_case[param/../same]"
+                for suffix, options in (("default", {"all_tests": True}), ("explicit", {"targets": [selected]})):
+                    result = await tasks.start(name, f"{name}-{suffix}", **options)
+                    details = await finished(tasks, result["job_id"], include_output=True)
+                    payload = json.loads(details["stdout"])
+                    assert details["state"] == "succeeded"
+                    assert details["cwd"] == relative_cwd
+                    assert details["targets_relative_to"] == "recipe_cwd"
+                    assert payload["cwd"] == str(tmp_path / relative_cwd)
+                    assert payload["path"] == str(tmp_path / relative_cwd / "tests/case.txt")
+                    assert payload["value"] == marker
+                    assert payload["target"] == ("tests/case.txt" if suffix == "default" else selected)
+        finally:
+            await tasks.close()
+
+    asyncio.run(scenario())
+
+
+def test_monorepo_target_policy_uses_recipe_directory_not_root(tmp_path: Path) -> None:
+    (tmp_path / "apps/server/tests").mkdir(parents=True)
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests/secret.txt").write_text("root-allowed")
+    (tmp_path / "apps/server/tests/secret.txt").write_text("nested-denied")
+    policy = Policy(tmp_path, (tmp_path,), ("task.unit",),
+                    denied_paths=(tmp_path / "apps/server/tests/secret.txt",))
+    recipe = JobDefinition("unit", "test", "task.unit", (sys.executable, "-c", "print('unsafe')"),
+                           level="unit", default_targets=("tests/secret.txt",), cwd="apps/server")
+    tasks = TaskManager(policy, (recipe,), {"PATH": os.defpath}, Redactor.from_values({}))
+
+    async def scenario() -> None:
+        try:
+            with pytest.raises(ToolError, match="permitted workspace scope"):
+                await tasks.start("unit", "denied-default", all_tests=True)
+            with pytest.raises(ToolError, match="permitted workspace scope"):
+                await tasks.start("unit", "denied-explicit", ["tests/secret.txt"])
+        finally:
+            await tasks.close()
+
+    asyncio.run(scenario())
