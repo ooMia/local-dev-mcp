@@ -208,6 +208,30 @@ async def _result(
     return result
 
 
+async def inspect_merged(
+    run: GitHubRunner, repository: str, number: int, expected_branch: str, expected_head: str
+) -> MergeResult:
+    """Read a merged PR's authoritative squash provenance, without a write path."""
+    _sha(expected_head)
+    intended = await observe(run, repository, number)
+    if intended.state != "MERGED" or intended.head != expected_head:
+        raise ValueError("A verified merged PR at the expected source head is required.")
+    selected = _object(
+        await run(
+            "pr",
+            "view",
+            str(number),
+            "--repo",
+            f"https://github.com/{repository}",
+            "--json",
+            "headRefName",
+        )
+    )
+    if selected.get("headRefName") != expected_branch:
+        raise ValueError("The selected PR does not belong to the requested local topic branch.")
+    return await _result(run, intended, write_requested=False, request_uncertain=False)
+
+
 async def merge(
     run: GitHubRunner, repository: str, number: int, expected_head: str, expected_plan_digest: str
 ) -> MergeResult:

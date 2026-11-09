@@ -16,7 +16,7 @@ identity·서명 준비 오류는 commit에 한정한다. 다른 기능이나 �
 로컬 Git 도구에는 `git` 허용이 공통 적용된다. 원격 Git/PR 도구는 별도로 `gh`와 `git.remote.read`, `git.remote.write`, `gh.pr.create`, `gh.pr.ready`, `gh.pr.merge` 중 해당 논리 권한을 요구한다.
 선택한 workspace 자체가 working tree root여야 한다. 상위 저장소를 자동 채택하지 않는다.
 
-격리된 linked Worktree 준비·조회와 브랜치 기준 게시의 입력·실패 경계는 [Worktree 계약](worktrees.md)을 따른다.
+격리된 linked Worktree 준비·조회·검증된 PR 병합 이후 안전한 정리 및 브랜치 기준 게시의 입력·실패 경계는 [Worktree 계약](worktrees.md)을 따른다.
 
 로컬 후보 이력의 재구성은 [이력 재구성 계약](history-consolidation.md)을 따른다.
 

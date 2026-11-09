@@ -9,6 +9,7 @@ from .facades.compare_project_refs import COMPARE_PROJECT_REFS
 from .facades.consolidate_project_history import CONSOLIDATE_PROJECT_HISTORY
 from .facades.create_project_branch import CREATE_PROJECT_BRANCH
 from .facades.create_project_branch_from_ref import CREATE_PROJECT_BRANCH_FROM_REF
+from .facades.finalize_project_worktree import FINALIZE_PROJECT_WORKTREE
 from .facades.get_main_head import GET_MAIN_HEAD
 from .facades.get_project_diff import GET_PROJECT_DIFF
 from .facades.get_project_head import GET_PROJECT_HEAD
@@ -49,6 +50,7 @@ __all__ = [
     "PREPARE_PROJECT_WORKTREE_ASSESSMENT",
     "COMMIT_PROJECT_WORKTREE_ASSESSMENT",
     "PREPARE_PROJECT_WORKTREE",
+    "FINALIZE_PROJECT_WORKTREE",
     "INSPECT_PROJECT_WORKTREE",
     "INSPECT_PROJECT_BRANCH_REMOTE",
     "PUSH_PROJECT_BRANCH",
