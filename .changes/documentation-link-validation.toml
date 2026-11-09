@@ -1,0 +1,7 @@
+impact = "none"
+summary = "문서 전체의 상대 링크·앵커와 ADR 인덱스 누락을 회귀 검사한다."
+reason = "기존 고정 문서 목록의 누락을 없애고 docs 내 모든 Markdown과 주요 루트 안내의 링크 경로·앵커·ADR 등록을 검증한다. 런타임 기능·권한·사용자 API와 패키지 호환성에는 변경이 없다."
+contract = "Documentation integrity test coverage"
+assessed_by = "agent"
+migration = ""
+supersedes = []
