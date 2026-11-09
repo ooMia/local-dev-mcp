@@ -13,9 +13,8 @@
 
 ## 작업 경계별 정책 라우팅
 
-- 구현·테스트는 [개발 규약](docs/conventions.md)과 [검증 범위](docs/testing.md), 로컬 Git 변경·이력 재구성은 [Git 계약](docs/tools/git/README.md)과 [후보 이력](docs/tools/git/history-consolidation.md)을 확인한다.
-- `main` 통합 계획부터 [PR 통합 계약](docs/tools/workflow/README.md), [평가·누적 릴리스 결정](docs/adr/0005-assessed-squash-and-batched-releases.md), [PR 출처 결정](docs/adr/0006-native-pr-workflow-mvp.md)을 대조한다. [초기 기준선 예외](docs/adr/0008-initial-consolidated-baseline.md)는 해당 일회성 범위에만 적용한다.
-- 원격 게시·Ready·Squash는 [원격 PR 계약](docs/tools/git/remote-pr.md), 릴리스 준비는 [릴리스 계약](docs/tools/release/README.md)을 확인한다. 새 권한·정책 변경은 [운영 계약](docs/configuration.md)을 우선 확인한다.
+- 작업 유형에 맞는 결정과 현재 소유 계약은 [현재 적용 정책 지도](docs/README.md#현재-적용-정책)에서 찾는다. 구현·테스트, 로컬 Git·이력 재구성, `main` 통합, 원격 PR, 릴리스 등 영향 경계마다 관련 ADR과 계약을 대조한다.
+- [초기 기준선 예외](docs/adr/0008-initial-consolidated-baseline.md)는 정상 PR 통합에 재사용하지 않는다. 새 권한·설정 변경은 [운영 계약](docs/configuration.md)을 확인한다.
 - 중요한 쓰기 직전 정확한 브랜치·HEAD·평가·PR·CI 증거를 재관측한다. `inspect_project_policy`는 로컬 `main` 통합 선행 조건만 진단하며, 원격 승인이나 보호 우회를 허용하지 않는다. 차단 원인이 있으면 허용된 대체 경로로 계속 진행하되 임의의 출처·승인 또는 예외를 만들어 내지 않는다.
 
 ## 안전과 완료 조건
