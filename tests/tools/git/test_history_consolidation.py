@@ -242,3 +242,63 @@ def test_symbolic_destination_never_changes_another_ref(
         assert await git(tmp_path, "status", "--porcelain") == ""
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["tracked", "staged", "untracked"])
+def test_explicit_dirty_controller_consolidation_preserves_all_user_changes(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, mode: str
+) -> None:
+    async def scenario() -> None:
+        base, middle, head = await history(tmp_path, workspace_factory)
+        if mode == "tracked":
+            (tmp_path / "base.txt").write_text("uncommitted\n")
+        elif mode == "staged":
+            (tmp_path / "base.txt").write_text("staged user content\n")
+            await git(tmp_path, "add", "base.txt")
+        else:
+            (tmp_path / "scratch.txt").write_text("untracked user content\n")
+        before = await git(tmp_path, "status", "--porcelain")
+        index = await git(tmp_path, "ls-files", "--stage")
+        args = {**arguments(base, middle, head), "allow_dirty_controller": True}
+        async with Client(create_server(policy(tmp_path))) as session:
+            result = await success(session, "consolidate_project_history", args)
+            assert result["tree_verified"] is True
+            assert result["checkout_unchanged"] is True
+        candidate = await git(tmp_path, "rev-parse", "consolidated/main")
+        assert await git(tmp_path, "rev-parse", f"{candidate}^{{tree}}") == await git(
+            tmp_path, "rev-parse", f"{head}^{{tree}}"
+        )
+        assert await git(tmp_path, "rev-parse", "HEAD") == head
+        assert await git(tmp_path, "ls-files", "--stage") == index
+        assert await git(tmp_path, "status", "--porcelain") == before
+
+    asyncio.run(scenario())
+
+
+def test_opted_in_consolidation_rejects_same_status_dirty_content_drift(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        base, middle, head = await history(tmp_path, workspace_factory)
+        original_file = tmp_path / "base.txt"
+        original_file.write_text("before\n")
+        source = GitExecution.run
+        injected = False
+
+        async def mutate(self: GitExecution, *args: str, **kwargs: Any) -> GitResult:
+            nonlocal injected
+            result = await source(self, *args, **kwargs)
+            if args[0] == "commit-tree" and not injected:
+                injected = True
+                original_file.write_text("after!\n")
+            return result
+
+        monkeypatch.setattr(GitExecution, "run", mutate)
+        args = {**arguments(base, middle, head), "allow_dirty_controller": True}
+        async with Client(create_server(policy(tmp_path))) as session:
+            await failure(session, "consolidate_project_history", args)
+        assert await git(tmp_path, "branch", "--list", "consolidated/main") == ""
+        assert original_file.read_text() == "after!\n"
+        assert await git(tmp_path, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())

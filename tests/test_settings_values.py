@@ -184,3 +184,21 @@ def test_job_configuration_size_limits_fail_before_runtime_preparation(overflow:
 
     with pytest.raises(ConfigurationError):
         parse_policy(BASE_POLICY + f"[jobs.{name}]\n" + declaration)
+
+
+def test_recipe_cwd_defaults_to_root_and_accepts_relative_subproject() -> None:
+    legacy = parse_policy(BASE_POLICY + "[jobs.unit]\n" + UNIT_JOB)
+    nested = parse_policy(BASE_POLICY + "[jobs.unit]\n" + UNIT_JOB + 'cwd="apps/server"\n')
+
+    assert legacy.jobs[0].cwd == "."
+    assert nested.jobs[0].cwd == "apps/server"
+
+
+@pytest.mark.parametrize(
+    "value",
+    ['""', '"../outside"', '"/absolute"', '"C:/project"', '"apps\\\\server"', '"apps/server/../../escape"', "1"],
+)
+def test_job_cwd_rejects_escape_and_invalid_forms(value: str) -> None:
+    with pytest.raises(ConfigurationError) as caught:
+        parse_policy(BASE_POLICY + "[jobs.unit]\n" + UNIT_JOB + f"cwd={value}\n")
+    assert caught.value.target == "jobs.unit.cwd"

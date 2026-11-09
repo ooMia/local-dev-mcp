@@ -2,7 +2,7 @@
 
 이 기능은 [로컬 Git 계약](README.md)과 [원격 PR 계약](remote-pr.md)을 확장한다.
 기존 브랜치를 별도 linked Worktree에 준비하고 그 Worktree에서 원격 작업을 실행한다.
-원본 checkout은 전환하지 않으며 원본 브랜치·HEAD·인덱스와 clean 상태를 전후 확인한다.
+원본 checkout은 전환하지 않는다. Worktree 준비·검사는 원본이 dirty여도 그 내용의 전후 동일성을 검사하며, 원격 게시·평가 변경은 원본 clean을 요구한다.
 Git hooks·필터나 다른 프로세스의 부작용을 OS 수준으로 차단하거나 복구하지는 않는다.
 
 ## 도구와 입력
@@ -20,7 +20,7 @@ Git hooks·필터나 다른 프로세스의 부작용을 OS 수준으로 차단�
 
 `branch`는 게시할 기존 topic 브랜치이고 `expected_branch_head`는 그 전체 SHA다.
 `expected_branch`·`expected_head`는 원본 checkout의 현재 브랜치와 전체 SHA다.
-Worktree 준비·평가 작성·원격 쓰기는 두 checkout 모두 clean해야 실행한다.
+Worktree 준비·등록 lint/test는 원본에 미커밋 변경이 있어도 진행할 수 있으나, 평가 작성·평가 커밋·원격 게시 등은 기존처럼 원본과 대상이 모두 clean해야 한다.
 평가 커밋은 아래 절차에서 정한 새 평가 하나만 대상 변경으로 허용한다. `main`은 준비 대상이 될 수 없지만 원본 checkout일 수 있다.
 새 브랜치가 필요하면 먼저 `create_project_branch_from_ref`로 확인된 원본 SHA에서 생성한다.
 
@@ -70,14 +70,18 @@ PR 생성 후에는 이력 길이와 관계없이 실제 base/head/body 및 Draf
 실행 파일·recipe·환경은 서버 시작 snapshot을 유지하며 대상 `.env`·`config.toml`을 다시 읽지 않는다.
 호출자는 임의 경로·명령·옵션을 지정할 수 없다. 이번 인터페이스에서는 `kind="format"` 작업을 거부한다.
 
-원본·대상은 시작 시 clean하고 관측한 SHA여야 한다. 제출 준비와 프로세스 시작 직전에 상태를 검사한다.
-종료·취소 뒤 대상 branch/HEAD/clean 상태와 원본 branch/HEAD/index/clean 상태를 다시 확인한다.
+대상 Worktree는 실행 전후 clean하고 정확히 관측한 SHA여야 한다. 원본 checkout은 관측한 branch/HEAD를 유지하고 기존 staged·unstaged·untracked 내용을 그대로 보존할 수 있다.
+준비·작업 실행 전에는 원본 인덱스와 status 및 노출된 dirty 파일의 내용 SHA-256을 함께 지문화하고, 종료·취소 뒤 같은 상태인지 확인한다. 내용이 바뀌면 프로세스 exit 0이어도 Worktree 검증은 실패한다.
+dirty snapshot은 명시 정책상 읽을 수 있는 일반 파일·symlink만 허용하며, 변경 경로 256개 또는 일반 파일 합계 64 MiB 초과·금지·보호 경로·특수 파일은 안전하게 거부한다. 읽은 원문을 결과에 포함하지 않는다. Git에서 무시한 파일은 검증 범위가 아니고 OS 수준의 동시 수정 원자성을 보장하지 않는다.
 프로세스가 종료돼도 검증이 진행 중이면 job은 `running`이고 슬롯을 유지한다.
-test selector는 대상 Worktree 상대 경로이며 매핑된 정책과 실제 물리 경로의 접근 정책을 모두 검사한다.
+test selector는 대상 Worktree root에 매핑된 recipe `cwd` 상대 경로이며, 명시·기본 targets에 같은 기준을 적용한다.
+실제 resolve된 대상에 매핑된 정책과 원본 workspace의 접근 정책을 모두 검사한다. `cwd`는 Git root나 정책 root를 변경하지 않는다.
 
 Worktree job 결과에는 `worktree`가 추가된다. `branch`, `head`, `original_branch`, `original_head`,
 원본 상대 `path`, `verified`, `verification_error`를 제공한다.
 `verified=true`는 해당 Git 상태 검사 성공이며 테스트 수·성공이나 의미상 호환성을 보장하지 않는다.
+원본에서 고정한 executable이 원본 editable Python 환경을 가리키면 Worktree에서 실행하더라도 원본 패키지가 import될 수 있다.
+대상 소스 실행을 주장하려면 대표 Python recipe의 `module.__file__` 및 기대 값 등을 별도로 대조한다. 자동 venv 생성·import provenance 검증은 제공하지 않는다.
 `null`은 검증 전, `false`는 검사 실패·중단이다. 종료 코드 0이어도 Git 검증 실패는 `succeeded`로 보고하지 않는다.
 진단은 기존 마스킹·보관 상한을 따른다. 외부 recipe가 파일을 바꿀 수 있으며 실패 시 자동 복원하지 않는다.
 

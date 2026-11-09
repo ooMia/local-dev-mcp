@@ -1,5 +1,7 @@
 """Create a local candidate history from reviewed source snapshots, without checkout."""
 
+from __future__ import annotations
+
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -11,6 +13,7 @@ from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from ....mcp.registry import ToolDefinition, safe_execution
+from .. import _worktrees
 from .._execution import GitExecution
 from .._prepare import PreparedGitCommit, commit_readiness, prepare_git_commit
 from ..commands import commit_tree, revisions, show, status, update_ref, var
@@ -55,12 +58,24 @@ class ConsolidatedHistory(TypedDict):
     next_action: str
 
 
-async def require_checkout(repo: GitExecution, branch: str, head: str, index: str) -> None:
+async def require_checkout(
+    repo: GitExecution,
+    branch: str,
+    head: str,
+    index: str,
+    *,
+    dirty_snapshot: tuple[ServerSettings, str] | None = None,
+) -> None:
     current_branch, current_head, entries = await status.read_porcelain_v2(repo)
-    if current_branch != branch or current_head != head or entries:
+    if current_branch != branch or current_head != head or (entries and dirty_snapshot is None):
         raise ToolError("The controller checkout changed or is dirty; no further writes were attempted.")
     if await revisions.index_fingerprint(repo) != index:
         raise ToolError("The controller index changed; inspect before continuing.")
+    if dirty_snapshot is not None:
+        settings, expected = dirty_snapshot
+        observed = await _worktrees.original_snapshot(settings, branch, head, allow_dirty=True)
+        if observed != expected:
+            raise ToolError("The observed dirty controller changed; no candidate ref was published.")
 
 
 @dataclass(frozen=True)
@@ -79,9 +94,12 @@ class ConsolidateProjectHistoryTool:
             expected_branch: str,
             expected_head: ExpectedHead,
             units: Units,
+            allow_dirty_controller: bool = False,
             prepared: PreparedGitCommit = Depends(provide),
         ) -> ConsolidatedHistory:
-            return await self.consolidate(new_branch, base_head, expected_branch, expected_head, units, prepared)
+            return await self.consolidate(
+                new_branch, base_head, expected_branch, expected_head, units, prepared, allow_dirty_controller
+            )
 
         return invoke
 
@@ -93,6 +111,7 @@ class ConsolidateProjectHistoryTool:
         expected_head: str,
         units: list[ConsolidationUnit],
         prepared: PreparedGitCommit,
+        allow_dirty_controller: bool = False,
     ) -> ConsolidatedHistory:
         repo = GitExecution(self.settings, prepared)
         await _repository.verify_root(repo)
@@ -102,7 +121,15 @@ class ConsolidateProjectHistoryTool:
         await require_absent_branch(repo, new_branch)
         await update_ref.require_direct(repo, new_branch)
         index = await revisions.index_fingerprint(repo)
-        await require_checkout(repo, expected_branch, expected_head, index)
+        dirty_snapshot = (
+            (
+                self.settings,
+                await _worktrees.original_snapshot(self.settings, expected_branch, expected_head, allow_dirty=True),
+            )
+            if allow_dirty_controller
+            else None
+        )
+        await require_checkout(repo, expected_branch, expected_head, index, dirty_snapshot=dirty_snapshot)
         history = await InspectProjectCommitHistoryTool(self.settings).execute(
             base_head, expected_branch, base_head, expected_head
         )
@@ -151,7 +178,7 @@ class ConsolidateProjectHistoryTool:
         source_base = base_head
         created: list[ConsolidatedUnit] = []
         for unit, tree in snapshots:
-            await require_checkout(repo, expected_branch, expected_head, index)
+            await require_checkout(repo, expected_branch, expected_head, index, dirty_snapshot=dirty_snapshot)
             message = (
                 f"{unit.message.rstrip()}\n\nSource-Base: {source_base}\n"
                 f"Source-Head: {unit.source_head}\nSource-Tree: {tree}\n"
@@ -170,14 +197,14 @@ class ConsolidateProjectHistoryTool:
             )
             parent, source_base = candidate, unit.source_head
 
-        await require_checkout(repo, expected_branch, expected_head, index)
+        await require_checkout(repo, expected_branch, expected_head, index, dirty_snapshot=dirty_snapshot)
         await require_absent_branch(repo, new_branch)
         # Compare-and-create: even a concurrent creator cannot be overwritten.
         await update_ref.create_absent_branch(repo, new_branch, parent)
         try:
             await update_ref.require_direct(repo, new_branch)
             _, observed = await resolve_local_ref(repo, new_branch)
-            await require_checkout(repo, expected_branch, expected_head, index)
+            await require_checkout(repo, expected_branch, expected_head, index, dirty_snapshot=dirty_snapshot)
             if observed != parent or await revisions.tree(repo, observed) != snapshots[-1][1]:
                 raise ToolError("The candidate ref or final tree changed.")
         except ToolError as error:
@@ -207,7 +234,8 @@ CONSOLIDATE_PROJECT_HISTORY: Final = ToolDefinition(
         "Create an absent consolidated/<topic> local candidate from 1-16 reviewed snapshot endpoints "
         "over at most 64 linear source commits. Preserve every selected Git tree exactly and record original "
         "range/tree provenance. Uses startup identity/signing, verifies each parent/tree/signature, and "
-        "atomically creates only the new ref. Leaves original checkout, index, main and remotes untouched. "
+        "atomically creates only the new ref. Optional allow_dirty_controller=true pins observed dirty input; "
+        "omission preserves clean-only behavior. Leaves the controller checkout, main and remotes untouched. "
         "commit-tree does not run ordinary commit hooks: this is not quality approval or main integration. "
         "After uncertain failure inspect refs/status; never blindly retry or overwrite an existing candidate."
     ),

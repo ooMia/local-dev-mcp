@@ -32,7 +32,9 @@ class PrepareProjectWorktreeTool:
     ) -> _worktrees.WorktreeState:
         _worktrees.require_permission(self.settings, write=True)
         feature_name(branch)
-        fingerprint = await _worktrees.original_snapshot(self.settings, expected_branch, expected_head)
+        fingerprint = await _worktrees.original_snapshot(
+            self.settings, expected_branch, expected_head, allow_dirty=True
+        )
         repo = GitExecution(self.settings)
         _, head = await resolve_local_ref(repo, branch)
         if head != expected_branch_head:
@@ -70,7 +72,9 @@ class PrepareProjectWorktreeTool:
                 raise ToolError("Worktree checkout was not clean at the expected SHA; inspect retained state.")
             _worktrees.write_receipt(receipt, branch, head, prepared=True)
         finally:
-            await _worktrees.confirm_original(self.settings, expected_branch, expected_head, fingerprint)
+            await _worktrees.confirm_original(
+                self.settings, expected_branch, expected_head, fingerprint, allow_dirty=True
+            )
         result = await _worktrees.inspect(self.settings, branch)
         if result["state"] != "ready" or result["clean"] is not True or result["head"] != head:
             raise ToolError("Worktree may have been created but verification failed; inspect before retrying.")

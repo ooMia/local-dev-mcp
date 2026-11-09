@@ -461,7 +461,13 @@ def test_commit_dependency_is_hidden_from_public_schema(tmp_path: Path) -> None:
     server = create_server(Policy(tmp_path, (tmp_path,), ("git",)))
     tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
     schema = tools["commit_project_changes"].parameters
-    assert set(schema["properties"]) == {"message"}
+    assert set(schema["properties"]) == {
+        "message",
+        "expected_branch",
+        "expected_head",
+        "expected_index_fingerprint",
+        "expected_staged_paths",
+    }
     assert schema["required"] == ["message"]
     assert schema["properties"]["message"]["minLength"] == 1
     assert schema["additionalProperties"] is False

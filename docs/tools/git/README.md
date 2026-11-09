@@ -29,12 +29,12 @@ identity·서명 준비 오류는 commit에 한정한다. 다른 기능이나 �
 | `get_project_ref` | `ref` | 로컬 브랜치 또는 전체 Commit SHA를 읽기 전용으로 확인 |
 | `compare_project_refs` | `base_ref`, `target_ref`, `expected_base_head`, `expected_target_head`, `paths=null` | 두 Ref의 이력 수·변경 경로·패치 비교 |
 | `inspect_project_commit_history` | `base_ref`, `target_ref`, `expected_base_head`, `expected_target_head` | 기준 조상 이후 최대 64개 Commit의 SHA·부모 SHA·제목을 순서대로 조회 |
-| `consolidate_project_history` | `new_branch`, `base_head`, `expected_branch`, `expected_head`, `units` | 원본 tree를 보존한 별도 후보 이력 생성; main·checkout 유지 |
+| `consolidate_project_history` | `new_branch`, `base_head`, `expected_branch`, `expected_head`, `units`, `allow_dirty_controller=false` | 원본 tree 보존 후보 생성; 명시적 opt-in은 dirty controller를 지문화해 보존하며 main·checkout 유지 |
 | `get_project_status` | 없음 | branch/HEAD, 경로별 index·working-tree 상태 |
-| `get_project_diff` | `staged=false`, `paths=null` | working tree 또는 index의 patch 검토 |
+| `get_project_diff` | `staged=false`, `paths=null`, `include_untracked=false` | working tree 또는 index patch, 명시 범위의 제한된 untracked 미리보기 |
 | `stage_project_paths` | `paths` | 선택 범위의 추가·수정·삭제를 index에 반영 |
 | `unstage_project_paths` | `paths` | 작업 파일을 유지하면서 선택 범위 staging 해제 |
-| `commit_project_changes` | `message` | 현재 index 전체를 commit |
+| `commit_project_changes` | `message`, 선택적 `expected_branch`, `expected_head`, `expected_index_fingerprint`, `expected_staged_paths` | 전체 index commit. 보호 입력 4개를 함께 주면 정확한 staged 경로와 인덱스 지문을 재검증 |
 | `create_project_branch` | `new_branch`, `expected_branch`, `expected_head` | 현재 HEAD에서 새 로컬 브랜치를 만들고 전환; 미커밋 변경 유지 |
 | `merge_project_branch` | `expected_source_branch`, `expected_source_head`, `expected_main_head`, `message=null` | 설정된 workflow는 평가 기록을 검증한 squash; 미설정은 `--ff-only` |
 | `create_project_branch_from_ref` | `new_branch`, `base_ref`, `expected_base_head`, `expected_branch`, `expected_head` | 확인된 Ref에서 checkout 없이 새 브랜치 생성 |
@@ -58,9 +58,36 @@ identity·서명 준비 오류는 commit에 한정한다. 다른 기능이나 �
 
 stage는 기존의 부분 staging을 현재 작업 파일 내용으로 덮어쓸 수 있다.
 전체 반영은 반드시 `paths=["."]`로 요청한다. ignored 파일 강제 추가와 대화형 부분 staging은 없다.
-일반 diff는 untracked 파일의 내용을 보여주지 않는다. 새 파일은 stage 후 staged diff로 검토할 수 있다.
+일반 diff는 untracked 파일의 내용을 보여주지 않는다. `include_untracked=true`일 때만 명시 `paths`(루트 `.` 제외) 안의 비무시 untracked UTF-8 일반 파일을 제한적으로 미리본다.
+이 옵션은 `staged=true`와 함께 사용할 수 없다. 파일당 32 KiB, 최대 32개, 미리보기 전체 128 KiB를 넘으면 일부만 반환한다.
+symlink·바이너리·읽기 실패·허용되지 않은 경로는 미리보기에서 제외하고 `complete=false`로 표시한다.
+무시된 파일은 Git status에서 제외되므로 미리보기 대상이 아니며, `complete=true`도 무시된 파일까지 검토했다는 의미는 아니다.
+이때 `patch`에 포함된 신규 파일 내용은 Python이 생성한 unified text preview이며 `git diff --cached`와 동일한 Git 객체 검증 결과가 아니다.
+실제 staging·index 변경·임시 `git add -N` 없이 읽는다. 원문에는 자동 credential 마스킹이 없으므로 필요한 파일만 요청한다.
+기존처럼 새 파일을 stage한 뒤 staged diff로도 검토할 수 있다.
 외부 diff·textconv 프로그램은 실행하지 않아 외부 프로그램에 의한 추가 실행과 내용 변환을 피한다.
 patch의 credential 자동 탐지·마스킹은 제공하지 않는다.
+
+## 커밋 사전 조건 — 선택적 보호 모드 (Issue #8 P1)
+
+기존 `commit_project_changes(message)`는 하위 호환성을 위해 현재 인덱스 전체를 계속 커밋한다.
+**기본적으로 의도 밖 staged 경로를 차단하는 기능이 아니다.** 에이전트의 변경 단위 커밋에는
+아래 네 필드를 **모두** 함께 사용하는 보호 모드를 권장한다.
+
+1. `stage_project_paths` 이후 `get_project_diff(staged=true)`로 변경 내용과 경로를 검토한다.
+2. `get_project_pick_state`에서 현재 `branch`, `head`, `index_fingerprint`를 읽는다.
+3. `expected_staged_paths`에는 검토한 **모든** staged 파일 이름을 정확하게 지정한다.
+   Rename은 이전·새 경로를 모두 포함하며, 디렉터리나 `.`로 범위를 확장하지 않는다.
+4. `commit_project_changes`에 관측 값과 메시지를 함께 전달한다.
+
+보호 모드는 네 필드 중 일부만 있거나, 실제 staged 경로가 다르거나, 동일 경로의 staged
+내용이 재스테이징되어 인덱스 지문이 달라지거나, HEAD·브랜치가 바뀌면 커밋 전에 거부한다.
+초기 unborn 브랜치의 `head=null`은 `expected_head="unborn"`으로 표현할 수 있다.
+거부 후 자동 unstage·reset·retry는 하지 않는다. 현재 staged diff와 pick state를 다시 확인한다.
+
+이 사전 조건은 다른 OS 프로세스와 원자적이지 않으며 Git commit hook이 인덱스를 바꾸는
+것까지 차단하지 않는다. 완료 후 실제 커밋의 변경 파일·HEAD와 기존 staged 검토 결과를
+비교해야 한다. 명시적 보호 모드가 아닌 기존 API 사용자는 stage 범위만으로 안전을 가정하지 않는다.
 
 ## 선택적 Git 마이그레이션
 

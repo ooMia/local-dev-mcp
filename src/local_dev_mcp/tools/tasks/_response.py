@@ -19,6 +19,8 @@ class TaskInfo(TypedDict):
     next_action: str
     timeout_seconds: int
     default_targets: list[str]
+    cwd: str
+    targets_relative_to: Literal["recipe_cwd"]
 
 
 class WorktreeTaskResult(TypedDict):
@@ -49,6 +51,8 @@ class TaskResult(TypedDict):
     finished_at: str | None
     targets: list[str]
     all_tests: bool
+    cwd: str
+    targets_relative_to: Literal["recipe_cwd"]
     next_action: str
     may_have_changed_files: bool
     worktree: NotRequired[WorktreeTaskResult]
