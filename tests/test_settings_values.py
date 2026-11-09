@@ -184,3 +184,17 @@ def test_job_configuration_size_limits_fail_before_runtime_preparation(overflow:
 
     with pytest.raises(ConfigurationError):
         parse_policy(BASE_POLICY + f"[jobs.{name}]\n" + declaration)
+
+
+def test_monorepo_job_cwd_is_optional_and_recipe_relative() -> None:
+    explicit = parse_policy(BASE_POLICY + "[jobs.unit]\n" + UNIT_JOB + 'cwd="apps/server"\n')
+    legacy = parse_policy(BASE_POLICY + "[jobs.unit]\n" + UNIT_JOB)
+    assert explicit.jobs[0].cwd == "apps/server"
+    assert legacy.jobs[0].cwd == "."
+
+
+@pytest.mark.parametrize("cwd", ['""', '"../outside"', '"/absolute"', '"C:/project"', '"apps\\\\server"', '"apps/server/../../outside"', '1'])
+def test_monorepo_job_cwd_rejects_unsafe_values(cwd: str) -> None:
+    with pytest.raises(ConfigurationError) as caught:
+        parse_policy(BASE_POLICY + "[jobs.unit]\n" + UNIT_JOB + f"cwd={cwd}\n")
+    assert caught.value.target == "jobs.unit.cwd"
