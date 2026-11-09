@@ -101,6 +101,10 @@ ID는 인증된 Chat 대화 구분이 아니며, 다른 서버·workspace로의 
 `termination_confirmed`, UTC `started_at`·`finished_at`, `stdout`, `stderr`, `output_included`, `output_complete`, `output_reason`,
 `may_have_changed_files`, `next_action`을 제공한다. 관리 Worktree job은 선택적 `worktree` 맥락을 추가한다. 종료 코드는 CLI 결과이며 수집·통과 테스트 수를 추론하지 않는다.
 진단이 보류되거나 선택한 범위가 제한된 경우를 포함해, exit code 0만으로 전체 회귀 성공을 주장하지 않는다.
+이 결과에는 원본 프로젝트의 HEAD·index·unstaged/untracked 내용에 대한 실행 시점 입력 지문이나
+설정·의존성의 영속 식별자가 없다. 같은 이름·cwd·HEAD의 과거 성공을 현재 입력에 대한
+검증으로 자동 재사용하거나 다른 하위 프로젝트의 성공으로 집계하지 않는다.
+현재 필드의 충분성과 후속 검증 조건은 [Issue #8 P3 증거 평가](../../research/issue-8-verification-evidence-2026-11-09.md)를 참조한다.
 
 `output_included=false`이면 이번 응답의 stdout·stderr는 빈 문자열이다. 출력 수집을 중단했다거나 실제 출력이
 비어 있다는 뜻은 아니다. `include_output=true`로 조회한 `output_included=true` 결과의 빈 문자열은 현재 보관된

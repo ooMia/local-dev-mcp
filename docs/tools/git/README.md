@@ -31,7 +31,7 @@ identity·서명 준비 오류는 commit에 한정한다. 다른 기능이나 �
 | `inspect_project_commit_history` | `base_ref`, `target_ref`, `expected_base_head`, `expected_target_head` | 기준 조상 이후 최대 64개 Commit의 SHA·부모 SHA·제목을 순서대로 조회 |
 | `consolidate_project_history` | `new_branch`, `base_head`, `expected_branch`, `expected_head`, `units` | 원본 tree를 보존한 별도 후보 이력 생성; main·checkout 유지 |
 | `get_project_status` | 없음 | branch/HEAD, 경로별 index·working-tree 상태 |
-| `get_project_diff` | `staged=false`, `paths=null` | working tree 또는 index의 patch 검토 |
+| `get_project_diff` | `staged=false`, `paths=null`, `include_untracked=false` | working tree 또는 index patch, 명시 범위의 제한된 untracked 미리보기 |
 | `stage_project_paths` | `paths` | 선택 범위의 추가·수정·삭제를 index에 반영 |
 | `unstage_project_paths` | `paths` | 작업 파일을 유지하면서 선택 범위 staging 해제 |
 | `commit_project_changes` | `message`, 선택적 `expected_branch`, `expected_head`, `expected_index_fingerprint`, `expected_staged_paths` | 전체 index commit. 보호 입력 4개를 함께 주면 정확한 staged 경로와 인덱스 지문을 재검증 |
@@ -58,7 +58,13 @@ identity·서명 준비 오류는 commit에 한정한다. 다른 기능이나 �
 
 stage는 기존의 부분 staging을 현재 작업 파일 내용으로 덮어쓸 수 있다.
 전체 반영은 반드시 `paths=["."]`로 요청한다. ignored 파일 강제 추가와 대화형 부분 staging은 없다.
-일반 diff는 untracked 파일의 내용을 보여주지 않는다. 새 파일은 stage 후 staged diff로 검토할 수 있다.
+일반 diff는 untracked 파일의 내용을 보여주지 않는다. `include_untracked=true`일 때만 명시 `paths`(루트 `.` 제외) 안의 비무시 untracked UTF-8 일반 파일을 제한적으로 미리본다.
+이 옵션은 `staged=true`와 함께 사용할 수 없다. 파일당 32 KiB, 최대 32개, 미리보기 전체 128 KiB를 넘으면 일부만 반환한다.
+symlink·바이너리·읽기 실패·허용되지 않은 경로는 미리보기에서 제외하고 `complete=false`로 표시한다.
+무시된 파일은 Git status에서 제외되므로 미리보기 대상이 아니며, `complete=true`도 무시된 파일까지 검토했다는 의미는 아니다.
+이때 `patch`에 포함된 신규 파일 내용은 Python이 생성한 unified text preview이며 `git diff --cached`와 동일한 Git 객체 검증 결과가 아니다.
+실제 staging·index 변경·임시 `git add -N` 없이 읽는다. 원문에는 자동 credential 마스킹이 없으므로 필요한 파일만 요청한다.
+기존처럼 새 파일을 stage한 뒤 staged diff로도 검토할 수 있다.
 외부 diff·textconv 프로그램은 실행하지 않아 외부 프로그램에 의한 추가 실행과 내용 변환을 피한다.
 patch의 credential 자동 탐지·마스킹은 제공하지 않는다.
 
