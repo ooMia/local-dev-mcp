@@ -1,5 +1,6 @@
 """Commit the current index using startup identity and explicit signing intent."""
 
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Final, TypedDict
@@ -12,7 +13,7 @@ from pydantic import Field
 from ....mcp.registry import ToolDefinition, safe_execution
 from .._execution import GitExecution
 from .._prepare import PreparedGitCommit, commit_readiness, prepare_git_commit
-from ..commands import commit, diff, show, var
+from ..commands import commit, diff, revisions, show, status, var
 from . import _repository, _visibility
 from ._repository import observed_at
 
@@ -55,13 +56,33 @@ class CommitProjectChangesTool:
 
         async def invoke(
             message: CommitMessage,
+            expected_branch: str | None = None,
+            expected_head: str | None = None,
+            expected_index_fingerprint: str | None = None,
+            expected_staged_paths: _repository.ProjectPaths | None = None,
             prepared: PreparedGitCommit = Depends(provide),
         ) -> ProjectCommit:
-            return await self.commit(message, prepared)
+            return await self.commit(
+                message,
+                prepared,
+                expected_branch=expected_branch,
+                expected_head=expected_head,
+                expected_index_fingerprint=expected_index_fingerprint,
+                expected_staged_paths=expected_staged_paths,
+            )
 
         return invoke
 
-    async def commit(self, message: str, prepared: PreparedGitCommit) -> ProjectCommit:
+    async def commit(
+        self,
+        message: str,
+        prepared: PreparedGitCommit,
+        *,
+        expected_branch: str | None = None,
+        expected_head: str | None = None,
+        expected_index_fingerprint: str | None = None,
+        expected_staged_paths: list[str] | None = None,
+    ) -> ProjectCommit:
         if not message.strip() or "\0" in message:
             raise ToolError("Provide a nonempty commit message without NUL characters.")
         repo = GitExecution(self.settings, prepared)
@@ -73,8 +94,52 @@ class CommitProjectChangesTool:
                 "The index contains protected or unreadable paths. No commit was attempted. "
                 "Unstage those paths or review the access policy before committing."
             )
+        guarded = any(
+            item is not None
+            for item in (expected_branch, expected_head, expected_index_fingerprint, expected_staged_paths)
+        )
+        expected_paths: set[str] = set()
+        if guarded:
+            if any(
+                item is None
+                for item in (expected_branch, expected_head, expected_index_fingerprint, expected_staged_paths)
+            ):
+                raise ToolError("Expected branch, HEAD, index fingerprint and staged paths must be supplied together.")
+            if (
+                not isinstance(expected_index_fingerprint, str)
+                or re.fullmatch(r"[0-9a-f]{64}", expected_index_fingerprint) is None
+            ):
+                raise ToolError("Expected index fingerprint must be the SHA-256 value from get_project_pick_state.")
+            if expected_staged_paths is None or not expected_staged_paths:
+                raise ToolError("Expected staged paths must name the complete exact staged file set.")
+            checked = _repository.check_paths(repo, expected_staged_paths)
+            if "." in checked or len(set(checked)) != len(checked):
+                raise ToolError("Expected staged paths must be distinct file names, not workspace-wide selections.")
+            expected_paths = set(checked)
+            actual_paths = {path for change in changes for path in change}
+            if actual_paths != expected_paths:
+                raise ToolError(
+                    "Actual staged paths differ from expected staged paths. Re-read staged diff and status."
+                )
+            if any(not _visibility.readable(repo, path) for path in expected_paths):
+                raise ToolError("Expected staged paths include restricted entries.")
         before = await _repository.read_head(repo)
         await var.require_commit_identity(repo)
+        if guarded:
+            # Preconditions are checked again immediately before starting Git
+            # commit; this is not a transaction against concurrent OS writers or hooks.
+            branch, head, _ = await status.read_porcelain_v2(repo)
+            if (
+                branch != expected_branch
+                or head != before
+                or head != (None if expected_head == "unborn" else expected_head)
+            ):
+                raise ToolError("Git branch or HEAD changed. Re-read get_project_pick_state.")
+            if await revisions.index_fingerprint(repo) != expected_index_fingerprint:
+                raise ToolError("Git index changed. Re-read get_project_pick_state.")
+            current = await diff.changed_paths(repo, ["."], staged=True)
+            if {path for change in current for path in change} != expected_paths:
+                raise ToolError("Staged paths changed. Re-read staged diff before committing.")
         await commit.commit_index(repo, message, signing=prepared.signing is not None)
         try:
             after = await _repository.read_head(repo)
@@ -136,7 +201,10 @@ COMMIT_PROJECT_CHANGES: Final = ToolDefinition(
         "enabled OpenPGP signing may start shared GnuPG daemons; input prompts are disabled. "
         "Reports commit creation separately from local signature verification. "
         "Staged unreadable paths prevent commit; unstage them or review the access policy. "
-        "No auto-stage, amend or hook bypass; failed signing never falls back to unsigned."
+        "Optional guarded mode requires expected_branch, expected_head, expected_index_fingerprint and "
+        "expected_staged_paths together; checks the exact index content and staged names against observed state. "
+        "For an unborn branch use expected_head='unborn'. Preconditions are not an atomic transaction with hooks "
+        "or concurrent Git processes. No auto-stage, amend, hook bypass or unsigned retry."
     ),
     annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False),
     required_commands=commit_commands,
