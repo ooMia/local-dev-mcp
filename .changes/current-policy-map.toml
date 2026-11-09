@@ -1,0 +1,7 @@
+impact = "none"
+summary = "현재 적용 정책과 부분 대체·일회성 예외를 작업별 문서 지도로 정리한다."
+reason = "ADR 원본과 실행·릴리스 계약은 변경하지 않고 루트 에이전트 지침의 중복 정책 링크를 소유 문서 인덱스로 모은다. 문서 탐색만 개선하며 사용자 API·권한·버전 영향은 없다."
+contract = "Documentation policy routing"
+assessed_by = "agent"
+migration = ""
+supersedes = []
