@@ -69,6 +69,7 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `compare_project_refs` | 로컬 Git ref 사이 커밋·경로·patch 비교 |
 | `inspect_project_commit_history` | 확인된 두 Commit 사이의 SHA·부모·제목 이력 조회(최대 64개) |
 | `consolidate_project_history` | 검토한 기능 경계의 원본 tree를 보존한 로컬 후보 이력 생성 |
+| `inspect_project_policy` | 정확한 로컬 main/source SHA의 브랜치·평가 선행 조건 진단. 원격 PR·CI 확인 및 통합 승인은 별도 |
 | `get_project_status` | branch/HEAD와 경로별 index·working-tree 상태 |
 | `get_project_diff` | working tree 또는 staged patch |
 | `stage_project_paths` | 명시한 상대 경로의 추가·수정·삭제 stage |

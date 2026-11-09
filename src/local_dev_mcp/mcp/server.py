@@ -21,6 +21,7 @@ TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
     git.GET_PROJECT_DIFF,
     git.GET_PROJECT_REF,
     git.INSPECT_PROJECT_COMMIT_HISTORY,
+    git.INSPECT_PROJECT_POLICY,
     git.COMPARE_PROJECT_REFS,
     git.CONSOLIDATE_PROJECT_HISTORY,
     git.STAGE_PROJECT_PATHS,
@@ -117,6 +118,8 @@ def create_server(policy: Policy) -> FastMCP:
             "Task calls omit diagnostic bodies by default; get_project_task(include_output=true) reads retained "
             "masked output without running the task again. "
             "Local project Git tools: inspect HEAD, status and diff; stage, unstage and commit explicit changes. "
+            "Before main integration inspect_project_policy checks observed local refs and assessments only; "
+            "this read-only preflight cannot replace remote PR, exact-head CI, or provenance checks. "
             "Commit records the entire current index. Writes may have taken effect even when an error is reported; "
             "inspect status and HEAD before retrying. "
             "Branch creation/switching requires the observed HEAD and branch and may carry dirty edits. "

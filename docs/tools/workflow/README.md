@@ -59,6 +59,8 @@ writer의 bypass는 별도 gates 규칙을 우회하지 않는다. 새 App이나
 
 ## 기능 통합
 
+로컬 후보를 `main`에 통합하기 전에 `inspect_project_policy(operation="integrate_main", source_ref, expected_main_head, expected_source_head)`로 브랜치·조상·커밋된 영향 평가를 진단한다. 이는 **읽기 전용 로컬 사전 평가**로서 Draft PR, 정확한 HEAD의 CI, Ready, 최종 출처 및 병합 승인을 검증하지 않는다. 차단된 경우 허용된 다음 경로를 수행하며 `consolidated/*` 후보나 최초 기준선 예외를 일반 PR 통합 대신 적용하지 않는다.
+
 작업 브랜치에서 구현·테스트·리팩터링 커밋을 만들고 기능별 PR을 연다. PR은 개발 커밋·설명·리뷰의 참조 지점이다.
 별도 develop는 만들지 않는다. GitHub에 제출하지 않은 편집까지 자동 보존하지 않으며 과거 main 이력을 재작성하지 않는다.
 
