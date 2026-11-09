@@ -29,7 +29,7 @@ identity·서명 준비 오류는 commit에 한정한다. 다른 기능이나 �
 | `get_project_ref` | `ref` | 로컬 브랜치 또는 전체 Commit SHA를 읽기 전용으로 확인 |
 | `compare_project_refs` | `base_ref`, `target_ref`, `expected_base_head`, `expected_target_head`, `paths=null` | 두 Ref의 이력 수·변경 경로·패치 비교 |
 | `inspect_project_commit_history` | `base_ref`, `target_ref`, `expected_base_head`, `expected_target_head` | 기준 조상 이후 최대 64개 Commit의 SHA·부모 SHA·제목을 순서대로 조회 |
-| `consolidate_project_history` | `new_branch`, `base_head`, `expected_branch`, `expected_head`, `units` | 원본 tree를 보존한 별도 후보 이력 생성; main·checkout 유지 |
+| `consolidate_project_history` | `new_branch`, `base_head`, `expected_branch`, `expected_head`, `units`, `allow_dirty_controller=false` | 원본 tree 보존 후보 생성; 명시적 opt-in은 dirty controller를 지문화해 보존하며 main·checkout 유지 |
 | `get_project_status` | 없음 | branch/HEAD, 경로별 index·working-tree 상태 |
 | `get_project_diff` | `staged=false`, `paths=null`, `include_untracked=false` | working tree 또는 index patch, 명시 범위의 제한된 untracked 미리보기 |
 | `stage_project_paths` | `paths` | 선택 범위의 추가·수정·삭제를 index에 반영 |
