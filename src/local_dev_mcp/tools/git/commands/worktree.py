@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastmcp.exceptions import ToolError
 
+from ....settings import Policy, protected_name
 from .._execution import GitExecution, text_output
 
 
@@ -71,3 +72,20 @@ async def require_ignored(execution: GitExecution, relative: str) -> None:
     )
     if result.code != 0:
         raise ToolError("Managed .lab/worktrees paths must be ignored before preparation.")
+
+
+async def require_safe_checkout_tree(
+    execution: GitExecution,
+    policy: Policy,
+    path: Path,
+    head: str,
+    *,
+    operation: str,
+) -> None:
+    """Reject tracked protected paths and policy escapes before materializing a checkout."""
+    tree = await execution.run("ls-tree", "-r", "--name-only", "-z", head, operation=operation)
+    for name in filter(None, text_output(tree.output).split("\0")):
+        if any(protected_name(part) for part in name.split("/")):
+            raise ToolError("Target checkout tree contains protected paths; no worktree was created.")
+        if not policy.allows_path(path / name) or not policy.allows_path(execution.root / name):
+            raise ToolError("Target checkout tree includes paths outside the configured access policy.")

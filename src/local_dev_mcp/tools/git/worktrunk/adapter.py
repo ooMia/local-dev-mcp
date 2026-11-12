@@ -16,8 +16,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from fastmcp.exceptions import ToolError
 
-from ....settings import protected_name
-from .._execution import GitExecution, text_output
+from .._execution import GitExecution
 from .._remote import feature_name, valid_sha
 from .._worktrees import confirm_original, original_snapshot
 from ..commands import status, worktree
@@ -176,16 +175,9 @@ class WorktrunkAdapter:
         if result.code != 1:
             raise ToolError("Worktrunk target branch already exists or cannot be inspected.")
         await worktree.require_ignored(repo, path.relative_to(repo.root).as_posix() + "/")
-        tree = await repo.run(
-            "ls-tree", "-r", "--name-only", "-z", base_head, operation="Inspect Worktrunk checkout paths"
+        await worktree.require_safe_checkout_tree(
+            repo, self.settings.policy, path, base_head, operation="Inspect Worktrunk checkout paths"
         )
-        for name in filter(None, text_output(tree.output).split("\0")):
-            if any(protected_name(part) for part in name.split("/")):
-                raise ToolError("Target Worktrunk tree contains protected names.")
-            if not self.settings.policy.allows_path(path / name) or not self.settings.policy.allows_path(
-                repo.root / name
-            ):
-                raise ToolError("Target Worktrunk tree extends outside the authorized workspace.")
         # An explicit path prevents global Worktrunk configuration from placing files
         # outside the authorized workspace. This Worktrunk flag is experimental.
         await self._run(
