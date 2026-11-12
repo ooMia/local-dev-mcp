@@ -16,6 +16,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 | 도구 | 입력 | 결과 |
 | --- | --- | --- |
 | `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head`, `base_branch="main"` | 현재 checkout을 변경하지 않고 새 브랜치·Worktree 생성 |
+| `prepare_project_worktrunk_main` | `expected_branch`, `expected_head`, `expected_main_head` | Main이 미등록 상태일 때 별도 `.lab/wt/main` 생성, 원본 Dirty 파일 보존 |
 | `merge_project_worktrunk` | `branch`, `expected_source_head`, `expected_main_head`, `mode="squash"\|"ff"` | 품질 증거·main 승인 미구현 상태에서는 실행 거부 |
 | `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=false` | Clean Worktree 정리, 명시적 선택 시 안전한 브랜치 삭제 |
 | `get_project_worktrunk_merge_plan` | `evidence_id`, `branch`, `expected_source_head`, `expected_main_head` | 서버 로컬 검사 증거와 Clean main 검증, 승인 대기 상태의 read-only 계획 |
@@ -27,7 +28,9 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 ## 안전 경계
 
 - 브랜치 이름은 기존 프로젝트 기능 브랜치 검증을 재사용한다.
-- 작업 경로는 선택 Workspace 하위 `.lab/wt/<branch-sha256-prefix>`로 고정한다.
+- 기능 Worktree 경로는 선택 Workspace 하위 `.lab/wt/<branch-sha256-prefix>`로 고정한다.
+  Main 준비는 별도 `.lab/wt/main` 경로만 사용하며 기존 등록 Main/점유 경로를 거부한다.
+  준비 전후 원본 Checkout 지문과 Main Ref·새 Worktree의 Git 포인터·Clean 상태를 검증한다.
   `wt switch --path` 플래그는 Worktrunk에서 **experimental**이므로 CLI 업그레이드 회귀가 필요하다.
 - 현재 checkout의 원래 브랜치·HEAD·작업 트리 지문을 검증하며, 생성에 필요한 기본 Ref의 SHA를 확인한다.
 - 기존 경로, 브랜치, 관리 외 Worktree는 채택하거나 덮어쓰지 않는다.

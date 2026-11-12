@@ -57,6 +57,11 @@ def _authorize(settings: ServerSettings, *, write: bool) -> None:
         raise ToolError(str(error)) from None
 
 
+def require_worktrunk_access(settings: ServerSettings, *, write: bool) -> None:
+    """Expose the adapter's fixed logical access policy to submodules."""
+    _authorize(settings, write=write)
+
+
 @dataclass(frozen=True)
 class WorktrunkAdapter:
     settings: ServerSettings
@@ -110,6 +115,10 @@ class WorktrunkAdapter:
         if not isinstance(data, dict) or data.get("schema") != 2 or not isinstance(data.get("items"), list):
             raise ToolError("Unsupported Worktrunk list schema; expected schema 2.")
         return data
+
+    async def switch_main_checkout(self, path: Path) -> None:
+        """Execute only the fixed main checkout command; path checks belong to main.py."""
+        await self._run("switch", "main", "--path", str(path), "--no-cd", "--no-hooks", write=True)
 
     async def require_ready(self, branch: str, expected_head: str) -> ServerSettings:
         """Bind an exact clean Worktrunk checkout to the controller's startup policy."""
