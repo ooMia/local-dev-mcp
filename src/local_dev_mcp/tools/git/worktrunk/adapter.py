@@ -18,7 +18,7 @@ from fastmcp.exceptions import ToolError
 
 from .._execution import GitExecution
 from .._remote import feature_name, valid_sha
-from .._worktrees import confirm_original, original_snapshot
+from .._worktrees import confirm_original, original_snapshot, require_permission
 from ..commands import status, worktree
 from ..facades._refs import resolve_local_ref
 
@@ -46,14 +46,7 @@ def _managed_path(settings: ServerSettings, branch: str, *, write: bool) -> Path
 
 
 def _authorize(settings: ServerSettings, *, write: bool) -> None:
-    try:
-        settings.policy.require_project_access()
-        settings.policy.require_command("git")
-        settings.policy.require_command("wt")
-        if write:
-            settings.policy.require_command("git.worktree.write")
-    except PermissionError as error:
-        raise ToolError(str(error)) from None
+    require_permission(settings, write=write, backend_commands=("wt",))
 
 
 def require_worktrunk_access(settings: ServerSettings, *, write: bool) -> None:
