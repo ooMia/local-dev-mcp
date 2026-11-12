@@ -11,7 +11,7 @@ from fastmcp import FastMCP
 from ..app.runtime import ServerSettings
 from ..diagnostics import warn_preparation
 from ..settings import Policy
-from ..tools import documents, get_tool_readiness, git, release, tasks, workspace
+from ..tools import client_elicitation, documents, get_tool_readiness, git, release, tasks, workspace
 from . import registry
 
 TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
@@ -61,6 +61,8 @@ TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
     release.GET_RELEASE_PLAN,
     release.PREPARE_PROJECT_RELEASE,
     get_tool_readiness.GET_TOOL_READINESS,
+    client_elicitation.DIAGNOSE_CLIENT_ELICITATION,
+    client_elicitation.PROBE_CLIENT_ELICITATION,
     tasks.LIST_PROJECT_TASKS,
     tasks.START_PROJECT_TASK,
     tasks.GET_PROJECT_TASK,

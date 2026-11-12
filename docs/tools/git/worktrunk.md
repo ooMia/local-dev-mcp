@@ -4,6 +4,9 @@
 [Switch](https://worktrunk.dev/switch/), [Merge](https://worktrunk.dev/merge/),
 [Remove](https://worktrunk.dev/remove/), [List](https://worktrunk.dev/list/).
 
+[MCP Elicitation Capability 진단](elicitation-diagnostics.md)은 2026-07-28의 다중 왕복 지원 여부를 점검하며,
+현재 `main` 자동 병합 승인으로 사용할 수 없다.
+
 이 구현은 기존 Git Worktree/PR 도구를 **아직 대체하지 않는다**.
 기존 API를 삭제하기 전에 실제 명령의 실패·안전 계약을 독립적으로 검증하기 위한 경로다.
 실제 MCP 서버 사용에는 변경된 코드를 반영한 서버 재시작과 `wt` 실행 파일 설치가 필요하다.
