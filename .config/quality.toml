@@ -1,0 +1,7 @@
+# Single quality profile over the existing registered jobs in config.toml.
+# argv, permissions, cwd and timeouts stay in config.toml; never duplicate them.
+schema_version = 1
+
+[profiles.pre_merge]
+checks = ["format_check", "lint", "typecheck", "unit", "integration"]
+require_clean = true
