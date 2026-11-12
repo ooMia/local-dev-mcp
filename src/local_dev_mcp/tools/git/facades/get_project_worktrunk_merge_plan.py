@@ -10,6 +10,7 @@ from mcp.types import ToolAnnotations
 
 from ....mcp.registry import ToolDefinition
 from ....quality import load_quality_manifest
+from ....quality.job_validation import validate_quality_job_sequence
 from .. import _worktrees
 from .._execution import GitExecution, text_output
 from .._prepare import git_readiness
@@ -73,21 +74,16 @@ class GetProjectWorktrunkMergePlanTool:
         ).hexdigest()
         if digest != proof.recipe_digest:
             raise ToolError("Registered quality recipes changed after verification.")
-        for (name, job_id), recipe in zip(proof.checks, recipes, strict=True):
-            job = self.settings.tasks.get(job_id)
-            context = job.get("worktree")
-            if (
-                name != recipe.name
-                or job["state"] != "succeeded"
-                or job["exit_code"] != 0
-                or not job["termination_confirmed"]
-                or context is None
-                or context["backend"] != "worktrunk"
-                or context["verified"] is not True
-                or context["head"] != proof.source_head
-                or context["path"] != proof.worktree_path
-            ):
-                raise ToolError("One or more verified quality Jobs became unavailable.")
+        validated = validate_quality_job_sequence(
+            recipes,
+            proof.job_ids,
+            self.settings.tasks.get,
+            branch=branch,
+            source_head=proof.source_head,
+            worktree_path=proof.worktree_path,
+        )
+        if validated != proof.checks:
+            raise ToolError("Retained quality evidence no longer matches the reviewed job sequence.")
 
         repo = GitExecution(self.settings)
         _, source_head = await resolve_local_ref(repo, branch)

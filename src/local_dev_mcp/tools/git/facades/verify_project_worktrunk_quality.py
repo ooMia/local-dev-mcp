@@ -12,6 +12,7 @@ from pydantic import Field
 from ....mcp.registry import ToolDefinition
 from ....quality import load_quality_manifest
 from ....quality.evidence import QualityEvidenceResult, VerifiedQualityEvidence
+from ....quality.job_validation import validate_quality_job_sequence
 from .._execution import GitExecution, text_output
 from .._prepare import git_readiness
 from ..worktrunk import WorktrunkAdapter
@@ -64,43 +65,14 @@ class VerifyProjectWorktrunkQualityTool:
         ).strip()
         expected_path = target.policy.root.relative_to(root).as_posix()
 
-        checks: list[tuple[str, str]] = []
-        previous_finished = ""
-        controller_origin: tuple[str, str] | None = None
-        for recipe, job_id in zip(recipes, job_ids, strict=True):
-            job = self.settings.tasks.get(job_id)
-            context = job.get("worktree")
-            if (
-                job["task"] != recipe.name
-                or job["state"] != "succeeded"
-                or job["exit_code"] != 0
-                or job["kind"] != recipe.kind
-                or job["level"] != recipe.level
-                or job["cwd"] != recipe.cwd
-                or job["termination_confirmed"] is not True
-                or not job["output_complete"]
-                or context is None
-                or context["backend"] != "worktrunk"
-                or context["path"] != expected_path
-                or context["branch"] != branch
-                or context["head"] != source_head
-                or context["verified"] is not True
-            ):
-                raise ToolError("A required quality Job did not pass for this exact Worktrunk source.")
-            origin = (context["original_branch"], context["original_head"])
-            if controller_origin is None:
-                controller_origin = origin
-            elif controller_origin != origin:
-                raise ToolError("Quality Jobs came from different controller checkouts.")
-            if recipe.kind == "test" and (
-                job["all_tests"] is not True or job["targets"] != list(recipe.default_targets)
-            ):
-                raise ToolError("Quality test Jobs must run their complete configured target scope.")
-            started, finished = job["started_at"], job["finished_at"]
-            if started is None or finished is None or finished < started or started < previous_finished:
-                raise ToolError("Quality Jobs must have complete, ordered execution timestamps.")
-            previous_finished = finished
-            checks.append((recipe.name, job_id))
+        checks = validate_quality_job_sequence(
+            recipes,
+            job_ids,
+            self.settings.tasks.get,
+            branch=branch,
+            source_head=source_head,
+            worktree_path=expected_path,
+        )
 
         # Repeat the source observation after reading all retained Jobs.
         await adapter.require_ready(branch, source_head)
