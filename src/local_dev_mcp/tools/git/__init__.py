@@ -27,7 +27,6 @@ from .facades.merge_project_branch import MERGE_PROJECT_BRANCH
 from .facades.merge_project_pr import MERGE_PROJECT_PR
 from .facades.prepare_project_worktree import PREPARE_PROJECT_WORKTREE
 from .facades.prepare_project_worktree_assessment import PREPARE_PROJECT_WORKTREE_ASSESSMENT
-from .facades.prepare_project_worktrunk_main import PREPARE_PROJECT_WORKTRUNK_MAIN
 from .facades.publish_project_branch import (
     CREATE_PROJECT_BRANCH_DRAFT_PR,
     INSPECT_PROJECT_BRANCH_REMOTE,
@@ -58,7 +57,6 @@ __all__ = [
     "PREPARE_PROJECT_WORKTREE_ASSESSMENT",
     "COMMIT_PROJECT_WORKTREE_ASSESSMENT",
     "PREPARE_PROJECT_WORKTREE",
-    "PREPARE_PROJECT_WORKTRUNK_MAIN",
     "FINALIZE_PROJECT_WORKTREE",
     "INSPECT_PROJECT_WORKTREE",
     "INSPECT_PROJECT_BRANCH_REMOTE",

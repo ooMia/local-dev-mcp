@@ -249,7 +249,8 @@ def test_merge_plan_rechecks_evidence_and_does_not_write_main(
                 client, "get_project_worktrunk_merge_plan", {**arguments, "evidence_id": "untrusted"}
             )
             (tmp_path / "base.txt").write_text("dirty main\n")
-            assert "dirty" in await failure(client, "get_project_worktrunk_merge_plan", arguments)
+            unchanged_plan = await success(client, "get_project_worktrunk_merge_plan", arguments)
+            assert unchanged_plan["plan_digest"] == plan["plan_digest"]
             assert await git(tmp_path, "rev-parse", "HEAD") == base
 
     asyncio.run(scenario())
@@ -288,5 +289,61 @@ def test_quality_jobs_from_different_controller_checkouts_are_rejected(
             )
             assert "different controller" in refusal
             assert await git(tmp_path, "rev-parse", "HEAD") == base
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("wt") is None, reason="macOS Worktrunk CLI is required")
+def test_review_plan_needs_main_ref_but_not_main_checkout(tmp_path: Path, workspace_factory: WorkspaceFactory) -> None:
+    async def scenario() -> None:
+        base = await _fixture(tmp_path, workspace_factory)
+        await git(tmp_path, "switch", "-c", "feat/controller")
+        async with Client(create_server(_policy(tmp_path))) as client:
+            created = await success(
+                client,
+                "create_project_worktrunk",
+                {
+                    "branch": "feat/wt-proof",
+                    "expected_branch": "feat/controller",
+                    "expected_head": base,
+                    "expected_base_head": base,
+                },
+            )
+            source_root = tmp_path / str(created["path"])
+            (source_root / "feature.txt").write_text("review only\n")
+            await git(source_root, "add", "feature.txt")
+            await git(source_root, "commit", "-m", "feat: external review")
+            source = await git(source_root, "rev-parse", "HEAD")
+            jobs = [
+                await _job(client, "check", base, "proposal-check", False, source, "feat/controller"),
+                await _job(client, "unit", base, "proposal-unit", True, source, "feat/controller"),
+            ]
+            evidence = await success(
+                client,
+                VERIFY,
+                {
+                    "branch": "feat/wt-proof",
+                    "expected_source_head": source,
+                    "expected_main_head": base,
+                    "job_ids": jobs,
+                },
+            )
+            assert "branch refs/heads/main" not in await git(tmp_path, "worktree", "list", "--porcelain")
+            plan = await success(
+                client,
+                "get_project_worktrunk_merge_plan",
+                {
+                    "evidence_id": evidence["evidence_id"],
+                    "branch": "feat/wt-proof",
+                    "expected_source_head": source,
+                    "expected_main_head": base,
+                },
+            )
+            assert plan["status"] == "approval_required"
+            assert plan["target_head"] == base
+            assert plan["source_head"] == source
+            assert plan["write_requested"] is False
+            assert await git(tmp_path, "rev-parse", "main") == base
+            assert await git(tmp_path, "branch", "--show-current") == "feat/controller"
 
     asyncio.run(scenario())

@@ -42,7 +42,8 @@ Worktrunk 실행 경로는 추가 `wt` 논리 권한이 필요하고, Task 응�
 명령 실행기에서 실패가 보고돼야 거부할 수 있으며, 추후 테스트 수집을 증명하는 별도 계약이 필요하다.
 증거 발급과 로컬 `main` 통합 승인은 독립적이며, **증거 단독으로 Git Ref를 갱신할 수 없다.**
 `get_project_worktrunk_merge_plan`은 증거 재조회, Source/Target HEAD·Tree, Manifest/Recipe 및
-Clean `main` Worktree를 검사한 뒤 `approval_required`와 검토용 Digest를 반환한다.
+`main`의 Git Ref를 검사한 뒤 `approval_required`와 검토용 Digest를 반환한다.
+제안 생성에는 별도 `main` Checkout이나 원본 작업 트리의 Clean 상태가 필요하지 않다.
 Worktrunk MCP는 증거와 검토 계획에서 종료하며 `main` 병합 도구를 등록하지 않는다.
 이후 GitHub PR·CI·사용자 승인 또는 별도의 사용자 통제 Git 작업은 독립적인 실행 경로에 속한다.
 

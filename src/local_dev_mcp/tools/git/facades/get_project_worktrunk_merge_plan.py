@@ -11,10 +11,8 @@ from mcp.types import ToolAnnotations
 from ....mcp.registry import ToolDefinition
 from ....quality import load_quality_manifest
 from ....quality.job_validation import validate_quality_job_sequence
-from .. import _worktrees
 from .._execution import GitExecution, text_output
 from .._prepare import git_readiness
-from ..commands import status, worktree
 from ..worktrunk import WorktrunkAdapter
 from ._refs import BranchName, ExpectedHead, resolve_local_ref
 
@@ -108,19 +106,7 @@ class GetProjectWorktrunkMergePlanTool:
         ).strip()
         if source_tree != proof.source_tree:
             raise ToolError("Reviewed source Git Tree changed.")
-        records = await worktree.list_registered(repo)
-        registered_main = [row for row in records if row.branch == "refs/heads/main"]
-        if len(registered_main) != 1 or registered_main[0].unavailable:
-            raise ToolError("A registered main Worktree is required.")
-        main_path = registered_main[0].path
-        try:
-            self.settings.policy.require_path_access(main_path, write=True)
-        except PermissionError as error:
-            raise ToolError("The main Worktree is outside the authorized workspace.") from error
-        main_repo = GitExecution(_worktrees.scoped_settings(self.settings, main_path))
-        branch_now, head_now, entries = await status.read_porcelain_v2(main_repo)
-        if branch_now != "main" or head_now != main_head or entries:
-            raise ToolError("Main Worktree changed or is dirty; no integration is allowed.")
+        # A proposal reviews Git refs and quality evidence, not the availability of a main checkout.
         await adapter.require_ready(branch, source_head)
         _, latest_main = await resolve_local_ref(repo, "main")
         if latest_main != main_head:
@@ -162,7 +148,7 @@ GET_PROJECT_WORKTRUNK_MERGE_PLAN: Final = ToolDefinition(
     name="get_project_worktrunk_merge_plan",
     description=(
         "Read-only preflight for exact Worktrunk source, retained quality evidence and clean main. "
-        "Verify ancestry, source Git Tree, manifest/recipes and Job IDs; return a review digest. "
+        "Verify ancestry, source Git Tree, manifest/recipes and Job IDs; no main checkout is required. "
         "Does not grant approval, execute a merge, clean Worktrees or modify Git refs."
     ),
     annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False),

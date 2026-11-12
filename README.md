@@ -101,9 +101,8 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `push_project_branch` | 원본을 보존하며 관리 Worktree의 관측 SHA를 동일 원격 기능 ref에 비강제 Push |
 | `create_project_branch_draft_pr` | 현재 템플릿과 대상 커밋·평가로 지정 브랜치 Draft PR 게시 |
 | `create_project_worktrunk` | 로컬 기준 SHA에서 보호된 경로의 새 브랜치·Worktree 생성 (실험적) |
-| `prepare_project_worktrunk_main` | 기존 main Ref를 전용 `.lab/wt/main` Worktree에 안전하게 Checkout (Ref 변경 없음) |
 | `verify_project_worktrunk_quality` | Worktrunk Source의 완전한 검사 Job·HEAD·Tree·Manifest 증거 발급 (승인과 별개) |
-| `get_project_worktrunk_merge_plan` | 품질 증거·Main Worktree 상태·FF 선행조건 검증, 변경 없는 검토 계획 생성 |
+| `get_project_worktrunk_merge_plan` | 품질 증거·Main Ref·FF 선행조건 검증, 별도 Main Checkout 없이 읽기 전용 제안 생성 |
 | `diagnose_client_elicitation` | 현재 호출의 MCP Elicitation Capability·프로토콜 진단 (쓰기 없음) |
 | `probe_client_elicitation` | 지원 가능한 Form 모드만 무해한 진단 요청, 미지원 프로토콜 거부 |
 | `probe_client_elicitation_mrtr` | MCP 2026-07-28 다중 왕복 Form 진단; 실제 승인·Git 쓰기 없음 |

@@ -24,6 +24,7 @@ def test_worktrunk_has_no_executable_merge_tool(tmp_path: Path) -> None:
             assert "get_project_worktrunk_merge_plan" in names
             assert "remove_project_worktrunk" in names
             assert "merge_project_worktrunk" not in names
+            assert "prepare_project_worktrunk_main" not in names
             # Existing, independent GitHub PR workflow remains registered.
             assert "get_project_pr_merge_plan" in names
             assert "merge_project_pr" in names

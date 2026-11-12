@@ -116,10 +116,6 @@ class WorktrunkAdapter:
             raise ToolError("Unsupported Worktrunk list schema; expected schema 2.")
         return data
 
-    async def switch_main_checkout(self, path: Path) -> None:
-        """Execute only the fixed main checkout command; path checks belong to main.py."""
-        await self._run("switch", "main", "--path", str(path), "--no-cd", "--no-hooks", write=True)
-
     async def require_ready(self, branch: str, expected_head: str) -> ServerSettings:
         """Bind an exact clean Worktrunk checkout to the controller's startup policy."""
         _authorize(self.settings, write=True)
