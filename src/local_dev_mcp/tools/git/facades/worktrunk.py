@@ -61,7 +61,10 @@ class RemoveProjectWorktrunkTool:
         expected_branch_head: ExpectedHead,
         delete_branch: bool = False,
     ) -> dict[str, object]:
-        return await WorktrunkAdapter(self.settings).remove(branch, expected_branch_head, delete_branch=delete_branch)
+        async with self.settings.tasks.exclusive_git_cleanup():
+            return await WorktrunkAdapter(self.settings).remove(
+                branch, expected_branch_head, delete_branch=delete_branch
+            )
 
 
 CREATE_PROJECT_WORKTRUNK: Final = ToolDefinition(

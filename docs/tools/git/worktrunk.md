@@ -42,6 +42,8 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 - 병합 시 `--no-rebase --no-remove --stage none --no-hooks`와 옵션별 `--no-squash`를 사용한다.
   결과 main Ref와 Git tree를 다시 확인한다.
 - 제거는 `--foreground`, 비강제 옵션만 사용한다. Dirty/ignored 파일, 예상치 못한 HEAD, 관리 외 Worktree를 거부한다.
+  MCP `remove_project_worktrunk`는 기존 Task Manager의 `exclusive_git_cleanup` 잠금을 재사용하여
+  실행 중·정리 불확실한 Job과 Worktree 삭제를 직렬화한다. 독립 Git 프로세스까지 잠그지는 않는다.
 - Worktrunk의 stdout JSON 형태는 명령마다 다르며, 프로세스 성공과 Git 상태 검증을 별도로 요구한다.
 - 모든 외부 실행은 argv 기반이며 stdin을 닫고 stdout 크기·시간을 제한한다. 호출자 제공 쉘 문자열은 실행하지 않는다.
 - 타임아웃 또는 결과 확인 실패 이후 동일한 쓰기 명령을 자동 재실행하지 않는다.
