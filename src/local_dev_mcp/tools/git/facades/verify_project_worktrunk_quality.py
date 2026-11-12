@@ -66,6 +66,7 @@ class VerifyProjectWorktrunkQualityTool:
 
         checks: list[tuple[str, str]] = []
         previous_finished = ""
+        controller_origin: tuple[str, str] | None = None
         for recipe, job_id in zip(recipes, job_ids, strict=True):
             job = self.settings.tasks.get(job_id)
             context = job.get("worktree")
@@ -73,6 +74,9 @@ class VerifyProjectWorktrunkQualityTool:
                 job["task"] != recipe.name
                 or job["state"] != "succeeded"
                 or job["exit_code"] != 0
+                or job["kind"] != recipe.kind
+                or job["level"] != recipe.level
+                or job["cwd"] != recipe.cwd
                 or job["termination_confirmed"] is not True
                 or not job["output_complete"]
                 or context is None
@@ -83,6 +87,11 @@ class VerifyProjectWorktrunkQualityTool:
                 or context["verified"] is not True
             ):
                 raise ToolError("A required quality Job did not pass for this exact Worktrunk source.")
+            origin = (context["original_branch"], context["original_head"])
+            if controller_origin is None:
+                controller_origin = origin
+            elif controller_origin != origin:
+                raise ToolError("Quality Jobs came from different controller checkouts.")
             if recipe.kind == "test" and (
                 job["all_tests"] is not True or job["targets"] != list(recipe.default_targets)
             ):

@@ -34,9 +34,12 @@ Worktrunk 실행 경로는 추가 `wt` 논리 권한이 필요하고, Task 응�
 작업의 프로세스 종료 코드가 0이어도 `worktree.verified=false`면 검증 실패로 취급한다.
 `get_project_task`의 exit=0은 성공적인 프로세스 종료를 뜻할 뿐 **검사 대상 Git 상태의 증거가 아니다.**
 `verify_project_worktrunk_quality`는 Worktrunk의 Clean Source와 동일한 품질 명세를 확인한 뒤,
-프로파일의 필수 Job ID를 순서대로 검사한다. 각 Job은 같은 Source HEAD·Worktree·Task 정의에 결합돼야 하며,
+프로파일의 필수 Job ID를 순서대로 검사한다. 각 Job은 같은 Source HEAD·Worktree·Task 정의와
+동일한 원본 Checkout Branch·HEAD, 등록 작업의 Kind·Level·CWD에 결합돼야 하며,
 테스트는 `all_tests=true`와 전체 기본 Target이 필요하다. Source Tree·Target HEAD·검사 명세/Recipe Digest를
 하나의 서버 로컬 증거로 발급한다. 저장된 Job이 만료되거나 서버가 재시작되면 증거도 무효다.
+단, 범용 등록 명령의 종료 코드 0은 실제 테스트 수집 개수의 보증은 아니다. pytest의 미수집 종료 코드처럼
+명령 실행기에서 실패가 보고돼야 거부할 수 있으며, 추후 테스트 수집을 증명하는 별도 계약이 필요하다.
 증거 발급과 로컬 `main` 통합 승인은 독립적이며, **증거 단독으로 Git Ref를 갱신할 수 없다.**
 `get_project_worktrunk_merge_plan`은 증거 재조회, Source/Target HEAD·Tree, Manifest/Recipe 및
 Clean `main` Worktree를 검사한 뒤 `approval_required`와 검토용 Digest를 반환한다.

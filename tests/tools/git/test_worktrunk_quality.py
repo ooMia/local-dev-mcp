@@ -53,6 +53,7 @@ async def _job(
     request: str,
     all_tests: bool,
     source: str | None = None,
+    original_branch: str = "main",
 ) -> str:
     started = await success(
         client,
@@ -62,7 +63,7 @@ async def _job(
             "request_id": request,
             "branch": "feat/wt-proof",
             "expected_branch_head": source or base,
-            "expected_branch": "main",
+            "expected_branch": original_branch,
             "expected_head": base,
             "backend": "worktrunk",
             "all_tests": all_tests,
@@ -101,6 +102,17 @@ def test_exact_full_profile_attestation(tmp_path: Path, workspace_factory: Works
                 await _job(client, "check", base, "proof-check", False),
                 await _job(client, "unit", base, "proof-unit", True),
             ]
+            wrong_order = await failure(
+                client,
+                VERIFY,
+                {
+                    "branch": "feat/wt-proof",
+                    "expected_source_head": base,
+                    "expected_main_head": base,
+                    "job_ids": list(reversed(jobs)),
+                },
+            )
+            assert "did not pass" in wrong_order
             attestation = await success(
                 client,
                 VERIFY,
@@ -114,6 +126,18 @@ def test_exact_full_profile_attestation(tmp_path: Path, workspace_factory: Works
             assert [entry["name"] for entry in checks] == ["check", "unit"]
             assert path.is_dir()
             assert await git(tmp_path, "rev-parse", "HEAD") == base
+        async with Client(create_server(_policy(tmp_path))) as restarted:
+            missing = await failure(
+                restarted,
+                "get_project_worktrunk_merge_plan",
+                {
+                    "evidence_id": attestation["evidence_id"],
+                    "branch": "feat/wt-proof",
+                    "expected_source_head": base,
+                    "expected_main_head": base,
+                },
+            )
+            assert "unknown or expired" in missing
 
     asyncio.run(scenario())
 
@@ -225,6 +249,43 @@ def test_merge_plan_rechecks_evidence_and_does_not_write_main(
             )
             (tmp_path / "base.txt").write_text("dirty main\n")
             assert "dirty" in await failure(client, "get_project_worktrunk_merge_plan", arguments)
+            assert await git(tmp_path, "rev-parse", "HEAD") == base
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("wt") is None, reason="macOS Worktrunk CLI is required")
+def test_quality_jobs_from_different_controller_checkouts_are_rejected(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    async def scenario() -> None:
+        base = await _fixture(tmp_path, workspace_factory)
+        async with Client(create_server(_policy(tmp_path))) as client:
+            await success(
+                client,
+                "create_project_worktrunk",
+                {
+                    "branch": "feat/wt-proof",
+                    "expected_branch": "main",
+                    "expected_head": base,
+                    "expected_base_head": base,
+                },
+            )
+            check = await _job(client, "check", base, "mixed-main", False)
+            await git(tmp_path, "branch", "other", base)
+            await git(tmp_path, "switch", "other")
+            unit = await _job(client, "unit", base, "mixed-other", True, original_branch="other")
+            refusal = await failure(
+                client,
+                VERIFY,
+                {
+                    "branch": "feat/wt-proof",
+                    "expected_source_head": base,
+                    "expected_main_head": base,
+                    "job_ids": [check, unit],
+                },
+            )
+            assert "different controller" in refusal
             assert await git(tmp_path, "rev-parse", "HEAD") == base
 
     asyncio.run(scenario())
