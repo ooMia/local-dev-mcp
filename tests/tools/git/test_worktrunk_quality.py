@@ -239,6 +239,7 @@ def test_merge_plan_rechecks_evidence_and_does_not_write_main(
             }
             plan = await success(client, "get_project_worktrunk_merge_plan", arguments)
             assert plan["status"] == "approval_required"
+            assert plan["mode"] == "ff"  # The reviewed operation must be explicit, never an implicit squash.
             assert plan["write_requested"] is False
             assert plan["source_head"] == source
             assert plan["target_head"] == base

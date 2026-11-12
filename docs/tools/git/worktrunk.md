@@ -24,6 +24,9 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 | `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=false` | Clean Worktree 정리, 명시적 선택 시 안전한 브랜치 삭제 |
 | `get_project_worktrunk_merge_plan` | `evidence_id`, `branch`, `expected_source_head`, `expected_main_head` | 서버 로컬 검사 증거와 Clean main 검증, 승인 대기 상태의 read-only 계획 |
 
+검토 계획의 `mode`는 `ff`로 명시하며 `plan_digest` 역시 동일한 모드를 포함한다.
+이는 이후의 승인 계약에서 암묵적인 Squash로 작업 종류가 변경되는 것을 방지하기 위한 불변조건이다.
+
 모두 `git`, `wt`, `git.worktree.write` 논리 권한이 필요하다.
 `config.toml`의 허용 목록이 실행 파일 설치를 의미하지 않으며,
 시작 시점의 도구 readiness가 실제 CLI 실행 성공을 보장하지 않는다.

@@ -27,6 +27,7 @@ class WorktrunkMergePlan(TypedDict):
     source_head: str
     source_tree: str
     target_branch: Literal["main"]
+    mode: Literal["ff"]
     target_head: str
     evidence_id: str
     profile: str
@@ -142,6 +143,7 @@ class GetProjectWorktrunkMergePlanTool:
             "source_head": source_head,
             "source_tree": source_tree,
             "target_branch": "main",
+            "mode": "ff",
             "target_head": main_head,
             "evidence_id": evidence_id,
             "profile": proof.profile,
