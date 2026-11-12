@@ -6,6 +6,7 @@ Do not retire the existing Git worktree tools until behavior is compared.
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, Literal
 
+from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from ....mcp.registry import ToolDefinition
@@ -45,7 +46,9 @@ class MergeProjectWorktrunkTool:
         expected_main_head: ExpectedHead,
         mode: Literal["squash", "ff"] = "squash",
     ) -> dict[str, str]:
-        return await WorktrunkAdapter(self.settings).merge(branch, expected_source_head, expected_main_head, mode=mode)
+        raise ToolError(
+            "Worktrunk MCP merge is blocked until HEAD-bound quality evidence and main approval are enforced."
+        )
 
 
 @dataclass(frozen=True)
@@ -78,10 +81,9 @@ CREATE_PROJECT_WORKTRUNK: Final = ToolDefinition(
 MERGE_PROJECT_WORKTRUNK: Final = ToolDefinition(
     name="merge_project_worktrunk",
     description=(
-        "Merge one clean managed Worktrunk feature into an observed clean local main. "
-        "Requires exact source/main SHAs and ancestry. Squash by default or native fast-forward; "
-        "disable auto-stage, rebase, Worktrunk hooks and automatic removal. Verify result tree. "
-        "Do not replay after timeout, conflict or unverified outcome."
+        "Experimental Worktrunk merge interface is blocked until exact HEAD-bound quality evidence "
+        "and explicit main integration approval can be enforced. No Git changes are attempted. "
+        "Direct adapter merge remains test-only and must not be treated as an approved MCP integration."
     ),
     annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False),
     required_commands=("git", "wt", "git.worktree.write"),

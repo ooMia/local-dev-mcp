@@ -16,7 +16,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 | 도구 | 입력 | 결과 |
 | --- | --- | --- |
 | `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head`, `base_branch="main"` | 현재 checkout을 변경하지 않고 새 브랜치·Worktree 생성 |
-| `merge_project_worktrunk` | `branch`, `expected_source_head`, `expected_main_head`, `mode="squash"\|"ff"` | 로컬 main에 Squash 또는 FF 통합 |
+| `merge_project_worktrunk` | `branch`, `expected_source_head`, `expected_main_head`, `mode="squash"\|"ff"` | 품질 증거·main 승인 미구현 상태에서는 실행 거부 |
 | `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=false` | Clean Worktree 정리, 명시적 선택 시 안전한 브랜치 삭제 |
 
 모두 `git`, `wt`, `git.worktree.write` 논리 권한이 필요하다.
