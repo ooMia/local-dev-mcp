@@ -324,6 +324,7 @@ class TaskManager:
         if result.worktree is not None:
             context = result.worktree
             snapshot["worktree"] = {
+                "backend": context.backend,
                 "branch": context.branch,
                 "head": context.head,
                 "original_branch": context.original_branch,

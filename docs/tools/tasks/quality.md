@@ -26,6 +26,12 @@ MCP는 Worktrunk Hook을 실행하지 않는다. `list_project_tasks`가 `profil
 각 등록 작업의 준비 상태를 보여준다. 호출자는 그 순서대로 기존 `start_project_task`에 제출한다.
 `profiles_status=invalid`는 거부 상태이며 `absent`와 혼동하지 않는다.
 Task Manager의 작업 ID·허용 명령·출력 마스킹·취소·작업 슬롯을 재사용한다.
+`start_project_worktree_task(backend="worktrunk")`는 `create_project_worktrunk`가 생성한
+`.lab/wt/`의 Git-등록 Worktree를 선택한다. 원본 controller의 관측 HEAD·미커밋 파일 지문과
+실행 대상의 브랜치·HEAD·Clean 상태·Git 포인터를 전후 확인한다.
+`backend="native"`는 종전 `.lab/worktrees` + Receipt 방식 그대로 유지한다.
+Worktrunk 실행 경로는 추가 `wt` 논리 권한이 필요하고, Task 응답의 `worktree.backend`로 구분된다.
+작업의 프로세스 종료 코드가 0이어도 `worktree.verified=false`면 검증 실패로 취급한다.
 `get_project_task`의 exit=0은 성공적인 프로세스 종료를 뜻할 뿐 **검사 대상 Git 상태의 증거가 아니다.**
 통합 승인을 위한 확정 증거를 만들려면 명세 Digest, Source HEAD/Tree, Target HEAD, 각 검사 Job,
 검사 전후 Dirty 상태를 하나의 검증 계약으로 연결해야 한다.

@@ -111,6 +111,34 @@ class WorktrunkAdapter:
             raise ToolError("Unsupported Worktrunk list schema; expected schema 2.")
         return data
 
+    async def require_ready(self, branch: str, expected_head: str) -> ServerSettings:
+        """Bind an exact clean Worktrunk checkout to the controller's startup policy."""
+        _authorize(self.settings, write=True)
+        from .. import _worktrees
+        from ..facades import _repository
+
+        repo = GitExecution(self.settings)
+        path = _managed_path(self.settings, branch, write=True)
+        if path.is_symlink() or not path.is_dir():
+            raise ToolError("Worktrunk managed path is missing or is not a directory.")
+        records = await worktree.list_registered(repo)
+        selected = [row for row in records if row.path == path]
+        if len(selected) != 1 or selected[0].unavailable or selected[0].branch != "refs/heads/" + branch:
+            raise ToolError("Target is not an available registered Worktrunk worktree.")
+        common = await worktree.common_directory(repo)
+        if not _worktrees.bound_git_pointer(path, common):
+            raise ToolError("Worktrunk .git pointer does not belong to the selected repository.")
+        target = GitExecution(_worktrees.scoped_settings(self.settings, path))
+        await _repository.verify_root(target)
+        if await worktree.common_directory(target) != common:
+            raise ToolError("Worktrunk checkout belongs to a different repository.")
+        await _repository.require_writable_state(target)
+        actual_branch, head, entries = await status.read_porcelain_v2(target)
+        _, ref_head = await resolve_local_ref(repo, branch)
+        if actual_branch != branch or head != valid_sha(expected_head) or head != ref_head or entries:
+            raise ToolError("Worktrunk checkout is dirty or the observed branch HEAD changed.")
+        return _worktrees.scoped_settings(self.settings, path)
+
     async def create(
         self,
         branch: str,
@@ -120,6 +148,7 @@ class WorktrunkAdapter:
         original_head: str,
     ) -> dict[str, str]:
         _authorize(self.settings, write=True)
+
         repo = GitExecution(self.settings)
         fingerprint = await original_snapshot(self.settings, original_branch, original_head, allow_dirty=True)
         _, base_head = await resolve_local_ref(repo, base)
