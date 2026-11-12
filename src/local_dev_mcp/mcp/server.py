@@ -63,6 +63,7 @@ TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
     get_tool_readiness.GET_TOOL_READINESS,
     client_elicitation.DIAGNOSE_CLIENT_ELICITATION,
     client_elicitation.PROBE_CLIENT_ELICITATION,
+    client_elicitation.PROBE_CLIENT_ELICITATION_MRTR,
     tasks.LIST_PROJECT_TASKS,
     tasks.START_PROJECT_TASK,
     tasks.GET_PROJECT_TASK,
