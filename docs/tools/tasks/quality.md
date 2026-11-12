@@ -38,6 +38,9 @@ Worktrunk 실행 경로는 추가 `wt` 논리 권한이 필요하고, Task 응�
 테스트는 `all_tests=true`와 전체 기본 Target이 필요하다. Source Tree·Target HEAD·검사 명세/Recipe Digest를
 하나의 서버 로컬 증거로 발급한다. 저장된 Job이 만료되거나 서버가 재시작되면 증거도 무효다.
 증거 발급과 로컬 `main` 통합 승인은 독립적이며, **증거 단독으로 Git Ref를 갱신할 수 없다.**
+`get_project_worktrunk_merge_plan`은 증거 재조회, Source/Target HEAD·Tree, Manifest/Recipe 및
+Clean `main` Worktree를 검사한 뒤 `approval_required`와 검토용 Digest를 반환한다.
+아직 신뢰 가능한 사용자 승인 경로가 없으므로 `merge_project_worktrunk`는 계속 실행 거부한다.
 
 기존 로컬 `main` 승인 및 원격 PR/CI 계약은 이 프로파일로 대체하지 않는다.
 기존 `historical_*` 검사는 명시적으로 선택하는 과거 이력용이며 `pre_merge`의 자동 fallback이 아니다.

@@ -46,7 +46,14 @@ async def _fixture(root: Path, factory: WorkspaceFactory) -> str:
     return await git(root, "rev-parse", "HEAD")
 
 
-async def _job(client: Client[FastMCPTransport], name: str, base: str, request: str, all_tests: bool) -> str:
+async def _job(
+    client: Client[FastMCPTransport],
+    name: str,
+    base: str,
+    request: str,
+    all_tests: bool,
+    source: str | None = None,
+) -> str:
     started = await success(
         client,
         "start_project_worktree_task",
@@ -54,7 +61,7 @@ async def _job(client: Client[FastMCPTransport], name: str, base: str, request: 
             "task": name,
             "request_id": request,
             "branch": "feat/wt-proof",
-            "expected_branch_head": base,
+            "expected_branch_head": source or base,
             "expected_branch": "main",
             "expected_head": base,
             "backend": "worktrunk",
@@ -164,6 +171,60 @@ def test_partial_or_stale_quality_jobs_never_issue_evidence(
             )
             (target / "base.txt").write_text("user mutation\n")
             assert "dirty" in await failure(client, VERIFY, {**request, "job_ids": [check, job_id]})
+            assert await git(tmp_path, "rev-parse", "HEAD") == base
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("wt") is None, reason="macOS Worktrunk CLI is required")
+def test_merge_plan_rechecks_evidence_and_does_not_write_main(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    async def scenario() -> None:
+        base = await _fixture(tmp_path, workspace_factory)
+        async with Client(create_server(_policy(tmp_path))) as client:
+            created = await success(
+                client,
+                "create_project_worktrunk",
+                {
+                    "branch": "feat/wt-proof",
+                    "expected_branch": "main",
+                    "expected_head": base,
+                    "expected_base_head": base,
+                },
+            )
+            target = tmp_path / str(created["path"])
+            (target / "feature.txt").write_text("feature\n")
+            await git(target, "add", "feature.txt")
+            await git(target, "commit", "-m", "feat: plan-only")
+            source = await git(target, "rev-parse", "HEAD")
+            ids = [
+                await _job(client, "check", base, "plan-check", False, source),
+                await _job(client, "unit", base, "plan-unit", True, source),
+            ]
+            verified = await success(
+                client,
+                VERIFY,
+                {"branch": "feat/wt-proof", "expected_source_head": source, "expected_main_head": base, "job_ids": ids},
+            )
+            arguments = {
+                "evidence_id": verified["evidence_id"],
+                "branch": "feat/wt-proof",
+                "expected_source_head": source,
+                "expected_main_head": base,
+            }
+            plan = await success(client, "get_project_worktrunk_merge_plan", arguments)
+            assert plan["status"] == "approval_required"
+            assert plan["write_requested"] is False
+            assert plan["source_head"] == source
+            assert plan["target_head"] == base
+            assert len(str(plan["plan_digest"])) == 64
+            assert await git(tmp_path, "rev-parse", "HEAD") == base
+            assert "unknown or expired" in await failure(
+                client, "get_project_worktrunk_merge_plan", {**arguments, "evidence_id": "untrusted"}
+            )
+            (tmp_path / "base.txt").write_text("dirty main\n")
+            assert "dirty" in await failure(client, "get_project_worktrunk_merge_plan", arguments)
             assert await git(tmp_path, "rev-parse", "HEAD") == base
 
     asyncio.run(scenario())

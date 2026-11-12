@@ -18,6 +18,7 @@ from .facades.get_project_pr_merge_plan import GET_PROJECT_PR_MERGE_PLAN
 from .facades.get_project_pr_status import GET_PROJECT_PR_STATUS
 from .facades.get_project_ref import GET_PROJECT_REF
 from .facades.get_project_status import GET_PROJECT_STATUS
+from .facades.get_project_worktrunk_merge_plan import GET_PROJECT_WORKTRUNK_MERGE_PLAN
 from .facades.inspect_project_commit_history import INSPECT_PROJECT_COMMIT_HISTORY
 from .facades.inspect_project_policy import INSPECT_PROJECT_POLICY
 from .facades.inspect_project_worktree import INSPECT_PROJECT_WORKTREE
@@ -50,6 +51,7 @@ __all__ = [
     "CONSOLIDATE_PROJECT_HISTORY",
     "CREATE_PROJECT_WORKTRUNK",
     "VERIFY_PROJECT_WORKTRUNK_QUALITY",
+    "GET_PROJECT_WORKTRUNK_MERGE_PLAN",
     "MERGE_PROJECT_WORKTRUNK",
     "REMOVE_PROJECT_WORKTRUNK",
     "START_PROJECT_WORKTREE_TASK",
