@@ -19,6 +19,7 @@ from secrets import token_urlsafe
 from fastmcp.exceptions import ToolError
 from shellous import Runner, sh
 
+from ...quality.evidence import VerifiedQualityEvidence
 from ...redaction import BoundedRedactedOutput, Redactor
 from ...settings import JobDefinition, Policy
 from ._response import TaskInfo, TaskResult, TaskState
@@ -105,6 +106,7 @@ class TaskManager:
         if len(self._prepared) != len(recipes):
             raise ValueError("Duplicate project task names.")
         self._results: dict[str, _Execution] = {}
+        self._quality_evidence: dict[str, tuple[VerifiedQualityEvidence, float]] = {}
         self._requests: dict[str, tuple[str, str]] = {}
         self._active: str | None = None
         self._closed = False
@@ -276,6 +278,9 @@ class TaskManager:
                 continue
             if now - (item.finished_clock or now) >= RETENTION_SECONDS or len(self._results) > MAX_RESULTS:
                 del self._results[item.job_id]
+        for token, (proof, recorded_at) in tuple(self._quality_evidence.items()):
+            if now - recorded_at >= RETENTION_SECONDS or any(job not in self._results for job in proof.job_ids):
+                self._quality_evidence.pop(token, None)
         # Request fingerprints remain bounded tombstones, so an evicted result
         # cannot turn a lost-response retry into a second process invocation.
 
@@ -439,6 +444,24 @@ class TaskManager:
         self._active = job_id
         result.task = asyncio.create_task(self._execute(result), name="local-dev-mcp-project-task")
         return result, True
+
+    def store_quality_evidence(self, proof: VerifiedQualityEvidence) -> str:
+        """Retain only bounded, server-local evidence tied to retained job IDs."""
+        self._prune()
+        if any(job not in self._results for job in proof.job_ids):
+            raise ToolError("A quality job expired before verification.")
+        if len(self._quality_evidence) >= MAX_RESULTS:
+            raise ToolError("Quality evidence ledger is full; no proof was issued.")
+        token = token_urlsafe(24)
+        self._quality_evidence[token] = (proof, time.monotonic())
+        return token
+
+    def get_quality_evidence(self, token: str) -> VerifiedQualityEvidence:
+        self._prune()
+        record = self._quality_evidence.get(token)
+        if record is None:
+            raise ToolError("Quality evidence is unknown or expired on this server.")
+        return record[0]
 
     def get(self, job_id: str, *, include_output: bool = False) -> TaskResult:
         return self._snapshot(self._lookup(job_id), include_output=include_output)

@@ -33,8 +33,11 @@ Task Manager의 작업 ID·허용 명령·출력 마스킹·취소·작업 슬�
 Worktrunk 실행 경로는 추가 `wt` 논리 권한이 필요하고, Task 응답의 `worktree.backend`로 구분된다.
 작업의 프로세스 종료 코드가 0이어도 `worktree.verified=false`면 검증 실패로 취급한다.
 `get_project_task`의 exit=0은 성공적인 프로세스 종료를 뜻할 뿐 **검사 대상 Git 상태의 증거가 아니다.**
-통합 승인을 위한 확정 증거를 만들려면 명세 Digest, Source HEAD/Tree, Target HEAD, 각 검사 Job,
-검사 전후 Dirty 상태를 하나의 검증 계약으로 연결해야 한다.
+`verify_project_worktrunk_quality`는 Worktrunk의 Clean Source와 동일한 품질 명세를 확인한 뒤,
+프로파일의 필수 Job ID를 순서대로 검사한다. 각 Job은 같은 Source HEAD·Worktree·Task 정의에 결합돼야 하며,
+테스트는 `all_tests=true`와 전체 기본 Target이 필요하다. Source Tree·Target HEAD·검사 명세/Recipe Digest를
+하나의 서버 로컬 증거로 발급한다. 저장된 Job이 만료되거나 서버가 재시작되면 증거도 무효다.
+증거 발급과 로컬 `main` 통합 승인은 독립적이며, **증거 단독으로 Git Ref를 갱신할 수 없다.**
 
 기존 로컬 `main` 승인 및 원격 PR/CI 계약은 이 프로파일로 대체하지 않는다.
 기존 `historical_*` 검사는 명시적으로 선택하는 과거 이력용이며 `pre_merge`의 자동 fallback이 아니다.
