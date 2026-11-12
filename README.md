@@ -107,6 +107,7 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `get_project_worktrunk_merge_plan` | 품질 증거·Main Worktree 상태·FF 선행조건 검증, 변경 없는 검토 계획 생성 |
 | `diagnose_client_elicitation` | 현재 호출의 MCP Elicitation Capability·프로토콜 진단 (쓰기 없음) |
 | `probe_client_elicitation` | 지원 가능한 Form 모드만 무해한 진단 요청, 미지원 프로토콜 거부 |
+| `probe_client_elicitation_mrtr` | MCP 2026-07-28 다중 왕복 Form 진단; 실제 승인·Git 쓰기 없음 |
 | `remove_project_worktrunk` | Clean Worktree 정리 및 선택적 안전한 브랜치 삭제 (실험적) |
 | `diagnose_documents` | 등록된 문서의 진단·관계 승인 대기 상태 확인 |
 
