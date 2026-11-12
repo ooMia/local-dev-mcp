@@ -189,3 +189,22 @@ def test_worktrunk_rejects_protected_checkout_content(tmp_path: Path, workspace_
         assert await git(tmp_path, "branch", "--list", "feat/wt-protected") == ""
 
     asyncio.run(scenario())
+
+
+def test_worktrunk_rejects_denied_source_before_creating_branch(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        restricted = replace(
+            policy(tmp_path),
+            allowed_commands=("git", "git.worktree.write", "wt"),
+            denied_paths=(tmp_path / "base.txt",),
+        )
+        adapter = WorktrunkAdapter(ServerSettings.load(restricted))
+        with pytest.raises(ToolError, match="access policy"):
+            await adapter.create("feat/wt-source-denied", "main", head, "main", head)
+        assert await git(tmp_path, "branch", "--list", "feat/wt-source-denied") == ""
+        assert await git(tmp_path, "status", "--porcelain") == ""
+
+    asyncio.run(scenario())
