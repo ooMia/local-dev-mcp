@@ -30,7 +30,7 @@
 - `tests/mcp/test_client_elicitation_mrtr.py`는 FastMCP 인프로세스 클라이언트 콜백을 통해
   실제 MRTR 두 단계 왕복과 Accept·Decline·Cancel의 비파괴 처리를 검증한다.
   이 테스트의 Capability는 명시적으로 주입하므로 **ChatGPT 실제 사용자 UI 테스트를 대체하지 않는다**.
-- `merge_project_worktrunk`는 계속 차단한다. 진단 MRTR 구현 자체는 사용자 승인 근거가 아니다.
+- Worktrunk MCP의 `main` 병합 실행 도구는 등록하지 않는다. 진단 MRTR 구현 자체는 사용자 승인 근거가 아니다.
   실제 ChatGPT 클라이언트의 Capability 선언·폼 표시·응답 왕복과 승인 주체 확인 후에만
   계획 Digest와 단회성 권한에 결합하는 별도 승인 계약을 활성화할 수 있다.
 - 진단을 활성화하려면 설치된 MCP 서버를 재시작/재로드해야 한다.

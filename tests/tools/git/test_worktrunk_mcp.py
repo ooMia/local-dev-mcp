@@ -58,8 +58,9 @@ def test_mcp_worktrunk_lifecycle_and_strict_authorization(tmp_path: Path, worksp
         base, _ = await seed(tmp_path, workspace_factory)
         async with Client(create_server(_policy(tmp_path))) as session:
             registered = {tool.name: tool for tool in await session.list_tools()}
-            names = {"create_project_worktrunk", "merge_project_worktrunk", "remove_project_worktrunk"}
+            names = {"create_project_worktrunk", "remove_project_worktrunk"}
             assert names <= registered.keys()
+            assert "merge_project_worktrunk" not in registered
             assert all(registered[name].input_schema["additionalProperties"] is False for name in names)
             await failure(session, "create_project_worktrunk", {"branch": "--force"})
             created = await success(
@@ -73,12 +74,6 @@ def test_mcp_worktrunk_lifecycle_and_strict_authorization(tmp_path: Path, worksp
             await git(path, "add", "mcp.txt")
             await git(path, "commit", "-m", "feat: mcp bridge")
             head = await git(path, "rev-parse", "HEAD")
-            blocked = await failure(
-                session,
-                "merge_project_worktrunk",
-                {"branch": "feat/wt-mcp", "expected_source_head": head, "expected_main_head": base, "mode": "ff"},
-            )
-            assert "quality evidence" in blocked
             assert await git(tmp_path, "rev-parse", "HEAD") == base
             # The backend remains testable independently. Only the MCP entrypoint is gated.
             integrated = await WorktrunkAdapter(ServerSettings.load(_policy(tmp_path))).merge(

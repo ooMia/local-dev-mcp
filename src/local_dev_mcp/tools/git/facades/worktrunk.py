@@ -1,12 +1,11 @@
 """Opt-in MCP surface for isolated Worktrunk adoption and validation.
 
-Do not retire the existing Git worktree tools until behavior is compared.
+Only creation and cleanup are executable here; the integration proposal is read-only.
 """
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Final, Literal
+from typing import TYPE_CHECKING, Final
 
-from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from ....mcp.registry import ToolDefinition
@@ -32,22 +31,6 @@ class CreateProjectWorktrunkTool:
     ) -> dict[str, str]:
         return await WorktrunkAdapter(self.settings).create(
             branch, base_branch, expected_base_head, expected_branch, expected_head
-        )
-
-
-@dataclass(frozen=True)
-class MergeProjectWorktrunkTool:
-    settings: ServerSettings
-
-    async def execute(
-        self,
-        branch: BranchName,
-        expected_source_head: ExpectedHead,
-        expected_main_head: ExpectedHead,
-        mode: Literal["squash", "ff"] = "squash",
-    ) -> dict[str, str]:
-        raise ToolError(
-            "Worktrunk MCP merge is blocked until HEAD-bound quality evidence and main approval are enforced."
         )
 
 
@@ -78,19 +61,6 @@ CREATE_PROJECT_WORKTRUNK: Final = ToolDefinition(
     annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False),
     required_commands=("git", "wt", "git.worktree.write"),
     create_runtime=CreateProjectWorktrunkTool,
-    readiness=git_readiness,
-)
-
-MERGE_PROJECT_WORKTRUNK: Final = ToolDefinition(
-    name="merge_project_worktrunk",
-    description=(
-        "Experimental Worktrunk merge interface is blocked until exact HEAD-bound quality evidence "
-        "and explicit main integration approval can be enforced. No Git changes are attempted. "
-        "Direct adapter merge remains test-only and must not be treated as an approved MCP integration."
-    ),
-    annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False),
-    required_commands=("git", "wt", "git.worktree.write"),
-    create_runtime=MergeProjectWorktrunkTool,
     readiness=git_readiness,
 )
 

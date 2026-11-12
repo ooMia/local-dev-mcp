@@ -152,7 +152,8 @@ class GetProjectWorktrunkMergePlanTool:
             "status": "approval_required",
             "write_requested": False,
             "next_action": (
-                "Review this exact plan; MCP merge remains blocked until trustworthy user approval is implemented."
+                "Review this exact proposal using an independently approved GitHub PR or "
+                "user-controlled Git integration; MCP never merges main."
             ),
         }
 

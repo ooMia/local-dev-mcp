@@ -20,7 +20,6 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 | --- | --- | --- |
 | `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head`, `base_branch="main"` | 현재 checkout을 변경하지 않고 새 브랜치·Worktree 생성 |
 | `prepare_project_worktrunk_main` | `expected_branch`, `expected_head`, `expected_main_head` | Main이 미등록 상태일 때 별도 `.lab/wt/main` 생성, 원본 Dirty 파일 보존 |
-| `merge_project_worktrunk` | `branch`, `expected_source_head`, `expected_main_head`, `mode="squash"\|"ff"` | 품질 증거·main 승인 미구현 상태에서는 실행 거부 |
 | `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=false` | Clean Worktree 정리, 명시적 선택 시 안전한 브랜치 삭제 |
 | `get_project_worktrunk_merge_plan` | `evidence_id`, `branch`, `expected_source_head`, `expected_main_head` | 서버 로컬 검사 증거와 Clean main 검증, 승인 대기 상태의 read-only 계획 |
 
@@ -68,8 +67,9 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 - 기존 main 전용 `Source-PR` hooks 및 GitHub Rulesets가 활성화되어 있으면 실제 운영 저장소의
   로컬/원격 통합에 영향을 준다. 이 실험은 그 정책을 변경하지 않는다.
 - 실제 사용자의 작업 저장소에는 검증 목적의 Worktrunk 통합·정리 명령을 실행하지 않는다.
-- 실험용 `merge_project_worktrunk`는 아직 품질 Job 증거·명시적 main 승인 연결을 강제하지 않는다.
-  이 경로를 공식 통합 게이트로 사용하거나 검증 없이 자동 호출해서는 안 된다.
+- Worktrunk MCP에는 로컬 main 병합 도구를 제공하지 않는다. 검증된 변경 제안은 별도의
+  사용자 승인·GitHub PR/CI 또는 사용자가 직접 통제하는 Git 작업으로 통합한다.
+- `get_project_worktrunk_merge_plan`은 읽기 전용이며 실행 권한을 생성하지 않는다.
 
 기존 도구와 기능 중복을 제거하는 단계는 새 흐름이 기존 테스트를 만족하고 PR 강제 정책 변경을
 안전하게 분리한 뒤 진행한다.

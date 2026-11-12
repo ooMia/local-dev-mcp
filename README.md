@@ -102,7 +102,6 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `create_project_branch_draft_pr` | 현재 템플릿과 대상 커밋·평가로 지정 브랜치 Draft PR 게시 |
 | `create_project_worktrunk` | 로컬 기준 SHA에서 보호된 경로의 새 브랜치·Worktree 생성 (실험적) |
 | `prepare_project_worktrunk_main` | 기존 main Ref를 전용 `.lab/wt/main` Worktree에 안전하게 Checkout (Ref 변경 없음) |
-| `merge_project_worktrunk` | 품질 증거·main 승인 게이트 구현 전까지 실행 거부 (실험적) |
 | `verify_project_worktrunk_quality` | Worktrunk Source의 완전한 검사 Job·HEAD·Tree·Manifest 증거 발급 (승인과 별개) |
 | `get_project_worktrunk_merge_plan` | 품질 증거·Main Worktree 상태·FF 선행조건 검증, 변경 없는 검토 계획 생성 |
 | `diagnose_client_elicitation` | 현재 호출의 MCP Elicitation Capability·프로토콜 진단 (쓰기 없음) |
