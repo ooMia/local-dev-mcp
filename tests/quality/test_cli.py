@@ -68,3 +68,16 @@ def test_unknown_profile_is_refused(tmp_path: Path) -> None:
     _workspace(tmp_path, "print('should never run')")
     with pytest.raises(ValueError, match="Unknown quality profile"):
         run_profile(tmp_path, "not_registered")
+
+
+def test_python_module_entrypoint_runs_shared_profile(tmp_path: Path) -> None:
+    _workspace(tmp_path, 'print("quality check passed")')
+    process = subprocess.run(
+        [sys.executable, "-m", "local_dev_mcp.quality", "--profile", "pre_merge"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert process.returncode == 0, process.stderr
+    assert "quality: PASS pre_merge (1 checks)" in process.stdout

@@ -1,5 +1,7 @@
 # 등록된 CLI 작업 실행 계약
 
+[공통 품질 검사 프로파일과 Worktrunk 연동](quality.md)은 CLI Hook과 MCP Task Manager의 실행 책임을 구분한다.
+
 프로젝트가 등록한 lint·format·test CLI를 선택 workspace에서 실행한다. 설치된 Ruff·pytest·다른 언어의 runner를
 고정 argv로 사용할 수 있으며, 호출자가 임의 명령·shell 문자열·자유 CLI 옵션을 전달하는 기능은 제공하지 않는다.
 recipe·권한·공통 환경·시작 모드는 [설정 계약](../../configuration.md#cli-작업-설정)을 따른다.
