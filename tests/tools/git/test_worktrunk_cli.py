@@ -12,7 +12,7 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from local_dev_mcp.app.runtime import ServerSettings
-from local_dev_mcp.tools.git.worktrunk_adapter import WorktrunkAdapter
+from local_dev_mcp.tools.git.worktrunk import WorktrunkAdapter
 from tests.support.git import WorkspaceFactory, git
 from tests.support.worktrees import policy, seed
 

@@ -11,7 +11,7 @@ from fastmcp import Client
 from local_dev_mcp.app.runtime import ServerSettings
 from local_dev_mcp.mcp.server import create_server
 from local_dev_mcp.settings import Policy
-from local_dev_mcp.tools.git.worktrunk_adapter import WorktrunkAdapter
+from local_dev_mcp.tools.git.worktrunk import WorktrunkAdapter
 from tests.support.git import WorkspaceFactory, git
 from tests.support.mcp import failure, success
 from tests.support.worktrees import policy, seed

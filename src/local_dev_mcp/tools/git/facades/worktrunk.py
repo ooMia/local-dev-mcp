@@ -10,7 +10,7 @@ from mcp.types import ToolAnnotations
 
 from ....mcp.registry import ToolDefinition
 from .._prepare import git_readiness
-from ..worktrunk_adapter import WorktrunkAdapter
+from ..worktrunk import WorktrunkAdapter
 from ._refs import BranchName, ExpectedHead
 
 if TYPE_CHECKING:

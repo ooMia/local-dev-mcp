@@ -16,15 +16,15 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 from fastmcp.exceptions import ToolError
 
-from ...settings import protected_name
-from ._execution import GitExecution, text_output
-from ._remote import feature_name, valid_sha
-from ._worktrees import confirm_original, original_snapshot
-from .commands import status, worktree
-from .facades._refs import resolve_local_ref
+from ....settings import protected_name
+from .._execution import GitExecution, text_output
+from .._remote import feature_name, valid_sha
+from .._worktrees import confirm_original, original_snapshot
+from ..commands import status, worktree
+from ..facades._refs import resolve_local_ref
 
 if TYPE_CHECKING:
-    from ...app.runtime import ServerSettings
+    from ....app.runtime import ServerSettings
 
 _OUTPUT_LIMIT = 1_048_576
 
@@ -192,7 +192,7 @@ class WorktrunkAdapter:
         _, main_head = await resolve_local_ref(repo, "main")
         if source_head != valid_sha(expected_source_head) or main_head != valid_sha(expected_main_head):
             raise ToolError("Source or main changed; no merge attempted.")
-        from ._worktrees import scoped_settings
+        from .._worktrees import scoped_settings
 
         _, target_head, target_entries = await status.read_porcelain_v2(
             GitExecution(scoped_settings(self.settings, path))
@@ -267,7 +267,7 @@ class WorktrunkAdapter:
         _, actual_head = await resolve_local_ref(repo, branch)
         if actual_head != valid_sha(expected_branch_head):
             raise ToolError("Worktrunk cleanup branch changed; reobserve before removal.")
-        from ._worktrees import scoped_settings
+        from .._worktrees import scoped_settings
 
         target = GitExecution(scoped_settings(self.settings, path))
         actual_branch, checkout_head, entries = await status.read_porcelain_v2(target)
