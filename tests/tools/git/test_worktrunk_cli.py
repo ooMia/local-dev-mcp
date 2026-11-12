@@ -125,7 +125,7 @@ def test_worktrunk_rejects_dirty_source_and_preserves_untracked_files(
         with pytest.raises(ToolError, match="dirty"):
             await adapter.require_ready("feat/wt-guard", head)
         assert (path / "untracked.txt").read_text() == "preserve\n"
-        with pytest.raises(ToolError, match="dirty"):
+        with pytest.raises(ToolError, match="Worktrunk failed"):
             await adapter.remove("feat/wt-guard", head, delete_branch=True)
         (path / "untracked.txt").unlink()
         assert (await adapter.require_ready("feat/wt-guard", head)).policy.root == path
@@ -166,7 +166,7 @@ def test_worktrunk_rejects_foreign_worktree(tmp_path: Path, workspace_factory: W
         await git(tmp_path, "branch", "feat/foreign", base)
         external = tmp_path.parent / (tmp_path.name + "-foreign")
         await git(tmp_path, "worktree", "add", str(external), "feat/foreign")
-        with pytest.raises(ToolError, match="managed"):
+        with pytest.raises(ToolError, match="not allowed"):
             await adapter.remove("feat/foreign", base)
         assert external.exists()
 
@@ -206,5 +206,67 @@ def test_worktrunk_rejects_denied_source_before_creating_branch(
             await adapter.create("feat/wt-source-denied", "main", head, "main", head)
         assert await git(tmp_path, "branch", "--list", "feat/wt-source-denied") == ""
         assert await git(tmp_path, "status", "--porcelain") == ""
+
+    asyncio.run(scenario())
+
+
+def test_worktrunk_removes_external_checkout_inside_allowed_workspace(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    _require_wt()
+
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        path = tmp_path / ".lab" / "user-worktree"
+        await git(tmp_path, "worktree", "add", "-b", "feat/user-worktree", str(path), "main")
+        adapter = _adapter(tmp_path)
+        removed = await adapter.remove("feat/user-worktree", head, delete_branch=False)
+        assert removed["worktree_removed"] is True
+        assert removed["branch_deleted"] is False
+        assert removed["branch_outcome"] == "not_attempted"
+        assert not path.exists()
+        assert await git(tmp_path, "branch", "--list", "feat/user-worktree") != ""
+
+    asyncio.run(scenario())
+
+
+def test_worktrunk_default_removal_delegates_branch_cleanup(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    _require_wt()
+
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        adapter = _adapter(tmp_path)
+        created = await adapter.create("feat/wt-default-cleanup", "main", head, "main", head)
+        removed = await adapter.remove("feat/wt-default-cleanup", head)
+        assert removed["worktree_removed"] is True
+        assert removed["branch_outcome"] == "deleted"
+        assert removed["branch_deleted"] is True
+        assert not (tmp_path / created["path"]).exists()
+        assert await git(tmp_path, "branch", "--list", "feat/wt-default-cleanup") == ""
+
+    asyncio.run(scenario())
+
+
+def test_worktrunk_retain_unmerged_branch_even_if_deletion_requested(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    _require_wt()
+
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        adapter = _adapter(tmp_path)
+        created = await adapter.create("feat/wt-unmerged", "main", head, "main", head)
+        path = tmp_path / created["path"]
+        (path / "unmerged.txt").write_text("new work\n")
+        await git(path, "add", "unmerged.txt")
+        await git(path, "commit", "-m", "feat: work is not integrated")
+        changed_head = await git(path, "rev-parse", "HEAD")
+        removed = await adapter.remove("feat/wt-unmerged", changed_head, delete_branch=True)
+        assert removed["branch_outcome"] == "retained_unmerged"
+        assert removed["branch_deleted"] is False
+        assert not path.exists()
+        assert await git(tmp_path, "branch", "--list", "feat/wt-unmerged") != ""
 
     asyncio.run(scenario())

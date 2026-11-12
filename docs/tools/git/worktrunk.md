@@ -19,7 +19,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 | 도구 | 입력 | 결과 |
 | --- | --- | --- |
 | `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head`, `base_branch="main"` | 현재 checkout을 변경하지 않고 새 브랜치·Worktree 생성 |
-| `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=false` | Clean Worktree 정리, 명시적 선택 시 안전한 브랜치 삭제 |
+| `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=null` | 허용된 Workspace 내 Git 등록 Worktree를 비강제 제거. `null`은 Worktrunk의 브랜치 정리 기본값, `false`는 보존, `true`는 안전한 삭제 시도 |
 | `get_project_worktrunk_merge_plan` | `evidence_id`, `branch`, `expected_source_head`, `expected_main_head` | 서버 로컬 검사 증거·Main Ref·Fast-forward 관계 검증, 별도 Main Checkout 없는 읽기 전용 제안 |
 
 검토 계획의 `mode`는 `ff`로 명시하며 `plan_digest` 역시 동일한 모드를 포함한다.
@@ -36,14 +36,16 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
   검토 계획은 원본과 Source Worktree, Main Git Ref만 확인하며 Main Checkout의 존재를 요구하지 않는다.
   `wt switch --path` 플래그는 Worktrunk에서 **experimental**이므로 CLI 업그레이드 회귀가 필요하다.
 - 현재 checkout의 원래 브랜치·HEAD·작업 트리 지문을 검증하며, 생성에 필요한 기본 Ref의 SHA를 확인한다.
-- 기존 경로, 브랜치, 관리 외 Worktree는 채택하거나 덮어쓰지 않는다.
+- **생성**은 기존 경로·브랜치·관리 외 Worktree를 채택하거나 덮어쓰지 않는다.
+- **삭제**는 [ADR 0013](../../adr/0013-worktrunk-state-based-removal.md)에 따라 생성 주체·Receipt·고정 관리 경로를 요구하지 않는다. Git에 등록된 단일 대상과 허용된 Workspace 경로, 현재 브랜치 HEAD를 확인한다.
 - 생성 전 Git ignore, 접근 정책, 보호 이름을 확인한다.
 - 검토 계획은 등록된 관리형 소스, 정확한 Main·Source SHA 및 Main 조상 관계를 검증한다.
   실제 통합 시점의 승인·Clean 상태·Refs 경합 방어는 별도의 실행 경로가 책임진다.
-- 제거는 `--foreground`, 비강제 옵션만 사용한다. Dirty/ignored 파일, 예상치 못한 HEAD, 관리 외 Worktree를 거부한다.
+- 제거는 `--foreground`, 비강제 옵션만 사용하고 Dirty 상태·미병합 브랜치의 처리 판단은 Worktrunk에 위임한다.
   MCP `remove_project_worktrunk`는 기존 Task Manager의 `exclusive_git_cleanup` 잠금을 재사용하여
   실행 중·정리 불확실한 Job과 Worktree 삭제를 직렬화한다. 독립 Git 프로세스까지 잠그지는 않는다.
-- Worktrunk의 stdout JSON 형태는 명령마다 다르며, 프로세스 성공과 Git 상태 검증을 별도로 요구한다.
+  `branch_outcome`을 확인해 실제 삭제·보존을 구분하며, 명령이 실패하면 제거되지 않았다고 단정하지 않는다.
+- Worktrunk의 stdout JSON 형태는 명령마다 다르며, 삭제는 결과의 대상·`branch_outcome`을 검증한다. 지원하지 않는 결과는 성공으로 보고하지 않는다.
 - 모든 외부 실행은 argv 기반이며 stdin을 닫고 stdout 크기·시간을 제한한다. 호출자 제공 쉘 문자열은 실행하지 않는다.
 - 타임아웃 또는 결과 확인 실패 이후 동일한 쓰기 명령을 자동 재실행하지 않는다.
 
@@ -57,7 +59,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 `tests/tools/git/test_worktrunk_mcp.py`는 FastMCP Client를 통해 새 도구의 공개 계약을 검사한다.
 `tests/tools/git/test_worktrunk_quality.py`는 Main Checkout이 없는 경우에도 제안이 생성되는지 검증한다.
 
-- macOS에서 생성·Worktree 격리·이름 충돌·1개/3개 커밋 Squash·FF·정리·권한 거부를 검증한다.
+- macOS에서 생성·Worktree 격리·이름 충돌·1개/3개 커밋 Squash·FF·삭제·권한 거부를 검증한다. Workspace 내 외부 생성 Worktree 재사용과 브랜치 정리 결과도 검증한다.
 - 테스트 호스트에 `wt`가 없으면 실제 CLI 테스트를 **skip**한다. skip을 PASS로 계산하지 않는다.
 - Windows에서의 프로세스 실행, Worktrunk 설치, 경로 처리 및 OS별 테스트는 별도 검증이 필요하다.
 - 기존 main 전용 `Source-PR` hooks 및 GitHub Rulesets가 활성화되어 있으면 실제 운영 저장소의

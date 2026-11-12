@@ -42,7 +42,7 @@ class RemoveProjectWorktrunkTool:
         self,
         branch: BranchName,
         expected_branch_head: ExpectedHead,
-        delete_branch: bool = False,
+        delete_branch: bool | None = None,
     ) -> dict[str, object]:
         async with self.settings.tasks.exclusive_git_cleanup():
             return await WorktrunkAdapter(self.settings).remove(
@@ -67,9 +67,11 @@ CREATE_PROJECT_WORKTRUNK: Final = ToolDefinition(
 REMOVE_PROJECT_WORKTRUNK: Final = ToolDefinition(
     name="remove_project_worktrunk",
     description=(
-        "Remove only an exact, clean managed Worktrunk worktree in the foreground. "
-        "Refuse ignored files and changed source HEAD. Branch deletion is independently "
-        "opted in and uses Worktrunk's non-force integration checks. Never force removal."
+        "Remove an explicitly identified, registered linked Worktree inside the allowed workspace. "
+        "Delegate dirty-file protection and integrated-branch deletion to Worktrunk (non-force). "
+        "delete_branch=null follows Worktrunk's normal cleanup, false preserves the branch, "
+        "true requests its safe deletion. Worktrunk hooks are disabled. "
+        "Check branch_outcome for retained refs; never assume removal also deleted a branch."
     ),
     annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False),
     required_commands=("git", "wt", "git.worktree.write"),

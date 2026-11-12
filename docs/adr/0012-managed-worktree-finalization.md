@@ -1,6 +1,6 @@
 # ADR 0012: 검증된 병합 이후 관리형 Worktree 정리
 
-- 상태: Accepted
+- 상태: Partially superseded — Worktrunk 삭제 경로는 [ADR 0013](0013-worktrunk-state-based-removal.md), Native 정리는 이 결정을 유지
 - 결정일: 2026-11-10
 - 범위: LOCAL-DEV-MCP가 생성한 linked Worktree의 정리와 선택적 로컬 topic 브랜치 삭제
 - 보완: [ADR 0010](0010-deterministic-pr-merge.md)의 **PR 병합 도구 자체는 브랜치를 삭제하지 않는다**는 경계를 유지하며, 별도의 명시적 종료 도구를 추가한다.

@@ -194,53 +194,60 @@ class WorktrunkAdapter:
             raise ToolError("Worktrunk branch HEAD differs from the observed base.")
         return {"branch": branch, "head": head, "path": str(path.relative_to(repo.root))}
 
-    async def remove(self, branch: str, expected_branch_head: str, *, delete_branch: bool = False) -> dict[str, object]:
+    async def remove(
+        self, branch: str, expected_branch_head: str, *, delete_branch: bool | None = None
+    ) -> dict[str, object]:
+        """Delegate deletion decisions to Worktrunk after identifying an allowed checkout."""
         _authorize(self.settings, write=True)
+        feature_name(branch)
         repo = GitExecution(self.settings)
-        path = _managed_path(self.settings, branch, write=True)
         records = await worktree.list_registered(repo)
-        if not any(r.path == path and r.branch == "refs/heads/" + branch for r in records):
-            raise ToolError("Only a registered managed Worktrunk worktree can be removed.")
+        matches = [row for row in records if row.branch == "refs/heads/" + branch and not row.unavailable]
+        if len(matches) != 1:
+            raise ToolError("Expected exactly one registered, available Worktrunk target.")
+        path = matches[0].path
+        if not path.is_absolute() or path == repo.root or not path.is_dir() or path.is_symlink():
+            raise ToolError("Worktrunk removal target is not an available linked checkout.")
+        if path.resolve() != path:
+            raise ToolError("Worktrunk removal target traverses a symlink.")
+        try:
+            self.settings.policy.require_path_access(path, write=True)
+        except PermissionError as error:
+            raise ToolError(str(error)) from None
         _, actual_head = await resolve_local_ref(repo, branch)
         if actual_head != valid_sha(expected_branch_head):
             raise ToolError("Worktrunk cleanup branch changed; reobserve before removal.")
-        from .._worktrees import scoped_settings
 
-        target = GitExecution(scoped_settings(self.settings, path))
-        actual_branch, checkout_head, entries = await status.read_porcelain_v2(target)
-        if actual_branch != branch or checkout_head != actual_head or entries:
-            raise ToolError("Refuse to remove a changed or dirty Worktrunk worktree.")
-        ignored = await target.run(
-            "ls-files",
-            "--others",
-            "--ignored",
-            "--exclude-standard",
-            "-z",
-            operation="Inspect ignored worktree content",
-        )
-        if ignored.output:
-            raise ToolError("Ignored files remain in Worktrunk worktree; refuse cleanup.")
-        # Worktrunk remove emits a JSON array on some supported versions.
-        await self._run(
-            "remove",
-            "--foreground",
-            "--no-hooks",
-            "--delete-branch" if delete_branch else "--no-delete-branch",
-            branch,
-            write=True,
-        )
-        after = await worktree.list_registered(repo)
-        if path.exists() or any(r.path == path for r in after):
-            raise ToolError("Worktrunk remove result could not be verified.")
-        found = await repo.run(
-            "show-ref",
-            "--verify",
-            "--quiet",
-            "refs/heads/" + branch,
-            operation="Verify Worktrunk branch deletion",
-            allow_failure=True,
-        )
-        expected_code = 1 if delete_branch else 0
-        if found.code != expected_code:
-            raise ToolError("Worktrunk branch cleanup outcome was not verified.")
-        return {"branch": branch, "worktree_removed": True, "branch_deleted": delete_branch}
+        args = ["remove", "--foreground", "--no-hooks"]
+        if delete_branch is not None:
+            args.append("--delete-branch" if delete_branch else "--no-delete-branch")
+        # Absolute path binds the request to the checked registered worktree, not
+        # to Worktrunk's default branch/path resolution or its current worktree.
+        args.append(str(path))
+        response = await self._run(*args, write=True)
+        results = response if isinstance(response, list) else [response]
+        if len(results) != 1 or not isinstance(results[0], dict):
+            raise ToolError("Worktrunk removal result is ambiguous; inspect current state.")
+        outcome = cast(dict[str, object], results[0])
+        branch_outcome = outcome.get("branch_outcome")
+        if (
+            outcome.get("branch") != branch
+            or outcome.get("path") != str(path)
+            or branch_outcome
+            not in {
+                "deleted",
+                "not_attempted",
+                "retained_unmerged",
+                "retained_checked_out",
+                "retained_raced",
+                "retained_failed",
+            }
+        ):
+            raise ToolError("Worktrunk removal result did not identify the requested target.")
+        return {
+            "branch": branch,
+            "path": str(path.relative_to(repo.root)),
+            "worktree_removed": True,
+            "branch_deleted": branch_outcome == "deleted",
+            "branch_outcome": branch_outcome,
+        }
