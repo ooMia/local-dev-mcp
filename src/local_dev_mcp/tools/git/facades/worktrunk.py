@@ -28,9 +28,10 @@ class CreateProjectWorktrunkTool:
         expected_head: ExpectedHead,
         expected_base_head: ExpectedHead,
         base_branch: str = "main",
+        run_hooks: bool = False,
     ) -> dict[str, str]:
         return await WorktrunkAdapter(self.settings).create(
-            branch, base_branch, expected_base_head, expected_branch, expected_head
+            branch, base_branch, expected_base_head, expected_branch, expected_head, run_hooks=run_hooks
         )
 
 
@@ -43,10 +44,11 @@ class RemoveProjectWorktrunkTool:
         branch: BranchName,
         expected_branch_head: ExpectedHead,
         delete_branch: bool | None = None,
+        run_hooks: bool = False,
     ) -> dict[str, object]:
         async with self.settings.tasks.exclusive_git_cleanup():
             return await WorktrunkAdapter(self.settings).remove(
-                branch, expected_branch_head, delete_branch=delete_branch
+                branch, expected_branch_head, delete_branch=delete_branch, run_hooks=run_hooks
             )
 
 
@@ -55,10 +57,11 @@ CREATE_PROJECT_WORKTRUNK: Final = ToolDefinition(
     description=(
         "Create a new topic branch and linked Worktrunk worktree under the authorized .lab/wt "
         "directory, from an exact observed local base. Preserve the original checkout and its "
-        "dirty files. Refuse occupied branch/path; never clobber or invoke Worktrunk hooks. "
+        "dirty files. Refuse occupied branch/path; never clobber. "
+        "run_hooks=false disables Worktrunk lifecycle hooks; true explicitly opts in. "
         "On uncertain failure inspect Git refs and worktrees before retrying."
     ),
-    annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False),
+    annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=True),
     required_commands=("git", "wt", "git.worktree.write"),
     create_runtime=CreateProjectWorktrunkTool,
     readiness=git_readiness,
@@ -70,10 +73,10 @@ REMOVE_PROJECT_WORKTRUNK: Final = ToolDefinition(
         "Remove an explicitly identified, registered linked Worktree inside the allowed workspace. "
         "Delegate dirty-file protection and integrated-branch deletion to Worktrunk (non-force). "
         "delete_branch=null follows Worktrunk's normal cleanup, false preserves the branch, "
-        "true requests its safe deletion. Worktrunk hooks are disabled. "
+        "true requests its safe deletion. run_hooks=false disables lifecycle hooks; true opts in. "
         "Check branch_outcome for retained refs; never assume removal also deleted a branch."
     ),
-    annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False),
+    annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=True),
     required_commands=("git", "wt", "git.worktree.write"),
     create_runtime=RemoveProjectWorktrunkTool,
     readiness=git_readiness,

@@ -62,6 +62,7 @@ def test_mcp_worktrunk_lifecycle_and_strict_authorization(tmp_path: Path, worksp
             assert names <= registered.keys()
             assert "merge_project_worktrunk" not in registered
             assert all(registered[name].input_schema["additionalProperties"] is False for name in names)
+            assert all("run_hooks" in registered[name].input_schema["properties"] for name in names)
             await failure(session, "create_project_worktrunk", {"branch": "--force"})
             created = await success(
                 session,

@@ -31,7 +31,7 @@ ADR의 **Partially superseded**는 전체 폐기가 아니라 명시한 범위�
 | 최초 정리 기준선 **일회성 예외** | [ADR 0008](adr/0008-initial-consolidated-baseline.md) — 최초 게시·손상된 평가 보완만 해당 | [역사적 기준선 절차](tools/workflow/initial-baseline.md); 이후 기능 통합에는 적용 금지 |
 | GitHub Actions 검사 범위 | [ADR 0009](adr/0009-actions-unit-tests.md) — CI Unit 중심 | [검증 계약](testing.md#actions와-로컬-검증의-범위); 로컬 Integration과 별개 |
 | PR Squash·출처·Ready | [ADR 0010](adr/0010-deterministic-pr-merge.md) — 직접 MCP 병합, [ADR 0011](adr/0011-chat-pr-lifecycle.md) — CI 관측·Ready 전환 추가 | [원격 PR 계약](tools/git/remote-pr.md); 정확한 HEAD의 CI는 에이전트가 별도 확인 |
-| Worktree 종료 | [ADR 0012](adr/0012-managed-worktree-finalization.md) — Native 관리형 Worktree 종료, [ADR 0013](adr/0013-worktrunk-state-based-removal.md) — Worktrunk 상태 기반 삭제 | [Native Worktree 계약](tools/git/worktrees.md), [Worktrunk 계약](tools/git/worktrunk.md); 원격 PR 병합과 별개 |
+| Worktree 종료·Hooks | [ADR 0012](adr/0012-managed-worktree-finalization.md) — Native 정리, [ADR 0013](adr/0013-worktrunk-state-based-removal.md) — Worktrunk 상태 기반 삭제, [ADR 0014](adr/0014-worktrunk-hooks-opt-in.md) — Lifecycle Hooks 명시적 활성화 | [Native Worktree 계약](tools/git/worktrees.md), [Worktrunk 계약](tools/git/worktrunk.md); 원격 PR 병합과 별개 |
 
 ## 적용 순서
 

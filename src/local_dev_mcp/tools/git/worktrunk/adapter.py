@@ -143,6 +143,8 @@ class WorktrunkAdapter:
         expected_base_head: str,
         original_branch: str,
         original_head: str,
+        *,
+        run_hooks: bool = False,
     ) -> dict[str, str]:
         _authorize(self.settings, write=True)
 
@@ -173,18 +175,9 @@ class WorktrunkAdapter:
         )
         # An explicit path prevents global Worktrunk configuration from placing files
         # outside the authorized workspace. This Worktrunk flag is experimental.
-        await self._run(
-            "switch",
-            "--create",
-            branch,
-            "--base",
-            base,
-            "--path",
-            str(path),
-            "--no-cd",
-            "--no-hooks",
-            write=True,
-        )
+        argv = ["switch", "--create", branch, "--base", base, "--path", str(path), "--no-cd"]
+        argv.append("--yes" if run_hooks else "--no-hooks")
+        await self._run(*argv, write=True)
         await confirm_original(self.settings, original_branch, original_head, fingerprint, allow_dirty=True)
         records = await worktree.list_registered(repo)
         if not any(r.path == path and r.branch == "refs/heads/" + branch for r in records):
@@ -195,7 +188,7 @@ class WorktrunkAdapter:
         return {"branch": branch, "head": head, "path": str(path.relative_to(repo.root))}
 
     async def remove(
-        self, branch: str, expected_branch_head: str, *, delete_branch: bool | None = None
+        self, branch: str, expected_branch_head: str, *, delete_branch: bool | None = None, run_hooks: bool = False
     ) -> dict[str, object]:
         """Delegate deletion decisions to Worktrunk after identifying an allowed checkout."""
         _authorize(self.settings, write=True)
@@ -218,7 +211,7 @@ class WorktrunkAdapter:
         if actual_head != valid_sha(expected_branch_head):
             raise ToolError("Worktrunk cleanup branch changed; reobserve before removal.")
 
-        args = ["remove", "--foreground", "--no-hooks"]
+        args = ["remove", "--foreground", "--yes" if run_hooks else "--no-hooks"]
         if delete_branch is not None:
             args.append("--delete-branch" if delete_branch else "--no-delete-branch")
         # Absolute path binds the request to the checked registered worktree, not

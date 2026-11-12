@@ -270,3 +270,37 @@ def test_worktrunk_retain_unmerged_branch_even_if_deletion_requested(
         assert await git(tmp_path, "branch", "--list", "feat/wt-unmerged") != ""
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("run_hooks", [False, True])
+def test_worktrunk_hooks_are_opt_in_for_create_and_remove(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch, run_hooks: bool
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        adapter = _adapter(tmp_path)
+        calls: list[tuple[str, ...]] = []
+
+        async def record_without_running(self: WorktrunkAdapter, *argv: str, write: bool) -> dict[str, object]:
+            assert write is True
+            calls.append(argv)
+            raise ToolError("intercepted before Worktrunk execution")
+
+        monkeypatch.setattr(WorktrunkAdapter, "_run", record_without_running)
+        with pytest.raises(ToolError, match="intercepted"):
+            await adapter.create("feat/hook-create", "main", head, "main", head, run_hooks=run_hooks)
+
+        path = tmp_path / ".lab" / "hook-remove"
+        await git(tmp_path, "worktree", "add", "-b", "feat/hook-remove", str(path), "main")
+        with pytest.raises(ToolError, match="intercepted"):
+            await adapter.remove("feat/hook-remove", head, run_hooks=run_hooks, delete_branch=False)
+
+        assert len(calls) == 2
+        assert calls[0][0] == "switch"
+        assert calls[1][0] == "remove"
+        assert all(("--yes" in args) is run_hooks for args in calls)
+        assert all(("--no-hooks" in args) is (not run_hooks) for args in calls)
+        assert path.exists()
+        assert await git(tmp_path, "branch", "--list", "feat/hook-create") == ""
+
+    asyncio.run(scenario())

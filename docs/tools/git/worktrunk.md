@@ -18,8 +18,8 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 
 | 도구 | 입력 | 결과 |
 | --- | --- | --- |
-| `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head`, `base_branch="main"` | 현재 checkout을 변경하지 않고 새 브랜치·Worktree 생성 |
-| `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=null` | 허용된 Workspace 내 Git 등록 Worktree를 비강제 제거. `null`은 Worktrunk의 브랜치 정리 기본값, `false`는 보존, `true`는 안전한 삭제 시도 |
+| `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head`, `base_branch="main"`, `run_hooks=false` | 현재 checkout을 변경하지 않고 새 브랜치·Worktree 생성 |
+| `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=null`, `run_hooks=false` | 허용된 Workspace 내 Git 등록 Worktree를 비강제 제거. `null`은 Worktrunk의 브랜치 정리 기본값, `false`는 보존, `true`는 안전한 삭제 시도 |
 | `get_project_worktrunk_merge_plan` | `evidence_id`, `branch`, `expected_source_head`, `expected_main_head` | 서버 로컬 검사 증거·Main Ref·Fast-forward 관계 검증, 별도 Main Checkout 없는 읽기 전용 제안 |
 
 검토 계획의 `mode`는 `ff`로 명시하며 `plan_digest` 역시 동일한 모드를 포함한다.
@@ -39,6 +39,10 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 - **생성**은 기존 경로·브랜치·관리 외 Worktree를 채택하거나 덮어쓰지 않는다.
 - **삭제**는 [ADR 0013](../../adr/0013-worktrunk-state-based-removal.md)에 따라 생성 주체·Receipt·고정 관리 경로를 요구하지 않는다. Git에 등록된 단일 대상과 허용된 Workspace 경로, 현재 브랜치 HEAD를 확인한다.
 - 생성 전 Git ignore, 접근 정책, 보호 이름을 확인한다.
+- Lifecycle Hooks는 [ADR 0014](../../adr/0014-worktrunk-hooks-opt-in.md)에 따라 기본 비활성화다.
+  `run_hooks=true`를 명시하면 Worktrunk 사용자·프로젝트 설정의 Hooks를 실행한다.
+  이때 `--yes`로 Worktrunk의 대화형 승인 프롬프트를 생략하므로, 설정된 Hooks의 외부 명령 실행까지 호출자가 허용한 것으로 간주한다.
+  Hooks는 MCP 경로·명령 허용 목록의 OS 수준 격리 대상이 아니며, 해당 호출의 외부 부작용은 MCP가 검증하지 않는다.
 - 검토 계획은 등록된 관리형 소스, 정확한 Main·Source SHA 및 Main 조상 관계를 검증한다.
   실제 통합 시점의 승인·Clean 상태·Refs 경합 방어는 별도의 실행 경로가 책임진다.
 - 제거는 `--foreground`, 비강제 옵션만 사용하고 Dirty 상태·미병합 브랜치의 처리 판단은 Worktrunk에 위임한다.
@@ -60,6 +64,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 `tests/tools/git/test_worktrunk_quality.py`는 Main Checkout이 없는 경우에도 제안이 생성되는지 검증한다.
 
 - macOS에서 생성·Worktree 격리·이름 충돌·1개/3개 커밋 Squash·FF·삭제·권한 거부를 검증한다. Workspace 내 외부 생성 Worktree 재사용과 브랜치 정리 결과도 검증한다.
+- Hooks 선택은 실제 사용자 설정을 실행하지 않고, 기본 `--no-hooks`와 명시적 `--yes` CLI 인자 및 MCP 입력 스키마를 검증한다.
 - 테스트 호스트에 `wt`가 없으면 실제 CLI 테스트를 **skip**한다. skip을 PASS로 계산하지 않는다.
 - Windows에서의 프로세스 실행, Worktrunk 설치, 경로 처리 및 OS별 테스트는 별도 검증이 필요하다.
 - 기존 main 전용 `Source-PR` hooks 및 GitHub Rulesets가 활성화되어 있으면 실제 운영 저장소의
