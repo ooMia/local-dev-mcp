@@ -1,4 +1,4 @@
-"""Worktrunk MCP gate and isolated local fast-forward adapter contracts."""
+"""Worktrunk proposal-only MCP and independent Git fast-forward contracts."""
 
 import asyncio
 import shutil
@@ -41,9 +41,9 @@ def test_native_ff_does_not_squash_source(tmp_path: Path, workspace_factory: Wor
         await git(source, "add", "ff.txt")
         await git(source, "commit", "-m", "feat: native fast-forward")
         head = await git(source, "rev-parse", "HEAD")
-        integrated = await adapter.merge("feat/wt-ff", head, base, mode="ff")
-        assert integrated["mode"] == "ff"
-        assert integrated["main_after"] == head
+        # Only a distinct, user-controlled Git command integrates main.
+        assert await git(tmp_path, "rev-parse", "HEAD") == base
+        await git(tmp_path, "merge", "--ff-only", "feat/wt-ff")
         assert await git(tmp_path, "rev-parse", "HEAD") == head
         await adapter.remove("feat/wt-ff", head, delete_branch=True)
         assert not source.exists()
@@ -75,16 +75,13 @@ def test_mcp_worktrunk_lifecycle_and_strict_authorization(tmp_path: Path, worksp
             await git(path, "commit", "-m", "feat: mcp bridge")
             head = await git(path, "rev-parse", "HEAD")
             assert await git(tmp_path, "rev-parse", "HEAD") == base
-            # The backend remains testable independently. Only the MCP entrypoint is gated.
-            integrated = await WorktrunkAdapter(ServerSettings.load(_policy(tmp_path))).merge(
-                "feat/wt-mcp", head, base, mode="ff"
-            )
-            assert integrated["main_after"] == head
             removed = await success(
                 session,
                 "remove_project_worktrunk",
-                {"branch": "feat/wt-mcp", "expected_branch_head": head, "delete_branch": True},
+                {"branch": "feat/wt-mcp", "expected_branch_head": head, "delete_branch": False},
             )
+            assert await git(tmp_path, "rev-parse", "HEAD") == base
+            assert await git(tmp_path, "branch", "--list", "feat/wt-mcp") != ""
             assert removed["worktree_removed"] is True
             assert not path.exists()
         denied = replace(policy(tmp_path), allowed_commands=("git",))

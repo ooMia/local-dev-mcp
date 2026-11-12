@@ -347,3 +347,77 @@ def test_review_plan_needs_main_ref_but_not_main_checkout(tmp_path: Path, worksp
             assert await git(tmp_path, "branch", "--show-current") == "feat/controller"
 
     asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("wt") is None, reason="macOS Worktrunk CLI is required")
+def test_review_plan_rejects_stale_and_diverged_main(tmp_path: Path, workspace_factory: WorkspaceFactory) -> None:
+    async def scenario() -> None:
+        base = await _fixture(tmp_path, workspace_factory)
+        async with Client(create_server(_policy(tmp_path))) as client:
+            created = await success(
+                client,
+                "create_project_worktrunk",
+                {
+                    "branch": "feat/wt-proof",
+                    "expected_branch": "main",
+                    "expected_head": base,
+                    "expected_base_head": base,
+                },
+            )
+            source_root = tmp_path / str(created["path"])
+            (source_root / "feature.txt").write_text("source\n")
+            await git(source_root, "add", "feature.txt")
+            await git(source_root, "commit", "-m", "feat: diverged source")
+            source = await git(source_root, "rev-parse", "HEAD")
+            jobs = [
+                await _job(client, "check", base, "diverged-check", False, source),
+                await _job(client, "unit", base, "diverged-unit", True, source),
+            ]
+            verified = await success(
+                client,
+                VERIFY,
+                {
+                    "branch": "feat/wt-proof",
+                    "expected_source_head": source,
+                    "expected_main_head": base,
+                    "job_ids": jobs,
+                },
+            )
+            (tmp_path / "main.txt").write_text("unrelated main commit\n")
+            await git(tmp_path, "add", "main.txt")
+            await git(tmp_path, "commit", "-m", "fix: advance main independently")
+            moved = await git(tmp_path, "rev-parse", "HEAD")
+            assert "moved" in await failure(
+                client,
+                "get_project_worktrunk_merge_plan",
+                {
+                    "evidence_id": verified["evidence_id"],
+                    "branch": "feat/wt-proof",
+                    "expected_source_head": source,
+                    "expected_main_head": base,
+                },
+            )
+            fresh = await success(
+                client,
+                VERIFY,
+                {
+                    "branch": "feat/wt-proof",
+                    "expected_source_head": source,
+                    "expected_main_head": moved,
+                    "job_ids": jobs,
+                },
+            )
+            assert "ancestor" in await failure(
+                client,
+                "get_project_worktrunk_merge_plan",
+                {
+                    "evidence_id": fresh["evidence_id"],
+                    "branch": "feat/wt-proof",
+                    "expected_source_head": source,
+                    "expected_main_head": moved,
+                },
+            )
+            assert await git(tmp_path, "rev-parse", "main") == moved
+            assert await git(source_root, "rev-parse", "HEAD") == source
+
+    asyncio.run(scenario())

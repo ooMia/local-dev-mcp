@@ -12,7 +12,7 @@ import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from fastmcp.exceptions import ToolError
 
@@ -208,88 +208,6 @@ class WorktrunkAdapter:
         if head != base_head:
             raise ToolError("Worktrunk branch HEAD differs from the observed base.")
         return {"branch": branch, "head": head, "path": str(path.relative_to(repo.root))}
-
-    async def merge(
-        self,
-        branch: str,
-        expected_source_head: str,
-        expected_main_head: str,
-        mode: Literal["squash", "ff"] = "squash",
-    ) -> dict[str, str]:
-        _authorize(self.settings, write=True)
-        repo = GitExecution(self.settings)
-        path = _managed_path(self.settings, branch, write=True)
-        records = await worktree.list_registered(repo)
-        if not any(r.path == path and r.branch == "refs/heads/" + branch for r in records):
-            raise ToolError("Only a registered managed Worktrunk worktree can be merged.")
-        _, source_head = await resolve_local_ref(repo, branch)
-        _, main_head = await resolve_local_ref(repo, "main")
-        if source_head != valid_sha(expected_source_head) or main_head != valid_sha(expected_main_head):
-            raise ToolError("Source or main changed; no merge attempted.")
-        from .._worktrees import scoped_settings
-
-        _, target_head, target_entries = await status.read_porcelain_v2(
-            GitExecution(scoped_settings(self.settings, path))
-        )
-        if target_head != source_head or target_entries:
-            raise ToolError("Source Worktrunk worktree is dirty or moved.")
-        # Require an actual clean main worktree. Avoid implicit creation of a target
-        # checkout or overwriting another agent's uncommitted work.
-        main_rows = [r for r in records if r.branch == "refs/heads/main"]
-        if len(main_rows) != 1 or main_rows[0].unavailable:
-            raise ToolError("A registered clean main worktree is required.")
-        try:
-            self.settings.policy.require_path_access(main_rows[0].path, write=True)
-        except PermissionError as error:
-            raise ToolError(str(error)) from None
-        main_settings = scoped_settings(self.settings, main_rows[0].path)
-        _, current_main, main_entries = await status.read_porcelain_v2(GitExecution(main_settings))
-        if current_main != main_head or main_entries:
-            raise ToolError("Main worktree is dirty or moved.")
-        check = await repo.run(
-            "merge-base",
-            "--is-ancestor",
-            main_head,
-            source_head,
-            operation="Check Worktrunk ancestry",
-            allow_failure=True,
-        )
-        if check.code != 0:
-            raise ToolError("Main is not an ancestor of the feature; reconcile manually.")
-        await self._run(
-            "merge",
-            "--branch",
-            branch,
-            "--no-rebase",
-            "--no-remove",
-            "--stage",
-            "none",
-            "--no-hooks",
-            *(["--no-squash"] if mode == "ff" else []),
-            "main",
-            write=True,
-        )
-        _, updated_main = await resolve_local_ref(repo, "main")
-        if updated_main == main_head:
-            raise ToolError("Worktrunk returned success but main was not updated.")
-        if mode == "ff" and updated_main != source_head:
-            raise ToolError("Worktrunk did not fast-forward main to the observed source HEAD.")
-        source_tree = (
-            await repo.run("rev-parse", source_head + "^{tree}", operation="Read source tree")
-        ).output.strip()
-        main_tree = (
-            await repo.run("rev-parse", updated_main + "^{tree}", operation="Read integrated tree")
-        ).output.strip()
-        if source_tree != main_tree:
-            raise ToolError("Integrated main tree differs from the source; inspect before retrying.")
-        _, source_after = await resolve_local_ref(repo, branch)
-        return {
-            "branch": branch,
-            "source_after": source_after,
-            "main_before": main_head,
-            "main_after": updated_main,
-            "mode": mode,
-        }
 
     async def remove(self, branch: str, expected_branch_head: str, *, delete_branch: bool = False) -> dict[str, object]:
         _authorize(self.settings, write=True)

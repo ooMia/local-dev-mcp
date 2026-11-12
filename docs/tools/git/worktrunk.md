@@ -63,8 +63,8 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 - 기존 main 전용 `Source-PR` hooks 및 GitHub Rulesets가 활성화되어 있으면 실제 운영 저장소의
   로컬/원격 통합에 영향을 준다. 이 실험은 그 정책을 변경하지 않는다.
 - 실제 사용자의 작업 저장소에는 검증 목적의 Worktrunk 통합·정리 명령을 실행하지 않는다.
-- Worktrunk MCP에는 로컬 main 병합 도구를 제공하지 않는다. 검증된 변경 제안은 별도의
-  사용자 승인·GitHub PR/CI 또는 사용자가 직접 통제하는 Git 작업으로 통합한다.
+- Worktrunk MCP와 내부 Worktrunk Adapter에는 로컬 main 병합 진입점을 제공하지 않는다.
+  검증된 변경 제안은 별도의 사용자 승인·GitHub PR/CI 또는 사용자가 직접 통제하는 Git 작업으로 통합한다.
 - `get_project_worktrunk_merge_plan`은 읽기 전용이며 실행 권한을 생성하지 않는다.
 
 기존 도구와 기능 중복을 제거하는 단계는 새 흐름이 기존 테스트를 만족하고 PR 강제 정책 변경을

@@ -1,4 +1,4 @@
-"""Worktrunk adapter contract against isolated temporary Git repositories.
+"""Worktrunk create/remove adapter and external merge CLI in temporary Git repositories.
 
 Never exercises Worktrunk against the developer's active checkout.
 """
@@ -28,6 +28,33 @@ def _adapter(root: Path) -> WorktrunkAdapter:
 def _require_wt() -> None:
     if shutil.which("wt") is None:
         pytest.skip("Worktrunk CLI 'wt' is not installed on the active test host")
+
+
+async def _external_worktrunk_merge(root: Path, branch: str) -> None:
+    """Run external CLI in a disposable repository, never through the MCP adapter."""
+    binary = shutil.which("wt")
+    assert binary is not None
+    process = await asyncio.create_subprocess_exec(
+        binary,
+        "-C",
+        str(root),
+        "merge",
+        "--branch",
+        branch,
+        "--no-rebase",
+        "--no-remove",
+        "--stage",
+        "none",
+        "--no-hooks",
+        "main",
+        "--format",
+        "json",
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
+    assert process.returncode == 0, (stdout.decode(errors="replace"), stderr.decode(errors="replace"))
 
 
 def test_worktrunk_create_preserves_checkout_and_refuses_collision(
@@ -67,10 +94,11 @@ def test_worktrunk_squash_and_safe_removal(tmp_path: Path, workspace_factory: Wo
             (path / f"change-{index}.txt").write_text(f"{index}\n")
             await git(path, "add", f"change-{index}.txt")
             await git(path, "commit", "-m", f"feat: add {index}")
-        feature_head = await git(path, "rev-parse", "HEAD")
-        result = await adapter.merge("feat/wt-merge", feature_head, head)
-        assert result["main_after"] != head
-        assert await git(tmp_path, "rev-parse", "HEAD") == result["main_after"]
+        assert await git(path, "rev-parse", "HEAD") != head
+        await _external_worktrunk_merge(tmp_path, "feat/wt-merge")
+        main_after = await git(tmp_path, "rev-parse", "HEAD")
+        assert main_after != head
+        assert await git(tmp_path, "rev-parse", "main") == main_after
         for index in range(count):
             assert (tmp_path / f"change-{index}.txt").read_text() == f"{index}\n"
         assert path.is_dir()  # --no-remove
@@ -83,7 +111,9 @@ def test_worktrunk_squash_and_safe_removal(tmp_path: Path, workspace_factory: Wo
     asyncio.run(scenario())
 
 
-def test_worktrunk_rejects_dirty_source_and_stale_main(tmp_path: Path, workspace_factory: WorkspaceFactory) -> None:
+def test_worktrunk_rejects_dirty_source_and_preserves_untracked_files(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
     _require_wt()
 
     async def scenario() -> None:
@@ -93,17 +123,14 @@ def test_worktrunk_rejects_dirty_source_and_stale_main(tmp_path: Path, workspace
         path = tmp_path / created["path"]
         (path / "untracked.txt").write_text("preserve\n")
         with pytest.raises(ToolError, match="dirty"):
-            await adapter.merge("feat/wt-guard", head, head)
+            await adapter.require_ready("feat/wt-guard", head)
         assert (path / "untracked.txt").read_text() == "preserve\n"
         with pytest.raises(ToolError, match="dirty"):
             await adapter.remove("feat/wt-guard", head, delete_branch=True)
         (path / "untracked.txt").unlink()
-        (tmp_path / "main-change.txt").write_text("new main\n")
-        await git(tmp_path, "add", "main-change.txt")
-        await git(tmp_path, "commit", "-m", "fix: main advanced")
-        with pytest.raises(ToolError, match="changed"):
-            await adapter.merge("feat/wt-guard", head, head)
+        assert (await adapter.require_ready("feat/wt-guard", head)).policy.root == path
         assert path.exists()
+        assert await git(tmp_path, "rev-parse", "HEAD") == head
 
     asyncio.run(scenario())
 
@@ -130,9 +157,7 @@ def test_worktrunk_permissions_and_list_schema(tmp_path: Path, workspace_factory
     asyncio.run(scenario())
 
 
-def test_worktrunk_rejects_foreign_worktree_and_diverged_main(
-    tmp_path: Path, workspace_factory: WorkspaceFactory
-) -> None:
+def test_worktrunk_rejects_foreign_worktree(tmp_path: Path, workspace_factory: WorkspaceFactory) -> None:
     _require_wt()
 
     async def scenario() -> None:
@@ -145,20 +170,7 @@ def test_worktrunk_rejects_foreign_worktree_and_diverged_main(
             await adapter.remove("feat/foreign", base)
         assert external.exists()
 
-        created = await adapter.create("feat/wt-diverged", "main", base, "main", base)
-        source = tmp_path / created["path"]
-        (source / "same.txt").write_text("source\n")
-        await git(source, "add", "same.txt")
-        await git(source, "commit", "-m", "feat: source")
-        feature_head = await git(source, "rev-parse", "HEAD")
-        (tmp_path / "same.txt").write_text("main\n")
-        await git(tmp_path, "add", "same.txt")
-        await git(tmp_path, "commit", "-m", "fix: main advanced")
-        moved_main = await git(tmp_path, "rev-parse", "HEAD")
-        with pytest.raises(ToolError, match="ancestor"):
-            await adapter.merge("feat/wt-diverged", feature_head, moved_main)
-        assert await git(tmp_path, "rev-parse", "HEAD") == moved_main
-        assert await git(source, "rev-parse", "HEAD") == feature_head
+        assert await git(tmp_path, "rev-parse", "HEAD") == base
 
     asyncio.run(scenario())
 

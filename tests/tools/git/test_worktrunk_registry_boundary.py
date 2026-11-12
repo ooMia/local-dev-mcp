@@ -7,6 +7,7 @@ import pytest
 from fastmcp import Client
 
 from local_dev_mcp.mcp.server import create_server
+from local_dev_mcp.tools.git.worktrunk import WorktrunkAdapter
 from tests.support.workspace import configure
 from tests.support.worktrees import policy
 
@@ -30,3 +31,7 @@ def test_worktrunk_has_no_executable_merge_tool(tmp_path: Path) -> None:
             assert "merge_project_pr" in names
 
     asyncio.run(scenario())
+
+
+def test_worktrunk_adapter_does_not_offer_internal_main_merge() -> None:
+    assert not hasattr(WorktrunkAdapter, "merge")
