@@ -59,6 +59,8 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 
 `tests/tools/git/test_worktrunk_cli.py`는 임시 Git 저장소에서 Worktrunk 실행 파일을 직접 호출한다.
 `tests/tools/git/test_worktrunk_mcp.py`는 FastMCP Client를 통해 새 도구의 공개 계약을 검사한다.
+`tests/tools/git/test_worktrunk_main_failures.py`는 이미 등록된 Main, stale Main Ref,
+심볼릭 링크 점유를 거부하고 사용자 파일·기존 Git Ref가 유지되는지 검증한다.
 
 - macOS에서 생성·Worktree 격리·이름 충돌·1개/3개 커밋 Squash·FF·정리·권한 거부를 검증한다.
 - 테스트 호스트에 `wt`가 없으면 실제 CLI 테스트를 **skip**한다. skip을 PASS로 계산하지 않는다.
