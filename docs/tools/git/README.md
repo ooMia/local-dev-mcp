@@ -17,6 +17,7 @@ identity·서명 준비 오류는 commit에 한정한다. 다른 기능이나 �
 선택한 workspace 자체가 working tree root여야 한다. 상위 저장소를 자동 채택하지 않는다.
 
 격리된 linked Worktree 준비·조회·검증된 PR 병합 이후 안전한 정리 및 브랜치 기준 게시의 입력·실패 경계는 [Worktree 계약](worktrees.md)을 따른다.
+Worktrunk CLI를 이용한 별도 실험적 생성·로컬 통합·정리 경로는 [Worktrunk 통합 계약](worktrunk.md)을 따른다.
 
 로컬 후보 이력의 재구성은 [이력 재구성 계약](history-consolidation.md)을 따른다.
 

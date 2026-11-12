@@ -100,6 +100,9 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `inspect_project_branch_remote` | 준비된 지정 브랜치를 기준으로 원격 refs·기준선 관계 조회 |
 | `push_project_branch` | 원본을 보존하며 관리 Worktree의 관측 SHA를 동일 원격 기능 ref에 비강제 Push |
 | `create_project_branch_draft_pr` | 현재 템플릿과 대상 커밋·평가로 지정 브랜치 Draft PR 게시 |
+| `create_project_worktrunk` | 로컬 기준 SHA에서 보호된 경로의 새 브랜치·Worktree 생성 (실험적) |
+| `merge_project_worktrunk` | 검증된 로컬 main에 Squash 또는 FF 통합 (실험적) |
+| `remove_project_worktrunk` | Clean Worktree 정리 및 선택적 안전한 브랜치 삭제 (실험적) |
 | `diagnose_documents` | 등록된 문서의 진단·관계 승인 대기 상태 확인 |
 
 파일 탐색·읽기·변경은 Git·identity 없이 사용할 수 있다. 보호 파일과 symlink는 읽지 않는다.
