@@ -22,7 +22,9 @@ uv run --locked python -m local_dev_mcp.quality --profile pre_merge
 
 ## LOCAL-DEV-MCP
 
-MCP는 Worktrunk Hook을 실행하지 않고 같은 명세의 검사 이름을 현재 Task Manager에 제출한다.
+MCP는 Worktrunk Hook을 실행하지 않는다. `list_project_tasks`가 `profiles_status`, 검사 순서, Manifest Digest와
+각 등록 작업의 준비 상태를 보여준다. 호출자는 그 순서대로 기존 `start_project_task`에 제출한다.
+`profiles_status=invalid`는 거부 상태이며 `absent`와 혼동하지 않는다.
 Task Manager의 작업 ID·허용 명령·출력 마스킹·취소·작업 슬롯을 재사용한다.
 `get_project_task`의 exit=0은 성공적인 프로세스 종료를 뜻할 뿐 **검사 대상 Git 상태의 증거가 아니다.**
 통합 승인을 위한 확정 증거를 만들려면 명세 Digest, Source HEAD/Tree, Target HEAD, 각 검사 Job,
