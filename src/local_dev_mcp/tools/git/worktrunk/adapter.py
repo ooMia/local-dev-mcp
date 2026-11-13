@@ -18,8 +18,8 @@ from fastmcp.exceptions import ToolError
 
 from .._execution import GitExecution
 from .._remote import feature_name, valid_sha
-from .._worktrees import confirm_original, original_snapshot, require_permission
-from ..commands import status, worktree
+from .._worktrees import require_permission
+from ..commands import rev_parse, status, symbolic_ref, worktree
 from ..facades._refs import resolve_local_ref
 
 if TYPE_CHECKING:
@@ -81,6 +81,19 @@ async def _registered_checkout_path(settings: ServerSettings, repo: GitExecution
     if not _worktrees.bound_git_pointer(path, await worktree.common_directory(repo)):
         raise ToolError("Target Worktrunk checkout is not linked to the selected repository.")
     return path
+
+
+async def _require_original_ref(settings: ServerSettings, branch: str, head: str) -> None:
+    """Pin controller identity without inspecting or hashing unrelated dirty files."""
+    from ..facades import _repository
+
+    repo = GitExecution(settings)
+    await _repository.verify_root(repo)
+    await _repository.require_writable_state(repo)
+    actual_ref = await symbolic_ref.head_reference(repo)
+    actual_head = await rev_parse.head_commit(repo)
+    if actual_ref != "refs/heads/" + branch or actual_head != valid_sha(head):
+        raise ToolError("Original checkout branch or HEAD changed. Reobserve before proceeding.")
 
 
 @dataclass(frozen=True)
@@ -172,7 +185,7 @@ class WorktrunkAdapter:
 
         feature_name(branch)
         repo = GitExecution(self.settings)
-        fingerprint = await original_snapshot(self.settings, original_branch, original_head, allow_dirty=True)
+        await _require_original_ref(self.settings, original_branch, original_head)
         result = await repo.run(
             "show-ref",
             "--verify",
@@ -217,7 +230,7 @@ class WorktrunkAdapter:
 
             target = GitExecution(_worktrees.scoped_settings(self.settings, existing))
             checked_branch, checked_head, _ = await status.read_porcelain_v2(target)
-            await confirm_original(self.settings, original_branch, original_head, fingerprint, allow_dirty=True)
+            await _require_original_ref(self.settings, original_branch, original_head)
             _, latest_head = await resolve_local_ref(repo, branch)
             if checked_branch != branch or checked_head != head or latest_head != head:
                 raise ToolError("Existing Worktrunk branch or checkout HEAD moved during inspection.")
@@ -246,7 +259,7 @@ class WorktrunkAdapter:
         argv = ["switch", "--create", branch, "--base", base, "--path", str(path), "--no-cd"]
         argv.append("--yes" if run_hooks else "--no-hooks")
         await self._run(*argv, write=True)
-        await confirm_original(self.settings, original_branch, original_head, fingerprint, allow_dirty=True)
+        await _require_original_ref(self.settings, original_branch, original_head)
         records = await worktree.list_registered(repo)
         if not any(r.path == path and r.branch == "refs/heads/" + branch for r in records):
             raise ToolError("Worktrunk creation may have succeeded, but registration was not verified.")

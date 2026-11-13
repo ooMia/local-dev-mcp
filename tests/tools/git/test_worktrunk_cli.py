@@ -446,3 +446,36 @@ def test_worktrunk_recovers_successful_switch_after_response_loss(
         assert await git(target, "rev-parse", "HEAD") == head
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("existing", [True, False])
+def test_worktrunk_ensure_does_not_limit_original_dirty_file_count(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, existing: bool
+) -> None:
+    _require_wt()
+
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        # The Native receipt snapshot refuses more than 256 dirty entries. Creating
+        # a separate checkout does not need to read or hash their contents.
+        for index in range(260):
+            (tmp_path / f"user-{index}.txt").write_text(str(index))
+        adapter = _adapter(tmp_path)
+        if existing:
+            target = tmp_path / ".lab" / "external-dirty-limit"
+            await git(tmp_path, "worktree", "add", "-b", "feat/dirty-limit", str(target), "main")
+        result = await adapter.create(
+            "feat/dirty-limit",
+            "main",
+            None if existing else head,
+            "main",
+            head,
+            expected_branch_head=head if existing else None,
+        )
+        assert result["action"] == ("reused" if existing else "created")
+        assert (tmp_path / result["path"]).is_dir()
+        assert all((tmp_path / f"user-{index}.txt").read_text() == str(index) for index in range(260))
+        assert await git(tmp_path, "symbolic-ref", "--short", "HEAD") == "main"
+        assert await git(tmp_path, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())
