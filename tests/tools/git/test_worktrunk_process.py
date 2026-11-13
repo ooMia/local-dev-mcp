@@ -18,17 +18,19 @@ pytestmark = pytest.mark.integration
 def test_worktrunk_reaps_process_after_communication_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_mode: str
 ) -> None:
-    class Process:
-        returncode: int | None = None
-        kills = 0
-        waits = 0
-
-        async def communicate(self) -> tuple[bytes, None]:
+    class Stream:
+        async def read(self, size: int) -> bytes:
             if failure_mode == "timeout":
                 raise TimeoutError
             if failure_mode == "cancelled":
                 raise asyncio.CancelledError
             raise OSError("output pipe closed")
+
+    class Process:
+        stdout = Stream()
+        returncode: int | None = None
+        kills = 0
+        waits = 0
 
         def kill(self) -> None:
             self.kills += 1
@@ -64,6 +66,57 @@ def test_worktrunk_reaps_process_after_communication_failure(
             with pytest.raises(ToolError, match=expected):
                 await adapter._run("remove", str(tmp_path / ".lab" / "target"), write=True)  # pyright: ignore[reportPrivateUsage]
         assert calls == 1
+        assert process.kills == 1
+        assert process.waits == 1
+
+    asyncio.run(scenario())
+
+
+def test_worktrunk_stops_collecting_oversized_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    class Stream:
+        reads = 0
+
+        async def read(self, size: int) -> bytes:
+            self.reads += 1
+            assert self.reads <= 17  # The 18th chunk would be an unnecessary read.
+            return b"x" * min(size, 65536)
+
+    class Process:
+        stdout = Stream()
+        returncode: int | None = None
+        kills = 0
+        waits = 0
+
+        async def communicate(self) -> tuple[bytes, None]:
+            raise AssertionError("Unbounded communicate() must not read the whole stream")
+
+        def kill(self) -> None:
+            self.kills += 1
+            self.returncode = -9
+
+        async def wait(self) -> int:
+            self.waits += 1
+            assert self.returncode is not None
+            return self.returncode
+
+    process = Process()
+    launched = 0
+
+    async def launch(*argv: str, **options: Any) -> Process:
+        nonlocal launched
+        launched += 1
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", launch)
+    (tmp_path / ".env").write_text("")
+    settings = ServerSettings.load(Policy(tmp_path, (tmp_path,), ("git", "wt", "git.worktree.write")))
+    adapter = WorktrunkAdapter(settings, binary="wt-test")
+
+    async def scenario() -> None:
+        with pytest.raises(ToolError, match="exceeded the 1 MiB limit"):
+            await adapter._run("remove", str(tmp_path / ".lab" / "target"), write=True)  # pyright: ignore[reportPrivateUsage]
+        assert launched == 1
+        assert process.stdout.reads == 17
         assert process.kills == 1
         assert process.waits == 1
 

@@ -119,6 +119,25 @@ async def _require_original_ref(settings: ServerSettings, branch: str, head: str
         raise ToolError("Original checkout branch or HEAD changed. Reobserve before proceeding.")
 
 
+class _OutputLimitExceeded(Exception):
+    """Worktrunk stdout crossed its capture limit before process completion."""
+
+
+async def _capture_bounded_stdout(process: asyncio.subprocess.Process) -> bytes:
+    """Drain stdout in small chunks; never accumulate more than the allowed limit."""
+    if process.stdout is None:
+        raise OSError("Worktrunk stdout is unavailable.")
+    chunks: list[bytes] = []
+    size = 0
+    while chunk := await process.stdout.read(65536):
+        size += len(chunk)
+        if size > _OUTPUT_LIMIT:
+            raise _OutputLimitExceeded
+        chunks.append(chunk)
+    await process.wait()
+    return b"".join(chunks)
+
+
 @dataclass(frozen=True)
 class WorktrunkAdapter:
     settings: ServerSettings
@@ -140,7 +159,7 @@ class WorktrunkAdapter:
                 stderr=asyncio.subprocess.DEVNULL,
                 env={**env, "GIT_TERMINAL_PROMPT": "0"},
             )
-            stdout, _ = await asyncio.wait_for(process.communicate(), timeout=60 if write else 15)
+            stdout = await asyncio.wait_for(_capture_bounded_stdout(process), timeout=60 if write else 15)
         except TimeoutError:
             if process is not None and process.returncode is None:
                 process.kill()
@@ -156,8 +175,11 @@ class WorktrunkAdapter:
                 process.kill()
                 await process.wait()
             raise ToolError("Worktrunk process could not be started or observed.") from None
-        if len(stdout) > _OUTPUT_LIMIT:
-            raise ToolError("Worktrunk output exceeded the 1 MiB limit.")
+        except _OutputLimitExceeded:
+            if process is not None and process.returncode is None:
+                process.kill()
+                await process.wait()
+            raise ToolError("Worktrunk output exceeded the 1 MiB limit.") from None
         try:
             response = json.loads(stdout)
         except ValueError, UnicodeDecodeError:
