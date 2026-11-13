@@ -4,7 +4,7 @@ import hashlib
 import re
 import tomllib
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Literal
 
 from fastmcp.exceptions import ToolError
 from pydantic import Field, ValidationError
@@ -18,6 +18,38 @@ if TYPE_CHECKING:
 type AssessmentId = Annotated[str, Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=128)]
 type AssessmentToml = Annotated[str, Field(min_length=1, max_length=16384)]
 type AssessmentDigest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+
+
+type AssessmentBackend = Literal["native", "worktrunk"]
+
+
+async def selected_checkout(
+    settings: ServerSettings, branch: str, head: str, backend: AssessmentBackend, *, clean: bool
+) -> ServerSettings:
+    """Resolve the exact assessment target without giving Worktrunk Native receipt requirements."""
+    from . import _worktrees
+    from ._remote import valid_sha
+    from .worktrunk import WorktrunkAdapter
+
+    if backend == "native":
+        if clean:
+            return await _worktrees.require_ready(settings, branch, head)
+        observed = await _worktrees.inspect(settings, branch)
+        if observed["state"] != "ready" or observed["head"] != valid_sha(head):
+            raise ToolError("Managed assessment checkout is absent, partial or moved.")
+        path, _ = _worktrees.locations(settings, branch, write=True)
+    else:
+        observed = await WorktrunkAdapter(settings).inspect(branch)
+        states = ("ready",) if clean else ("ready", "dirty")
+        relative = observed["path"]
+        if observed["state"] not in states or observed["head"] != valid_sha(head) or not isinstance(relative, str):
+            raise ToolError("Worktrunk assessment checkout is absent, inaccessible or moved.")
+        path = settings.policy.root / relative
+        try:
+            settings.policy.require_path_access(path, write=True)
+        except PermissionError as error:
+            raise ToolError(str(error)) from None
+    return _worktrees.scoped_settings(settings, path)
 
 
 def parse(content: bytes) -> Assessment:

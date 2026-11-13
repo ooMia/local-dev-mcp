@@ -54,17 +54,17 @@ class CommitProjectWorktreeAssessmentTool:
         assessment_id: assessments.AssessmentId,
         expected_digest: assessments.AssessmentDigest,
         message: CommitMessage,
+        backend: assessments.AssessmentBackend = "native",
     ) -> WorktreeAssessmentCommit:
         _worktrees.require_permission(self.settings, write=True)
         if not message.strip() or "\0" in message:
             raise ToolError("Provide a nonempty commit message without NUL.")
         fingerprint = await _worktrees.original_snapshot(self.settings, expected_branch, expected_head)
         try:
-            state = await _worktrees.inspect(self.settings, branch)
-            if state["state"] != "ready" or state["head"] != expected_branch_head:
-                raise ToolError("Target worktree is unprepared, partial or moved; inspect it before committing.")
-            root, _ = _worktrees.locations(self.settings, branch, write=True)
-            target = _worktrees.scoped_settings(self.settings, root)
+            target = await assessments.selected_checkout(
+                self.settings, branch, expected_branch_head, backend, clean=False
+            )
+            root = target.policy.root
             path = assessments.selected_path(self.settings, target, assessment_id)
             relative = path.relative_to(root).as_posix()
             content = assessments.reviewed_bytes(path, expected_digest)
@@ -109,7 +109,7 @@ class CommitProjectWorktreeAssessmentTool:
                 or committed.output != content
             ):
                 raise ToolError("A commit was created but its scope differs from review; inspect before proceeding.")
-            await _worktrees.require_ready(self.settings, branch, after)
+            await assessments.selected_checkout(self.settings, branch, after, backend, clean=True)
             assessments.reviewed_bytes(assessments.selected_path(self.settings, target, assessment_id), expected_digest)
             result["project"] = str(self.settings.policy.root)
             return {**result, "branch": branch, "assessment_id": assessment_id, "digest": expected_digest}
@@ -124,7 +124,9 @@ def required_commands(settings: ServerSettings) -> tuple[str, ...]:
 COMMIT_PROJECT_WORKTREE_ASSESSMENT: Final = ToolDefinition(
     name="commit_project_worktree_assessment",
     description=(
-        "Stage and commit only one new managed-worktree assessment whose bytes match the reviewed SHA-256 digest. "
+        "Stage and commit one new reviewed assessment at its exact SHA-256 digest. "
+        "backend=native (default) retains the managed checkout; backend=worktrunk selects an authorized "
+        "Git-registered checkout without Native receipts. "
         "Requires exact original/target refs, clean original, no unrelated target edits and startup identity/signing. "
         "Never amend, bypass hooks, fall back to unsigned or reset. A failed call can leave staged bytes or a commit; "
         "inspect target HEAD and files before retrying."

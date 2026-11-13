@@ -13,8 +13,8 @@ Git hooks·필터나 다른 프로세스의 부작용을 OS 수준으로 차단�
 | `inspect_project_worktree` | `branch` | `git` |
 | `finalize_project_worktree` | `branch`, `expected_branch_head`, `expected_branch`, `expected_head`, `merged_pr_number`, `delete_branch=false` | `git`, `git.worktree.write`, `gh`, `git.remote.read` |
 | `start_project_worktree_task` | 준비 입력 4개, `task`, `request_id`, `targets=null`, `all_tests=false` | `git`, `git.worktree.write`, 선택 recipe 권한 |
-| `prepare_project_worktree_assessment` | 준비 입력 4개, `assessment_id`, `assessment_toml` | `git`, `git.worktree.write` |
-| `commit_project_worktree_assessment` | 준비 입력 4개, `assessment_id`, `expected_digest`, `message` | 시작 commit 권한, `git.worktree.write` |
+| `prepare_project_worktree_assessment` | 준비 입력 4개, `assessment_id`, `assessment_toml`, `backend="native"` | `git`, `git.worktree.write` |
+| `commit_project_worktree_assessment` | 준비 입력 4개, `assessment_id`, `expected_digest`, `message`, `backend="native"` | 시작 commit 권한, `git.worktree.write` |
 | `inspect_project_branch_remote` | `branch`, `expected_branch_head`, `backend="native"` | `git`, `gh`, `git.remote.read` |
 | `push_project_branch` | 준비 입력 4개, `expected_remote_main`, `expected_remote_feature=null` | `git`, `gh`, `git.remote.write` |
 | `create_project_branch_draft_pr` | 준비 입력 4개, `expected_remote_main`, `title_text`, `purpose=null`, `exceptions=null` | `git`, `gh`, `gh.pr.create` |
@@ -24,6 +24,8 @@ Git hooks·필터나 다른 프로세스의 부작용을 OS 수준으로 차단�
 Worktree 준비·등록 lint/test는 원본에 미커밋 변경이 있어도 진행할 수 있으나, 평가 작성·평가 커밋·원격 게시 등은 기존처럼 원본과 대상이 모두 clean해야 한다.
 평가 커밋은 아래 절차에서 정한 새 평가 하나만 대상 변경으로 허용한다. `main`은 준비 대상이 될 수 없지만 원본 checkout일 수 있다.
 새 브랜치가 필요하면 먼저 `create_project_branch_from_ref`로 확인된 원본 SHA에서 생성한다.
+
+`prepare_project_worktree_assessment`와 `commit_project_worktree_assessment`는 양쪽 모두 `backend="worktrunk"`를 지정하면 Native 준비 기록 없이 Git 등록된 허용 Worktree에서 평가 작성·커밋을 수행한다. 첫 호출은 작업 시작 시 Clean한 대상에 새 평가 파일만 만들고, 두 번째 호출은 해당 평가 외 미커밋 변경을 거부한다. 원본 Clean, 정확한 대상 HEAD, 리뷰 Digest, Git 단계 변경 파일 범위, 서명 검증은 기존과 동일하다. 두 호출에서 **동일한 backend**를 사용한다. 기본값은 `native`로 유지한다.
 
 `inspect_project_branch_remote(backend="worktrunk")`는 Native 준비 기록이 없는 경우에도 현재 Git에 등록된 허용 Worktree에서 원격 정보를 **읽기 전용**으로 조회한다. 정확한 브랜치·HEAD·Clean 상태를 요구하며, 호출 전후 재확인한다. 기존 `backend="native"` 동작이 기본값이다. Worktrunk 선택은 원격 Push·Draft PR이나 `main` 병합의 승인으로 해석하지 않는다.
 

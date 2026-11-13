@@ -324,3 +324,63 @@ def test_commit_detects_post_commit_changes_hidden_by_git_status(
         assert await git(tmp_path, "status", "--porcelain") == ""
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("sha256", [False, True])
+def test_worktrunk_assessment_prepare_commit_without_native_receipt(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, sha256: bool
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory, sha256=sha256)
+        target = tmp_path / ".lab" / "wt-assessment"
+        await git(tmp_path, "worktree", "add", str(target), "feat/publish")
+        options = replace(policy(tmp_path), allowed_commands=("git", "git.worktree.write"))
+        async with Client(create_server(options)) as session:
+            prepared = await success(session, PREPARE, {**assessment_request(head), "backend": "worktrunk"})
+            digest = hashlib.sha256(ASSESSMENT.encode()).hexdigest()
+            assert prepared["digest"] == digest
+            assert prepared["path"] == ".lab/wt-assessment/.changes/runtime-foundation.toml"
+            assert (target / ".changes/runtime-foundation.toml").read_bytes() == ASSESSMENT.encode()
+            assert await git(target, "diff", "--cached", "--name-only") == ""
+            await failure(session, COMMIT, commit_request(head, digest))  # Native receipt absent.
+            committed = await success(session, COMMIT, {**commit_request(head, digest), "backend": "worktrunk"})
+            after = str(committed["head_after"])
+            assert committed["success"] is True and after != head
+            assert await git(target, "rev-parse", after + "^") == head
+            assert await git(target, "diff", "--name-only", head, after) == ".changes/runtime-foundation.toml"
+            assert await git(target, "status", "--porcelain") == ""
+            assert await git(tmp_path, "rev-parse", "HEAD") == head
+            assert await git(tmp_path, "symbolic-ref", "--short", "HEAD") == "main"
+            await failure(session, COMMIT, {**commit_request(head, digest), "backend": "worktrunk"})
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mutation", ["wrong-digest", "extra-untracked", "target-readonly"])
+def test_worktrunk_assessment_commit_rejects_unsafe_state(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, mutation: str
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        target = tmp_path / ".lab" / "wt-assessment-unsafe"
+        await git(tmp_path, "worktree", "add", str(target), "feat/publish")
+        opts = replace(policy(tmp_path), allowed_commands=("git", "git.worktree.write"))
+        async with Client(create_server(opts)) as session:
+            prepared = await success(session, PREPARE, {**assessment_request(head), "backend": "worktrunk"})
+            digest = str(prepared["digest"])
+            if mutation == "wrong-digest":
+                digest = "0" * 64
+            elif mutation == "extra-untracked":
+                (target / "keep.txt").write_text("must preserve")
+            arguments = {**commit_request(head, digest), "backend": "worktrunk"}
+            if mutation != "target-readonly":
+                await failure(session, COMMIT, arguments)
+            else:
+                restricted = replace(opts, read_only_paths=(target / ".changes",))
+                async with Client(create_server(restricted)) as blocked:
+                    await failure(blocked, COMMIT, arguments)
+            assert await git(target, "rev-parse", "HEAD") == head
+            assert (target / ".changes/runtime-foundation.toml").read_bytes() == ASSESSMENT.encode()
+            assert await git(tmp_path, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())

@@ -40,26 +40,31 @@ class PrepareProjectWorktreeAssessmentTool:
         expected_head: ExpectedHead,
         assessment_id: assessments.AssessmentId,
         assessment_toml: assessments.AssessmentToml,
+        backend: assessments.AssessmentBackend = "native",
     ) -> PreparedWorktreeAssessment:
         _worktrees.require_permission(self.settings, write=True)
         content = assessment_toml.encode("utf-8")
         record = assessments.parse(content)
         fingerprint = await _worktrees.original_snapshot(self.settings, expected_branch, expected_head)
         try:
-            target = await _worktrees.require_ready(self.settings, branch, expected_branch_head)
+            target = await assessments.selected_checkout(
+                self.settings, branch, expected_branch_head, backend, clean=True
+            )
             path = assessments.selected_path(self.settings, target, assessment_id)
             await assessments.require_new(GitExecution(target), expected_branch_head, assessment_id, record)
             if path.exists():
                 raise ToolError("Assessment path already exists; it will not be overwritten.")
-            await _worktrees.require_ready(self.settings, branch, expected_branch_head)
+            await assessments.selected_checkout(self.settings, branch, expected_branch_head, backend, clean=True)
             path = assessments.selected_path(self.settings, target, assessment_id)
             path.parent.mkdir(exist_ok=True)
             with path.open("xb") as stream:
                 stream.write(content)
             assessments.reviewed_bytes(path, hashlib.sha256(content).hexdigest())
-            state = await _worktrees.inspect(self.settings, branch)
-            if state["state"] != "ready" or state["head"] != expected_branch_head:
-                raise ToolError("Assessment may have been written but the target changed; inspect before retrying.")
+            refreshed = await assessments.selected_checkout(
+                self.settings, branch, expected_branch_head, backend, clean=False
+            )
+            if refreshed.policy.root != target.policy.root:
+                raise ToolError("Assessment target moved during preparation; inspect before retrying.")
             return {
                 "project": str(self.settings.policy.root),
                 "branch": branch,
@@ -75,7 +80,8 @@ class PrepareProjectWorktreeAssessmentTool:
 PREPARE_PROJECT_WORKTREE_ASSESSMENT: Final = ToolDefinition(
     name="prepare_project_worktree_assessment",
     description=(
-        "Write one absent .changes assessment in a prepared managed worktree from explicit reviewed TOML. "
+        "Write one absent .changes assessment from explicit reviewed TOML. backend=native (default) "
+        "uses the managed checkout; backend=worktrunk uses an authorized Git-registered checkout. "
         "Return exact-byte SHA-256 digest; never stage, commit, overwrite or infer compatibility. "
         "Requires exact source/target refs and git.worktree.write. Reject duplicate judgements and corrections. "
         "After failure inspect worktree/file state before retrying."
