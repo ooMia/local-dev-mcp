@@ -20,7 +20,7 @@ Worktrunk 기본 위치는 사용자 설정에 따라 Workspace 바깥이 될 �
 | Native 기능 | 현재 Worktrunk 대체 가능성 | 판단 |
 | --- | --- | --- |
 | `prepare_project_worktree` | `create_project_worktrunk`의 기존 브랜치 체크아웃/재사용, 신규 생성까지 지원 | **기능 대체 가능**, 공개 입력·반환 호환은 별도 |
-| `inspect_project_worktree` | Git 등록 조회와 Worktrunk 목록은 내부에 있으나 동등한 읽기 전용 공개 도구는 없음 | **조회 API 보완 필요** |
+| `inspect_project_worktree` | `inspect_project_worktrunk`가 Git 등록·브랜치·HEAD·Dirty 여부 및 권한 차단을 조회하며 Native Receipt는 요구하지 않음 | **조회 기능 대체 가능**, 반환 상태의 의미는 Native와 다름 |
 | `start_project_worktree_task` | 기존 도구의 `backend="worktrunk"`가 실제 등록 경로에서 실행 | **선택적 경로 이미 제공**; Native의 원본 Dirty Snapshot 제한은 후속 검토 |
 | `finalize_project_worktree` | `remove_project_worktrunk`가 비강제 삭제·브랜치 처리를 위임 | **물리적 정리만 대체**; 병합 PR 출처 검증은 별도 책임 |
 | `prepare_project_worktree_assessment`, `commit_project_worktree_assessment` | Native의 준비 기록과 경로에 직접 결합 | **미대체** |
@@ -32,7 +32,7 @@ Worktrunk의 `wt merge`도 이 결정만으로 `main` 실행 경로를 얻지 �
 ## 이행 순서와 검증
 
 1. **현재 적용:** Worktrunk 생성/재사용/삭제와 선택적 검사 실행을 이용한다. Native API는 유지한다.
-2. **다음 작은 단위:** Git 등록 정보 기반 Worktrunk 읽기 전용 상태 조회를 공개하고, 없음·정상·외부/권한 밖·등록 불일치 결과를 검증한다. 과거 Receipt를 요구하지 않는다.
+2. **현재 적용:** `inspect_project_worktrunk`를 Git 읽기 권한만 필요한 공개 조회 도구로 제공한다. 브랜치 부재·미체크아웃·정상·Dirty·권한 밖·등록 불일치를 구분하며 Native Receipt를 요구하지 않는다.
 3. **후속 단위:** 평가·원격 게시의 실행 대상 선택을 Native 고정 경로에서 분리하되, 정확한 SHA, Clean, PR 출처·CI·권한은 유지한다. 완료 전에는 Native 전용 API를 삭제하지 않는다.
 4. **호환성 판단:** macOS 통합 테스트뿐 아니라 Windows native 실제 CLI·경로·프로세스 실행과 MCP 공개 입력/호출자 전환을 검증한 뒤, 중복 Native 엔드포인트의 퇴역을 별도 결정한다.
 

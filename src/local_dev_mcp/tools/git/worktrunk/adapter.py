@@ -167,6 +167,95 @@ class WorktrunkAdapter:
             raise ToolError("Worktrunk did not complete successfully; inspect Git state before retrying.")
         return cast(dict[str, Any] | list[Any], response)
 
+    async def inspect(self, branch: str) -> dict[str, object]:
+        """Report Git-observed checkout state without Worktrunk CLI or Native receipts."""
+        from datetime import UTC, datetime
+
+        from .. import _worktrees
+        from ..facades import _repository
+
+        require_permission(self.settings)  # Git read access only; wt is not required.
+        feature_name(branch)
+        repo = GitExecution(self.settings)
+        await _repository.verify_root(repo)
+        probe = await repo.run(
+            "show-ref",
+            "--verify",
+            "--quiet",
+            "refs/heads/" + branch,
+            operation="Inspect Worktrunk branch",
+            allow_failure=True,
+        )
+        if probe.code not in (0, 1):
+            raise ToolError("Cannot determine whether the requested branch exists.")
+        branch_head = (await resolve_local_ref(repo, branch))[1] if probe.code == 0 else None
+
+        def report(
+            state: str,
+            *,
+            reason: str | None = None,
+            path: str | None = None,
+            head: str | None = None,
+            clean: bool | None = None,
+            registered: bool = False,
+        ) -> dict[str, object]:
+            return {
+                "project": str(repo.root),
+                "branch": branch,
+                "state": state,
+                "reason": reason,
+                "path": path,
+                "head": head,
+                "branch_head": branch_head,
+                "clean": clean,
+                "registered": registered,
+                "observed_at": datetime.now(UTC).isoformat(),
+            }
+
+        records = await worktree.list_registered(repo)
+        matches = [record for record in records if record.branch == "refs/heads/" + branch]
+        if not matches:
+            return report("not_checked_out" if branch_head else "absent")
+        if len(matches) != 1:
+            return report("blocked", reason="ambiguous_registration", registered=True)
+        record = matches[0]
+        if record.unavailable:
+            return report("blocked", reason="registration_unavailable", registered=True)
+        if branch_head is None:
+            return report("blocked", reason="branch_ref_missing", registered=True)
+        path = record.path
+        if not path.is_absolute() or path == repo.root or not path.is_relative_to(repo.root):
+            return report("blocked", reason="outside_workspace", registered=True)
+        if not path.is_dir() or path.is_symlink() or path.resolve() != path:
+            return report("blocked", reason="invalid_path", registered=True)
+        try:
+            self.settings.policy.require_path_access(path)
+        except PermissionError:
+            return report("blocked", reason="access_denied", registered=True)
+        target = GitExecution(_worktrees.scoped_settings(self.settings, path))
+        try:
+            await _repository.verify_root(target)
+            if await worktree.common_directory(target) != await worktree.common_directory(repo):
+                return report("blocked", reason="repository_mismatch", registered=True)
+        except ToolError:
+            return report("blocked", reason="repository_mismatch", registered=True)
+        if record.head != branch_head:
+            return report("blocked", reason="head_mismatch", registered=True)
+        try:
+            checked_branch, head, entries = await status.read_porcelain_v2(target)
+            _, latest_head = await resolve_local_ref(repo, branch)
+        except ToolError:
+            return report("blocked", reason="status_unavailable", registered=True)
+        if checked_branch != branch or head != branch_head or latest_head != head:
+            return report("blocked", reason="head_mismatch", registered=True)
+        return report(
+            "dirty" if entries else "ready",
+            path=path.relative_to(repo.root).as_posix(),
+            head=head,
+            clean=not entries,
+            registered=True,
+        )
+
     async def list_worktrees(self) -> dict[str, Any]:
         data = await self._run("list", "--no-progressive", write=False)
         if not isinstance(data, dict) or data.get("schema") != 2 or not isinstance(data.get("items"), list):

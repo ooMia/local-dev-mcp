@@ -45,11 +45,12 @@ from .facades.start_project_worktree_task import START_PROJECT_WORKTREE_TASK
 from .facades.switch_project_branch import SWITCH_PROJECT_BRANCH
 from .facades.unstage_project_paths import UNSTAGE_PROJECT_PATHS
 from .facades.verify_project_worktrunk_quality import VERIFY_PROJECT_WORKTRUNK_QUALITY
-from .facades.worktrunk import CREATE_PROJECT_WORKTRUNK, REMOVE_PROJECT_WORKTRUNK
+from .facades.worktrunk import CREATE_PROJECT_WORKTRUNK, INSPECT_PROJECT_WORKTRUNK, REMOVE_PROJECT_WORKTRUNK
 
 __all__ = [
     "CONSOLIDATE_PROJECT_HISTORY",
     "CREATE_PROJECT_WORKTRUNK",
+    "INSPECT_PROJECT_WORKTRUNK",
     "VERIFY_PROJECT_WORKTRUNK_QUALITY",
     "GET_PROJECT_WORKTRUNK_MERGE_PLAN",
     "REMOVE_PROJECT_WORKTRUNK",

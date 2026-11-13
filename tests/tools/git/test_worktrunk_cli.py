@@ -632,3 +632,99 @@ def test_worktrunk_explicit_path_rejects_symlink_parents(tmp_path: Path, workspa
         assert await git(tmp_path, "branch", "--list", "feat/symlink-path") == ""
 
     asyncio.run(scenario())
+
+
+def test_inspect_worktrunk_distinguishes_absent_unassigned_and_dirty(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    async def scenario() -> None:
+        base, _ = await seed(tmp_path, workspace_factory)
+        adapter = WorktrunkAdapter(ServerSettings.load(policy(tmp_path)))
+        absent = await adapter.inspect("feat/absent")
+        assert (absent["state"], absent["registered"], absent["path"]) == ("absent", False, None)
+        unassigned = await adapter.inspect("feat/publish")
+        assert unassigned["state"] == "not_checked_out"
+        assert unassigned["branch_head"] == base
+        assert unassigned["path"] is None
+
+        linked = tmp_path / ".lab" / "inspect-linked"
+        await git(tmp_path, "worktree", "add", str(linked), "feat/publish")
+        ready = await adapter.inspect("feat/publish")
+        assert ready["state"] == "ready"
+        assert ready["path"] == ".lab/inspect-linked"
+        assert ready["head"] == ready["branch_head"] == base
+        assert ready["clean"] is True
+
+        (linked / "user-notes.txt").write_text("preserve dirty work")
+        dirty = await adapter.inspect("feat/publish")
+        assert dirty["state"] == "dirty"
+        assert dirty["clean"] is False
+        assert dirty["path"] == ".lab/inspect-linked"
+        assert (linked / "user-notes.txt").read_text() == "preserve dirty work"
+        assert await git(tmp_path, "rev-parse", "HEAD") == base
+
+    asyncio.run(scenario())
+
+
+def test_inspect_worktrunk_blocks_outside_and_unavailable_registration(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        from local_dev_mcp.tools.git.commands.worktree import Worktree
+
+        head, _ = await seed(tmp_path, workspace_factory)
+        external = tmp_path.parent / (tmp_path.name + "-inspect-outside")
+        await git(tmp_path, "worktree", "add", str(external), "feat/publish")
+        adapter = WorktrunkAdapter(ServerSettings.load(policy(tmp_path)))
+        outside = await adapter.inspect("feat/publish")
+        assert outside["state"] == "blocked"
+        assert outside["reason"] == "outside_workspace"
+        assert outside["path"] is None
+        assert outside["registered"] is True
+        assert external.is_dir()
+
+        async def unavailable(_execution: object) -> tuple[Worktree, ...]:
+            return (Worktree(external, head, "refs/heads/feat/publish", True),)
+
+        monkeypatch.setattr("local_dev_mcp.tools.git.worktrunk.adapter.worktree.list_registered", unavailable)
+        locked = await adapter.inspect("feat/publish")
+        assert locked["state"] == "blocked"
+        assert locked["reason"] == "registration_unavailable"
+        assert locked["path"] is None
+
+    asyncio.run(scenario())
+
+
+def test_inspect_worktrunk_blocks_repository_and_head_mismatch(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        from local_dev_mcp.tools.git.commands.worktree import Worktree
+
+        head, _ = await seed(tmp_path, workspace_factory)
+        linked = tmp_path / ".lab" / "inspect-branch"
+        await git(tmp_path, "worktree", "add", str(linked), "feat/publish")
+        adapter = WorktrunkAdapter(ServerSettings.load(policy(tmp_path)))
+        foreign = tmp_path / ".lab" / "inspect-foreign"
+        foreign.mkdir()
+        await git(foreign, "init")
+
+        async def unrelated(_execution: object) -> tuple[Worktree, ...]:
+            return (Worktree(foreign, head, "refs/heads/feat/publish", False),)
+
+        monkeypatch.setattr("local_dev_mcp.tools.git.worktrunk.adapter.worktree.list_registered", unrelated)
+        invalid = await adapter.inspect("feat/publish")
+        assert invalid["state"] == "blocked"
+        assert invalid["reason"] == "repository_mismatch"
+        assert invalid["path"] is None
+
+        async def outdated(_execution: object) -> tuple[Worktree, ...]:
+            return (Worktree(linked, "f" * 40, "refs/heads/feat/publish", False),)
+
+        monkeypatch.setattr("local_dev_mcp.tools.git.worktrunk.adapter.worktree.list_registered", outdated)
+        stale = await adapter.inspect("feat/publish")
+        assert stale["state"] == "blocked"
+        assert stale["reason"] == "head_mismatch"
+        assert stale["path"] is None
+
+    asyncio.run(scenario())

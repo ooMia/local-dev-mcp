@@ -58,13 +58,17 @@ def test_mcp_worktrunk_lifecycle_and_strict_authorization(tmp_path: Path, worksp
         base, _ = await seed(tmp_path, workspace_factory)
         async with Client(create_server(_policy(tmp_path))) as session:
             registered = {tool.name: tool for tool in await session.list_tools()}
-            names = {"create_project_worktrunk", "remove_project_worktrunk"}
+            names = {"create_project_worktrunk", "remove_project_worktrunk", "inspect_project_worktrunk"}
             assert names <= registered.keys()
             assert "merge_project_worktrunk" not in registered
             assert all(registered[name].input_schema["additionalProperties"] is False for name in names)
-            assert all("run_hooks" in registered[name].input_schema["properties"] for name in names)
+            assert all(
+                "run_hooks" in registered[name].input_schema["properties"]
+                for name in names - {"inspect_project_worktrunk"}
+            )
             assert "expected_branch_head" in registered["create_project_worktrunk"].input_schema["properties"]
             assert "worktree_path" in registered["create_project_worktrunk"].input_schema["properties"]
+            assert set(registered["inspect_project_worktrunk"].input_schema["properties"]) == {"branch"}
             await failure(session, "create_project_worktrunk", {"branch": "--force"})
             created = await success(
                 session,
@@ -80,6 +84,10 @@ def test_mcp_worktrunk_lifecycle_and_strict_authorization(tmp_path: Path, worksp
             path = tmp_path / str(created["path"])
             assert created["action"] == "created"
             assert created["path"] == ".lab/mcp/custom"
+            inspected = await success(session, "inspect_project_worktrunk", {"branch": "feat/wt-mcp"})
+            assert inspected["state"] == "ready"
+            assert inspected["path"] == created["path"]
+            assert inspected["head"] == base
             assert path.exists()
             reused = await success(
                 session,
@@ -119,5 +127,31 @@ def test_mcp_worktrunk_lifecycle_and_strict_authorization(tmp_path: Path, worksp
                     "expected_base_head": head,
                 },
             )
+
+    asyncio.run(scenario())
+
+
+def test_inspect_worktrunk_mcp_needs_only_git_read_access(tmp_path: Path, workspace_factory: WorkspaceFactory) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        linked = tmp_path / ".lab" / "inspect-mcp"
+        await git(tmp_path, "worktree", "add", str(linked), "feat/publish")
+        read_only = replace(policy(tmp_path), allowed_commands=("git",))
+        async with Client(create_server(read_only)) as session:
+            registered = {tool.name: tool for tool in await session.list_tools()}
+            annotation = registered["inspect_project_worktrunk"].annotations
+            assert annotation is not None and annotation.read_only_hint is True
+            inspected = await success(session, "inspect_project_worktrunk", {"branch": "feat/publish"})
+            assert inspected["state"] == "ready"
+            assert inspected["path"] == ".lab/inspect-mcp"
+            assert inspected["head"] == head
+            await failure(session, "create_project_worktrunk", {"branch": "feat/blocked"})
+
+        restricted = replace(read_only, denied_paths=(linked,))
+        async with Client(create_server(restricted)) as session:
+            blocked = await success(session, "inspect_project_worktrunk", {"branch": "feat/publish"})
+            assert blocked["state"] == "blocked"
+            assert blocked["reason"] == "access_denied"
+            assert blocked["path"] is None
 
     asyncio.run(scenario())

@@ -9,7 +9,7 @@
 
 이 구현은 기존 Git Worktree/PR 도구를 **아직 대체하지 않는다**.
 기존 API를 삭제하기 전에 실제 명령의 실패·안전 계약을 독립적으로 검증하기 위한 경로다.
-실제 MCP 서버 사용에는 변경된 코드를 반영한 서버 재시작과 `wt` 실행 파일 설치가 필요하다.
+실제 MCP 서버 사용에는 변경된 코드를 반영한 서버 재시작이 필요하다. `wt` 실행 파일은 생성·삭제 등 Worktrunk CLI 호출에 필요하지만, 상태 조회에는 필요하지 않다.
 Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당하며,
 `tools/git/facades/worktrunk.py`는 MCP 입력과 실행기 연결만 담당한다.
 기존 Git Native 유틸리티는 기능별 대체가 검증될 때까지 현재 경로를 보존한다.
@@ -18,6 +18,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 
 | 도구 | 입력 | 결과 |
 | --- | --- | --- |
+| `inspect_project_worktrunk` | `branch` | Git 등록 상태 기반 읽기 전용 조회. `state=absent/not_checked_out/ready/dirty/blocked`, `branch_head`, `head`, `clean`, `registered`, 허용된 `path`와 차단 `reason` 반환 |
 | `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head=null`, `expected_branch_head=null`, `base_branch="main"`, `run_hooks=false`, `worktree_path=null` | 새 브랜치 생성·기존 브랜치 체크아웃·등록된 Worktree 재사용. `action=created/checked_out/reused` |
 | `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=null`, `run_hooks=false` | 허용된 Workspace 내 Git 등록 Worktree를 비강제 제거. `null`은 Worktrunk의 브랜치 정리 기본값, `false`는 보존, `true`는 안전한 삭제 시도 |
 | `get_project_worktrunk_merge_plan` | `evidence_id`, `branch`, `expected_source_head`, `expected_main_head` | 서버 로컬 검사 증거·Main Ref·Fast-forward 관계 검증, 별도 Main Checkout 없는 읽기 전용 제안 |
@@ -25,13 +26,14 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 검토 계획의 `mode`는 `ff`로 명시하며 `plan_digest` 역시 동일한 모드를 포함한다.
 이는 외부 실행 경로에서 암묵적인 Squash로 작업 종류가 변경되는 것을 방지하기 위한 검토 정보다.
 
-모두 `git`, `wt`, `git.worktree.write` 논리 권한이 필요하다.
+`inspect_project_worktrunk`는 **`git` 읽기 권한만** 요구한다. CLI 실행과 변경 작업에는 각 도구의 `wt`, `git.worktree.write` 등 선언된 권한이 별도로 필요하다.
 `config.toml`의 허용 목록이 실행 파일 설치를 의미하지 않으며,
 시작 시점의 도구 readiness가 실제 CLI 실행 성공을 보장하지 않는다.
 
 ## 안전 경계
 
 - 브랜치 이름은 기존 프로젝트 기능 브랜치 검증을 재사용한다.
+- **조회**는 Git Worktree 등록·현재 브랜치 Ref·실제 Checkout 루트 및 공통 Git 디렉터리·Git status를 대조한다. `absent`는 브랜치가 없고 등록도 없는 경우, `not_checked_out`는 브랜치만 존재하는 경우, `ready`/`dirty`는 허용된 Checkout의 현재 작업 상태다. `blocked`는 등록·경로·Ref가 일치하지 않거나 권한 밖인 상태로, 해당 경로를 공개하지 않는다. 조회 결과는 데이터 제거·원격 게시 승인이나 이전의 Native Receipt와 무관하다.
 - `create_project_worktrunk.worktree_path`는 **선택 Workspace 기준 상대 POSIX 경로**다. 지정하면 Git ignore·보호 경로·권한 정책·symlink·점유 여부를 확인한 뒤 해당 위치에 생성/체크아웃한다. 이미 연결된 동일 브랜치는 실제 경로가 지정값과 일치할 때 재사용한다.
   생략하면 기존 `.lab/wt/<branch-sha256-prefix>` 위치를 사용해 기존 호출을 유지한다. 따라서 **고정 해시 경로는 더 이상 필수 조건이 아니다.**
   Worktrunk의 기본 `worktree-path` 템플릿은 저장소 밖의 형제 경로를 만들 수 있어 그대로 사용하지 않는다. 생성할 때마다 검증된 경로를 `wt switch --path`로 전달하며, 이 플래그는 현재 Worktrunk에서 **experimental**이므로 업그레이드 회귀가 필요하다.
@@ -65,7 +67,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 `tests/tools/git/test_worktrunk_mcp.py`는 FastMCP Client를 통해 새 도구의 공개 계약을 검사한다.
 `tests/tools/git/test_worktrunk_quality.py`는 Main Checkout이 없는 경우에도 제안이 생성되는지 검증한다.
 
-- macOS에서 생성·기존 브랜치 체크아웃·Worktree 재사용·Worktree 격리·경로 점유 충돌·1개/3개 커밋 Squash·FF·삭제·권한 거부를 검증한다. Workspace 내 외부 생성 Worktree 재사용과 브랜치 정리 결과도 검증한다.
+- macOS에서 생성·기존 브랜치 체크아웃·Worktree 재사용·Worktree 격리·경로 점유 충돌·1개/3개 커밋 Squash·FF·삭제·권한 거부를 검증한다. 읽기 전용 상태 조회는 `wt` 설치·권한 없이도 Git 등록 정보로 동작하며, 부재·Dirty·외부 경로·불일치 등을 분류하는 테스트가 있다. Workspace 내 외부 생성 Worktree 재사용과 브랜치 정리 결과도 검증한다.
 - Hooks 선택은 실제 사용자 설정을 실행하지 않고, 기본 `--no-hooks`와 명시적 `--yes` CLI 인자 및 MCP 입력 스키마를 검증한다.
 - 테스트 호스트에 `wt`가 없으면 실제 CLI 테스트를 **skip**한다. skip을 PASS로 계산하지 않는다.
 - Windows에서의 프로세스 실행, Worktrunk 설치, 경로 처리 및 OS별 테스트는 별도 검증이 필요하다.

@@ -18,6 +18,14 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
+class InspectProjectWorktrunkTool:
+    settings: ServerSettings
+
+    async def execute(self, branch: BranchName) -> dict[str, object]:
+        return await WorktrunkAdapter(self.settings).inspect(branch)
+
+
+@dataclass(frozen=True)
 class CreateProjectWorktrunkTool:
     settings: ServerSettings
 
@@ -59,6 +67,22 @@ class RemoveProjectWorktrunkTool:
             return await WorktrunkAdapter(self.settings).remove(
                 branch, expected_branch_head, delete_branch=delete_branch, run_hooks=run_hooks
             )
+
+
+INSPECT_PROJECT_WORKTRUNK: Final = ToolDefinition(
+    name="inspect_project_worktrunk",
+    description=(
+        "Read Git-registered Worktrunk checkout state for a topic branch without running wt. "
+        "Report absent, not_checked_out, ready, dirty or blocked, with exact branch/head "
+        "and an authorized relative checkout path when safe. "
+        "Never expose unauthorized paths or require Native preparation receipts. "
+        "This observation does not authorize mutation or certify test quality."
+    ),
+    annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False),
+    required_commands=("git",),
+    create_runtime=InspectProjectWorktrunkTool,
+    readiness=git_readiness,
+)
 
 
 CREATE_PROJECT_WORKTRUNK: Final = ToolDefinition(
