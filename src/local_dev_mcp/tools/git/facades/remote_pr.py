@@ -473,7 +473,11 @@ async def _existing(remote: Remote, branch: str, repository_url: str) -> list[di
     if any(not isinstance(row, dict) for row in candidates):
         raise ToolError("Unexpected PR identity in GitHub results.")
     rows = cast(list[dict[str, Any]], candidates)
-    if any(not isinstance(row.get("url"), str) or not row["url"].startswith(repository_url + "/pull/") for row in rows):
+    if any(
+        not isinstance(row.get("url"), str)
+        or not row["url"].casefold().startswith((repository_url + "/pull/").casefold())
+        for row in rows
+    ):
         raise ToolError("Unexpected PR identity in GitHub results.")
     return rows
 
@@ -557,7 +561,7 @@ class CreateFeaturePRTool:
                 input_text=body,
             )
         ).output.strip()
-        match = re.fullmatch(re.escape(url) + r"/pull/([1-9][0-9]*)", made)
+        match = re.fullmatch(re.escape(url) + r"/pull/([1-9][0-9]*)", made, flags=re.ASCII | re.IGNORECASE)
         if match is None:
             raise ToolError(
                 "PR may have been created but its URL was not confirmed; inspect existing PRs before retrying."

@@ -451,3 +451,41 @@ def test_release_branch_rejects_mismatched_receipt_version(monkeypatch: pytest.M
     with pytest.raises(ToolError, match="branch version"):
         asyncio.run(_tool(monkeypatch, mock, PushFeatureTool).execute("release/0.2.0", B, A))
     assert not any(call[1] == "push" for call in mock.records)
+
+
+def test_create_accepts_github_repository_url_lettercase_and_deduplicates(monkeypatch: pytest.MonkeyPatch) -> None:
+    class CaseRemote(MockRemote):
+        async def repo(self) -> tuple[str, str]:
+            return "example/project", "https://github.com/Example/Project"
+
+        async def gh(self, *args: str, write: bool = False, input_text: str | None = None) -> _remote.Result:
+            result = await super().gh(*args, write=write, input_text=input_text)
+            if args[:2] == ("pr", "create"):
+                return _remote.Result(0, "https://github.com/example/project/pull/7")
+            return result
+
+    mock = CaseRemote(branch_head=B)
+    tool = _tool(monkeypatch, mock, CreateFeaturePRTool)
+    first = asyncio.run(tool.execute("feat/example", B, A, "feat(git): canonical PR URLs"))
+    assert first["created"] is True and first["number"] == 7
+    second = asyncio.run(tool.execute("feat/example", B, A, "feat(git): canonical PR URLs"))
+    assert second["created"] is False and second["number"] == 7
+    assert len([row for row in mock.records if row[:2] == ("gh", "pr") and row[2] == "create"]) == 1
+
+
+def test_existing_pr_rejects_other_repository_even_after_url_casefold(monkeypatch: pytest.MonkeyPatch) -> None:
+    mock = MockRemote(branch_head=B)
+    mock.pr_list = [
+        {
+            "number": 7,
+            "url": "https://github.com/example/project-other/pull/7",
+            "headRefOid": B,
+            "baseRefName": "main",
+            "isDraft": True,
+            "state": "OPEN",
+        }
+    ]
+    tool = _tool(monkeypatch, mock, CreateFeaturePRTool)
+    with pytest.raises(ToolError, match="Unexpected PR identity"):
+        asyncio.run(tool.execute("feat/example", B, A, "feat(git): reject other repository"))
+    assert not any(row[:3] == ("gh", "pr", "create") for row in mock.records)
