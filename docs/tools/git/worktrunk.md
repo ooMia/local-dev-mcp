@@ -18,7 +18,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 
 | 도구 | 입력 | 결과 |
 | --- | --- | --- |
-| `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head`, `base_branch="main"`, `run_hooks=false` | 현재 checkout을 변경하지 않고 새 브랜치·Worktree 생성 |
+| `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head=null`, `expected_branch_head=null`, `base_branch="main"`, `run_hooks=false` | 새 브랜치 생성·기존 브랜치 체크아웃·등록된 Worktree 재사용. `action=created/checked_out/reused` |
 | `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=null`, `run_hooks=false` | 허용된 Workspace 내 Git 등록 Worktree를 비강제 제거. `null`은 Worktrunk의 브랜치 정리 기본값, `false`는 보존, `true`는 안전한 삭제 시도 |
 | `get_project_worktrunk_merge_plan` | `evidence_id`, `branch`, `expected_source_head`, `expected_main_head` | 서버 로컬 검사 증거·Main Ref·Fast-forward 관계 검증, 별도 Main Checkout 없는 읽기 전용 제안 |
 
@@ -32,13 +32,13 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 ## 안전 경계
 
 - 브랜치 이름은 기존 프로젝트 기능 브랜치 검증을 재사용한다.
-- 기능 Worktree 경로는 선택 Workspace 하위 `.lab/wt/<branch-sha256-prefix>`로 고정한다.
+- 새로 확보하는 기능 Worktree 경로는 선택 Workspace 하위 `.lab/wt/<branch-sha256-prefix>`로 제한한다. 등록된 기존 Worktree는 허용된 Workspace 내부의 실제 Git 경로를 재사용할 수 있다.
   검토 계획은 원본과 Source Worktree, Main Git Ref만 확인하며 Main Checkout의 존재를 요구하지 않는다.
   `wt switch --path` 플래그는 Worktrunk에서 **experimental**이므로 CLI 업그레이드 회귀가 필요하다.
 - 현재 checkout의 원래 브랜치·HEAD·작업 트리 지문을 검증하며, 생성에 필요한 기본 Ref의 SHA를 확인한다.
-- **생성**은 기존 경로·브랜치·관리 외 Worktree를 채택하거나 덮어쓰지 않는다.
+- **생성·확보**는 [ADR 0015](../../adr/0015-worktrunk-state-based-preparation.md)를 따른다. 브랜치가 없으면 정확한 `expected_base_head`가 필요하다. 기존 브랜치에는 `expected_branch_head`를 선택적으로 지정할 수 있으며, 이미 체크아웃된 동일 저장소·브랜치는 생성 주체와 무관하게 재사용한다. 기존 경로나 다른 브랜치를 덮어쓰지 않는다.
 - **삭제**는 [ADR 0013](../../adr/0013-worktrunk-state-based-removal.md)에 따라 생성 주체·Receipt·고정 관리 경로를 요구하지 않는다. Git에 등록된 단일 대상과 허용된 Workspace 경로, 현재 브랜치 HEAD를 확인한다.
-- 생성 전 Git ignore, 접근 정책, 보호 이름을 확인한다.
+- 새 Worktree를 생성하기 전에 Git ignore, 접근 정책, 보호 이름을 확인한다. 이미 등록된 Worktree는 경로·Git 연결·정확한 브랜치를 확인해 변경사항을 보존한다. **재사용 가능**과 후속 **Clean 상태 요구**는 서로 다른 조건이다.
 - Lifecycle Hooks는 [ADR 0014](../../adr/0014-worktrunk-hooks-opt-in.md)에 따라 기본 비활성화다.
   `run_hooks=true`를 명시하면 Worktrunk 사용자·프로젝트 설정의 Hooks를 실행한다.
   이때 `--yes`로 Worktrunk의 대화형 승인 프롬프트를 생략하므로, 설정된 Hooks의 외부 명령 실행까지 호출자가 허용한 것으로 간주한다.
@@ -63,7 +63,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 `tests/tools/git/test_worktrunk_mcp.py`는 FastMCP Client를 통해 새 도구의 공개 계약을 검사한다.
 `tests/tools/git/test_worktrunk_quality.py`는 Main Checkout이 없는 경우에도 제안이 생성되는지 검증한다.
 
-- macOS에서 생성·Worktree 격리·이름 충돌·1개/3개 커밋 Squash·FF·삭제·권한 거부를 검증한다. Workspace 내 외부 생성 Worktree 재사용과 브랜치 정리 결과도 검증한다.
+- macOS에서 생성·기존 브랜치 체크아웃·Worktree 재사용·Worktree 격리·경로 점유 충돌·1개/3개 커밋 Squash·FF·삭제·권한 거부를 검증한다. Workspace 내 외부 생성 Worktree 재사용과 브랜치 정리 결과도 검증한다.
 - Hooks 선택은 실제 사용자 설정을 실행하지 않고, 기본 `--no-hooks`와 명시적 `--yes` CLI 인자 및 MCP 입력 스키마를 검증한다.
 - 테스트 호스트에 `wt`가 없으면 실제 CLI 테스트를 **skip**한다. skip을 PASS로 계산하지 않는다.
 - Windows에서의 프로세스 실행, Worktrunk 설치, 경로 처리 및 OS별 테스트는 별도 검증이 필요하다.

@@ -63,6 +63,7 @@ def test_mcp_worktrunk_lifecycle_and_strict_authorization(tmp_path: Path, worksp
             assert "merge_project_worktrunk" not in registered
             assert all(registered[name].input_schema["additionalProperties"] is False for name in names)
             assert all("run_hooks" in registered[name].input_schema["properties"] for name in names)
+            assert "expected_branch_head" in registered["create_project_worktrunk"].input_schema["properties"]
             await failure(session, "create_project_worktrunk", {"branch": "--force"})
             created = await success(
                 session,
@@ -70,7 +71,20 @@ def test_mcp_worktrunk_lifecycle_and_strict_authorization(tmp_path: Path, worksp
                 {"branch": "feat/wt-mcp", "expected_branch": "main", "expected_head": base, "expected_base_head": base},
             )
             path = tmp_path / str(created["path"])
+            assert created["action"] == "created"
             assert path.exists()
+            reused = await success(
+                session,
+                "create_project_worktrunk",
+                {
+                    "branch": "feat/wt-mcp",
+                    "expected_branch": "main",
+                    "expected_head": base,
+                    "expected_branch_head": base,
+                },
+            )
+            assert reused["action"] == "reused"
+            assert reused["path"] == created["path"]
             (path / "mcp.txt").write_text("from client\n")
             await git(path, "add", "mcp.txt")
             await git(path, "commit", "-m", "feat: mcp bridge")

@@ -54,6 +54,35 @@ def require_worktrunk_access(settings: ServerSettings, *, write: bool) -> None:
     _authorize(settings, write=write)
 
 
+async def _registered_checkout_path(settings: ServerSettings, repo: GitExecution, branch: str) -> Path | None:
+    """Return one authorized linked checkout; None means the branch is not checked out."""
+    from .. import _worktrees
+
+    records = await worktree.list_registered(repo)
+    matches = [row for row in records if row.branch == "refs/heads/" + branch]
+    if not matches:
+        return None
+    if len(matches) != 1 or matches[0].unavailable:
+        raise ToolError("Target Worktrunk registration is ambiguous or unavailable.")
+    path = matches[0].path
+    if (
+        not path.is_absolute()
+        or path == repo.root
+        or not path.is_relative_to(repo.root)
+        or not path.is_dir()
+        or path.is_symlink()
+        or path.resolve() != path
+    ):
+        raise ToolError("Target Worktrunk checkout is not an authorized linked directory.")
+    try:
+        settings.policy.require_path_access(path, write=True)
+    except PermissionError as error:
+        raise ToolError(str(error)) from None
+    if not _worktrees.bound_git_pointer(path, await worktree.common_directory(repo)):
+        raise ToolError("Target Worktrunk checkout is not linked to the selected repository.")
+    return path
+
+
 @dataclass(frozen=True)
 class WorktrunkAdapter:
     settings: ServerSettings
@@ -140,16 +169,73 @@ class WorktrunkAdapter:
         self,
         branch: str,
         base: str,
-        expected_base_head: str,
+        expected_base_head: str | None,
         original_branch: str,
         original_head: str,
         *,
         run_hooks: bool = False,
+        expected_branch_head: str | None = None,
     ) -> dict[str, str]:
         _authorize(self.settings, write=True)
 
+        feature_name(branch)
         repo = GitExecution(self.settings)
         fingerprint = await original_snapshot(self.settings, original_branch, original_head, allow_dirty=True)
+        result = await repo.run(
+            "show-ref",
+            "--verify",
+            "--quiet",
+            "refs/heads/" + branch,
+            operation="Inspect Worktrunk branch",
+            allow_failure=True,
+        )
+        if result.code == 0:
+            _, head = await resolve_local_ref(repo, branch)
+            if expected_branch_head is not None and head != valid_sha(expected_branch_head):
+                raise ToolError("Existing Worktrunk branch HEAD changed; reobserve before reuse.")
+            existing = await _registered_checkout_path(self.settings, repo, branch)
+            if existing is None:
+                path = _managed_path(self.settings, branch, write=True)
+                if path.exists() or path.is_symlink():
+                    raise ToolError("Worktrunk path is occupied; no checkout attempted.")
+                await worktree.require_ignored(repo, path.relative_to(repo.root).as_posix() + "/")
+                await worktree.require_safe_checkout_tree(
+                    repo, self.settings.policy, path, head, operation="Inspect existing Worktrunk branch paths"
+                )
+                argv = ["switch", branch, "--path", str(path), "--no-cd"]
+                argv.append("--yes" if run_hooks else "--no-hooks")
+                response = await self._run(*argv, write=True)
+                if (
+                    not isinstance(response, dict)
+                    or response.get("action") != "created"
+                    or response.get("created_branch") is not False
+                    or response.get("branch") != branch
+                    or response.get("path") != str(path)
+                ):
+                    raise ToolError("Worktrunk checkout result is uncertain; reobserve before retrying.")
+                existing = await _registered_checkout_path(self.settings, repo, branch)
+                if existing != path:
+                    raise ToolError("Worktrunk checkout registration does not match the requested path.")
+                action = "checked_out"
+            else:
+                action = "reused"
+            if existing is None:
+                raise ToolError("Worktrunk checkout is unavailable after preparation.")
+            from .. import _worktrees
+
+            target = GitExecution(_worktrees.scoped_settings(self.settings, existing))
+            checked_branch, checked_head, _ = await status.read_porcelain_v2(target)
+            await confirm_original(self.settings, original_branch, original_head, fingerprint, allow_dirty=True)
+            _, latest_head = await resolve_local_ref(repo, branch)
+            if checked_branch != branch or checked_head != head or latest_head != head:
+                raise ToolError("Existing Worktrunk branch or checkout HEAD moved during inspection.")
+            return {"branch": branch, "head": head, "path": str(existing.relative_to(repo.root)), "action": action}
+        if result.code != 1:
+            raise ToolError("Worktrunk branch cannot be safely inspected.")
+        if expected_branch_head is not None:
+            raise ToolError("Expected existing Worktrunk branch is absent.")
+        if expected_base_head is None:
+            raise ToolError("Creating a branch requires an exact observed base HEAD.")
         _, base_head = await resolve_local_ref(repo, base)
         if base_head != valid_sha(expected_base_head):
             raise ToolError("Base branch changed; no Worktrunk creation attempted.")
@@ -159,16 +245,6 @@ class WorktrunkAdapter:
         registered = await worktree.list_registered(repo)
         if any(r.branch == "refs/heads/" + branch or r.path == path for r in registered):
             raise ToolError("Worktrunk branch or path is already checked out.")
-        result = await repo.run(
-            "show-ref",
-            "--verify",
-            "--quiet",
-            "refs/heads/" + branch,
-            operation="Inspect Worktrunk branch",
-            allow_failure=True,
-        )
-        if result.code != 1:
-            raise ToolError("Worktrunk target branch already exists or cannot be inspected.")
         await worktree.require_ignored(repo, path.relative_to(repo.root).as_posix() + "/")
         await worktree.require_safe_checkout_tree(
             repo, self.settings.policy, path, base_head, operation="Inspect Worktrunk checkout paths"
@@ -185,7 +261,7 @@ class WorktrunkAdapter:
         _, head = await resolve_local_ref(repo, branch)
         if head != base_head:
             raise ToolError("Worktrunk branch HEAD differs from the observed base.")
-        return {"branch": branch, "head": head, "path": str(path.relative_to(repo.root))}
+        return {"branch": branch, "head": head, "path": str(path.relative_to(repo.root)), "action": "created"}
 
     async def remove(
         self, branch: str, expected_branch_head: str, *, delete_branch: bool | None = None, run_hooks: bool = False

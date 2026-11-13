@@ -74,8 +74,9 @@ def test_worktrunk_create_preserves_checkout_and_refuses_collision(
         assert await git(tmp_path, "symbolic-ref", "--short", "HEAD") == "main"
         assert (tmp_path / "notes.txt").read_text() == "untracked user content\n"
         assert await git(tmp_path, "rev-parse", "HEAD") == head
-        with pytest.raises(ToolError):
-            await adapter.create("feat/wt-create", "main", head, "main", head)
+        reused = await adapter.create("feat/wt-create", "main", head, "main", head)
+        assert reused["action"] == "reused"
+        assert reused["path"] == created["path"]
         assert await git(tmp_path, "rev-parse", "HEAD") == head
 
     asyncio.run(scenario())
@@ -302,5 +303,93 @@ def test_worktrunk_hooks_are_opt_in_for_create_and_remove(
         assert all(("--no-hooks" in args) is (not run_hooks) for args in calls)
         assert path.exists()
         assert await git(tmp_path, "branch", "--list", "feat/hook-create") == ""
+
+    asyncio.run(scenario())
+
+
+def test_worktrunk_reuses_external_checkout_and_preserves_dirty_files(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    _require_wt()
+
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        path = tmp_path / ".lab" / "external-checkout"
+        await git(tmp_path, "worktree", "add", "-b", "feat/existing", str(path), "main")
+        (path / "notes.txt").write_text("user changes\n")
+        adapter = _adapter(tmp_path)
+        reused = await adapter.create("feat/existing", "main", None, "main", head, expected_branch_head=head)
+        assert reused == {
+            "branch": "feat/existing",
+            "head": head,
+            "path": ".lab/external-checkout",
+            "action": "reused",
+        }
+        assert (path / "notes.txt").read_text() == "user changes\n"
+        assert await git(tmp_path, "symbolic-ref", "--short", "HEAD") == "main"
+        with pytest.raises(ToolError, match="HEAD changed"):
+            await adapter.create("feat/existing", "main", None, "main", head, expected_branch_head="f" * 40)
+        assert path.is_dir()
+
+    asyncio.run(scenario())
+
+
+def test_worktrunk_does_not_adopt_checkout_outside_workspace(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        external = tmp_path.parent / (tmp_path.name + "-outside-checkout")
+        await git(tmp_path, "worktree", "add", "-b", "feat/outside-checkout", str(external), "main")
+        adapter = _adapter(tmp_path)
+        with pytest.raises(ToolError, match="authorized"):
+            await adapter.create("feat/outside-checkout", "main", None, "main", head)
+        assert external.exists()
+        assert await git(tmp_path, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())
+
+
+def test_worktrunk_checks_out_existing_branch_then_reuses_it(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    _require_wt()
+
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        (tmp_path / "notes.txt").write_text("controller user data\n")
+        adapter = _adapter(tmp_path)
+        checked_out = await adapter.create("feat/publish", "main", None, "main", head, expected_branch_head=head)
+        assert checked_out["action"] == "checked_out"
+        path = tmp_path / checked_out["path"]
+        assert path.is_dir()
+        assert await git(path, "symbolic-ref", "--short", "HEAD") == "feat/publish"
+        assert await git(path, "rev-parse", "HEAD") == head
+        assert await git(tmp_path, "symbolic-ref", "--short", "HEAD") == "main"
+        assert (tmp_path / "notes.txt").read_text() == "controller user data\n"
+        reused = await adapter.create("feat/publish", "main", None, "main", head)
+        assert reused["action"] == "reused"
+        assert reused["path"] == checked_out["path"]
+
+    asyncio.run(scenario())
+
+
+def test_worktrunk_existing_branch_cannot_overwrite_occupied_target(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    _require_wt()
+
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        adapter = _adapter(tmp_path)
+        import hashlib
+
+        directory = tmp_path / ".lab" / "wt" / hashlib.sha256(b"feat/publish").hexdigest()[:24]
+        directory.mkdir(parents=True)
+        (directory / "user.txt").write_text("must keep\n")
+        with pytest.raises(ToolError, match="occupied"):
+            await adapter.create("feat/publish", "main", None, "main", head, expected_branch_head=head)
+        assert (directory / "user.txt").read_text() == "must keep\n"
+        assert await git(tmp_path, "worktree", "list", "--porcelain") != ""
 
     asyncio.run(scenario())

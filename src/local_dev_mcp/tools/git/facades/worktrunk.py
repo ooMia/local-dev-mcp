@@ -26,12 +26,19 @@ class CreateProjectWorktrunkTool:
         branch: BranchName,
         expected_branch: str,
         expected_head: ExpectedHead,
-        expected_base_head: ExpectedHead,
+        expected_base_head: ExpectedHead | None = None,
         base_branch: str = "main",
         run_hooks: bool = False,
+        expected_branch_head: ExpectedHead | None = None,
     ) -> dict[str, str]:
         return await WorktrunkAdapter(self.settings).create(
-            branch, base_branch, expected_base_head, expected_branch, expected_head, run_hooks=run_hooks
+            branch,
+            base_branch,
+            expected_base_head,
+            expected_branch,
+            expected_head,
+            run_hooks=run_hooks,
+            expected_branch_head=expected_branch_head,
         )
 
 
@@ -55,11 +62,12 @@ class RemoveProjectWorktrunkTool:
 CREATE_PROJECT_WORKTRUNK: Final = ToolDefinition(
     name="create_project_worktrunk",
     description=(
-        "Create a new topic branch and linked Worktrunk worktree under the authorized .lab/wt "
-        "directory, from an exact observed local base. Preserve the original checkout and its "
-        "dirty files. Refuse occupied branch/path; never clobber. "
-        "run_hooks=false disables Worktrunk lifecycle hooks; true explicitly opts in. "
-        "On uncertain failure inspect Git refs and worktrees before retrying."
+        "Ensure a topic branch has an authorized linked Worktree: reuse an existing registered "
+        "checkout or switch an existing branch into an absent managed path. Create an absent branch "
+        "only with expected_base_head. Optionally pin an existing expected_branch_head. "
+        "Return action=created/checked_out/reused; preserve dirty files and the original checkout. "
+        "run_hooks=false disables lifecycle hooks; true opts in for executed switches. "
+        "Never clobber; reobserve uncertain failures before retrying."
     ),
     annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=True),
     required_commands=("git", "wt", "git.worktree.write"),
