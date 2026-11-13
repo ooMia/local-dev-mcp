@@ -1,0 +1,7 @@
+impact = "patch"
+summary = "Accept equivalent GitHub repository URL capitalization in PR creation and rediscovery."
+reason = "A Draft PR could be created successfully but its confirmation failed when GitHub CLI returned a repository path with different letter casing than the authenticated origin. Compare only the fixed expected GitHub repository URL with ASCII case-insensitive matching while retaining exact PR number and branch/head verification. Never create a duplicate PR after uncertain creation."
+contract = "MCP GitHub Draft PR creation and duplicate detection"
+assessed_by = "agent"
+migration = "Restart the LOCAL-DEV-MCP server to load the corrected URL confirmation logic."
+supersedes = []
