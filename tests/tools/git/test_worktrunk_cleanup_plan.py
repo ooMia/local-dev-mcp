@@ -273,3 +273,27 @@ def test_cleanup_plan_rejects_duplicate_cli_candidates(
         assert await git(tmp_path, "rev-parse", "HEAD") == head
 
     asyncio.run(scenario())
+
+
+def test_cleanup_plan_unavailable_cli_fails_closed(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        original_which = shutil.which
+
+        def without_worktrunk(command: str, *, mode: int = 1, path: str | None = None) -> str | None:
+            if command == "wt":
+                return None
+            return original_which(command, mode=mode, path=path)
+
+        monkeypatch.setattr(shutil, "which", without_worktrunk)
+        async with Client(create_server(replace(policy(tmp_path), allowed_commands=("git", "wt")))) as client:
+            result = await success(client, "plan_project_worktree_cleanup", {"min_age_days": 0})
+            assert result["complete"] is False
+            assert result["reason"] == "worktrunk_unavailable"
+            assert result["write_requested"] is False
+            assert _candidates(result) == []
+        assert await git(tmp_path, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())
