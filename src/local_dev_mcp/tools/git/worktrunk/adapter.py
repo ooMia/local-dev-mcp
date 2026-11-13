@@ -272,7 +272,16 @@ class WorktrunkAdapter:
             raise ToolError("Worktrunk prune preview returned an unsupported candidate set.")
         if not all(isinstance(row, dict) for row in result):
             raise ToolError("Worktrunk prune preview returned an invalid candidate.")
-        return cast(list[dict[str, object]], result)
+        candidates = cast(list[dict[str, object]], result)
+        if not all(
+            isinstance(row.get("branch"), str)
+            and isinstance(row.get("path"), str)
+            and bool(row["branch"])
+            and bool(row["path"])
+            for row in candidates
+        ):
+            raise ToolError("Worktrunk prune preview returned an invalid candidate.")
+        return candidates
 
     async def require_ready(self, branch: str, expected_head: str, *, write: bool = True) -> ServerSettings:
         """Bind an exact clean Worktrunk checkout, enforcing write grants only for writers."""

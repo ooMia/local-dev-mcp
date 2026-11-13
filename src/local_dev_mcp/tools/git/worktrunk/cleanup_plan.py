@@ -70,7 +70,14 @@ async def cleanup_plan(settings: ServerSettings, *, min_age_days: int = 1) -> di
             continue
         head = inspected["head"]
         path = inspected["path"]
-        if not isinstance(head, str) or not isinstance(path, str) or path == ".":
+        # A dry-run row is only a hint: bind it to Git's exact registered checkout,
+        # not merely to a branch that happens to be clean and integrated.
+        if (
+            not isinstance(head, str)
+            or not isinstance(path, str)
+            or path == "."
+            or item.get("path") != str(repo.root / path)
+        ):
             skipped += 1
             continue
         result = await repo.run(

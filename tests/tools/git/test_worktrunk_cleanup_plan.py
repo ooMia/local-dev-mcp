@@ -62,11 +62,11 @@ def test_cleanup_plan_filters_dirty_unmerged_and_outside_candidates(
         async def preview(self: WorktrunkAdapter, min_age_days: int) -> list[dict[str, object]]:
             assert min_age_days == 0
             return [
-                {"branch": "feat/publish", "branch_deleted": True, "reason": "merged"},
-                {"branch": "feat/dirty"},
-                {"branch": "feat/unmerged"},
-                {"branch": "feat/outside"},
-                {"branch": "main"},
+                {"branch": "feat/publish", "path": str(clean), "branch_deleted": True, "reason": "merged"},
+                {"branch": "feat/dirty", "path": str(dirty)},
+                {"branch": "feat/unmerged", "path": str(unmerged)},
+                {"branch": "feat/outside", "path": str(outside)},
+                {"branch": "main", "path": str(tmp_path)},
             ]
 
         monkeypatch.setattr(WorktrunkAdapter, "preview_prune", preview)
@@ -85,6 +85,54 @@ def test_cleanup_plan_filters_dirty_unmerged_and_outside_candidates(
             assert str(outside) not in str(result)
         assert await git(tmp_path, "worktree", "list", "--porcelain") == before
         assert (dirty / "base.txt").read_text() == "unsaved user content"
+        assert await git(tmp_path, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())
+
+
+def test_cleanup_plan_rejects_mismatched_dry_run_paths(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        clean = tmp_path / ".lab" / "clean"
+        other = tmp_path / ".lab" / "other"
+        await git(tmp_path, "worktree", "add", str(clean), "feat/publish")
+        await git(tmp_path, "worktree", "add", "-b", "feat/other", str(other), "main")
+        before = await git(tmp_path, "worktree", "list", "--porcelain")
+
+        async def preview(self: WorktrunkAdapter, min_age_days: int) -> list[dict[str, object]]:
+            return [{"branch": "feat/publish", "path": str(other), "branch_deleted": True}]
+
+        monkeypatch.setattr(WorktrunkAdapter, "preview_prune", preview)
+        async with Client(create_server(replace(policy(tmp_path), allowed_commands=("git", "wt")))) as client:
+            result = await success(client, "plan_project_worktree_cleanup", {"min_age_days": 0})
+            assert result["complete"] is True
+            assert result["omitted_count"] == 1
+            assert _candidates(result) == []
+            assert str(other) not in str(result)
+        assert await git(tmp_path, "worktree", "list", "--porcelain") == before
+        assert await git(tmp_path, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())
+
+
+def test_cleanup_plan_rejects_invalid_cli_candidate_schema(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+
+        async def invalid_cli(self: WorktrunkAdapter, *argv: str, write: bool) -> list[dict[str, object]]:
+            assert not write
+            return [{"branch": "feat/publish"}]
+
+        monkeypatch.setattr(WorktrunkAdapter, "_run", invalid_cli)
+        async with Client(create_server(replace(policy(tmp_path), allowed_commands=("git", "wt")))) as client:
+            result = await success(client, "plan_project_worktree_cleanup", {"min_age_days": 0})
+            assert result["complete"] is False
+            assert result["reason"] == "prune_preview_unavailable"
+            assert _candidates(result) == []
         assert await git(tmp_path, "rev-parse", "HEAD") == head
 
     asyncio.run(scenario())
