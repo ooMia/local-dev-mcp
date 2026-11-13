@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "Share deterministic PR squash messages and actual-result verification across CLI and MCP"
-reason = "Closes the gap after Draft PR publication with independent opt-in merging, reviewed head/message binding and readback instead of trusting GitHub defaults or request completion."
-contract = "GitHub PR merge messages and result observation"
-assessed_by = "agent"
-migration = "Restart the server to discover the new tools; explicitly enable gh.pr.merge only when remote merging is intended. CLI merge-pr now reports structured verification and exits nonzero for unconfirmed or mismatched results."
-supersedes = []

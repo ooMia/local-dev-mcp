@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "관측 참조 기반 Workspace 파일 도구와 등록 CLI 작업 추가"
-reason = "초기 비교 기준에 존재하지 않았던 탐색·읽기·관측 수정·생성·삭제와 작업 실행/취소/진단 기능을 추가한다. 권한·receipt·부분 결과는 새 공개 계약으로 명시한다. 기존 CLI 실행 의미의 비호환은 별도 기록으로 평가한다."
-contract = "MCP Workspace 및 CLI 작업 입력·결과·권한"
-assessed_by = "agent"
-migration = ""
-supersedes = []

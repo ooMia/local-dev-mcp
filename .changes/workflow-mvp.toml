@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "Add PR integration, main quality guards and artifact metadata checks"
-reason = "Adds an optional developer workflow CLI while preserving existing MCP and release assessment contracts."
-contract = "Developer workflow"
-assessed_by = "agent"
-migration = ""
-supersedes = []

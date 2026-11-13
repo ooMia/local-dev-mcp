@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "모노레포 레시피 실행 위치와 대상 경로, Git 변경 검토·보호 커밋 및 관리 Worktree 검증을 개선한다."
-reason = "기존 Git workspace와 명령 권한을 유지하면서 선택적 recipe cwd 및 recipe-relative targets를 추가한다. 기존 cwd 미지정 작업은 유지되며, staged 범위 검증과 untracked 미리보기는 opt-in이다. 관리 Worktree의 원본 변경 보존과 로컬 이력 통합도 명시적 검증으로 확장한다."
-contract = "MCP task recipes, Git guarded commits and managed worktree"
-assessed_by = "agent"
-migration = "모노레포 작업에 cwd를 명시한 경우 targets/default_targets는 해당 recipe cwd 상대경로다. 설정 변경이나 새 MCP 입력을 사용할 때는 서버를 재시작한다."
-supersedes = []

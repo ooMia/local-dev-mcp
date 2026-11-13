@@ -1,0 +1,6 @@
+schema_version = 1
+source_head = "4d15617f79692cecdc948ce130e088341a25502b"
+plan_digest = "c36096f47c672a7712f50f80699c5a8485248794d22f0645d29183fe6ff40018"
+old_version = "0.1.0"
+new_version = "0.2.0"
+consumed = ["actions-unit-tests", "agent-pr-publication", "chat-pr-lifecycle", "cli-workspace-runtime", "current-policy-map", "deterministic-pr-merge", "development-release-workflow", "document-diagnosis", "documentation-link-validation", "elicitation-diagnostics-probes", "experimental-delivery-and-test-evidence", "gh-auth-diagnostics", "gh-token-shell-inheritance", "git-commit-history", "graft-local-cache-ignore", "guarded-git-capabilities", "historical-validation-profiles", "initial-baseline-preparation", "isolated-pr-worktrees", "issue-8-monorepo-contract", "local-history-consolidation", "managed-worktree-finalization", "opt-in-worktrunk-integration", "policy-aware-preflight", "pr-body-generator", "project-owned-hooks", "release-mcp-capabilities", "scoped-gh-git-credentials", "shared-quality-profiles", "tunnel-gh-auth-context", "workflow-mvp", "workspace-and-task-capabilities", "worktree-assessments", "worktree-task-execution"]

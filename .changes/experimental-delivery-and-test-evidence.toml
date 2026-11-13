@@ -1,7 +1,0 @@
-impact = "none"
-summary = "Experimental Document/Event/GitHub 내부 모델과 실패 경계 검증 정리"
-reason = "기준 scaffold에 없던 실험적 내부 모델과 로컬 검증을 도입한다. GitHub semantic MCP 등록·live 외부 Apply나 안정된 라이브러리 API는 제공하지 않으므로 그 공개 계약의 변경으로 분류하지 않는다. 새 공개 문서 진단은 별도 minor 기록으로 평가했다."
-contract = "Experimental 내부 모델·로컬 테스트·개발용 PostgreSQL"
-assessed_by = "agent"
-migration = ""
-supersedes = []

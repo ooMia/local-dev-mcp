@@ -1,7 +1,0 @@
-impact = "none"
-summary = "로컬 Graft 그래프 캐시를 Git 이력에서 제외하고 검색용 .ignore 규칙을 기록한다."
-reason = "재생성할 수 있는 graft/ 산출물을 커밋 대상에서 제외하며 소스·MCP·CLI·사용자 구성 계약과 패키지 버전에는 영향을 주지 않는다. 캐시 파일은 로컬에 그대로 남기고 검색 규칙만 추가한다."
-contract = "Developer local Graft cache and search configuration"
-assessed_by = "agent"
-migration = ""
-supersedes = []

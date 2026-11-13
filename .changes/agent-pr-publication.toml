@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "Expose guarded MCP tools for private GitHub feature publication"
-reason = "Adds opt-in remote read, main fetch, non-force feature push and Draft PR creation using the existing host git/gh authentication; local main and existing release contracts remain unchanged."
-contract = "MCP GitHub remote operations"
-assessed_by = "agent"
-migration = "Restart the LOCAL-DEV-MCP server after enabling git, gh and scoped remote permissions in config.toml."
-supersedes = []
