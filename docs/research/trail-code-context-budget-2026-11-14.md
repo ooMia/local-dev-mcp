@@ -49,6 +49,20 @@ C0 통과 기준: 동일 저장소·Git HEAD를 대상으로 `find_code`, `find_
 
 채택은 정확도 유지와 잘못된 참조 0건을 우선하고, 도구 응답 비용 중앙값 25% 감소를 잠정 목표로 한다. 유의한 측정 결과 없이 자동 라우터·새 외부 의존성을 도입하지 않는다.
 
+## C1: 오프라인 비교 실행기 (선택적, 자동 라우팅 없음)
+
+`src/local_dev_mcp/tools/context_budget.py`는 다른 MCP 서버를 호출하지 않는 순수 평가 도구다. 민감한 원문 대신 에이전트나 계측기에서 수집한 **응답 바이트·도구 호출 결과·검증 기록**의 쌍을 전달한다.
+
+```sh
+uv run --locked python -m local_dev_mcp.tools.context_budget /path/to/sanitized-runs.json
+```
+
+입력은 `{"schema_version": 1, "runs": [...]}` 형식이다. `runs`는 `case_id`당 `baseline`과 `trail` 정확히 한 건씩 포함한다. 각 Run에 `repo_sha`(40/64자리 전체 SHA), `strategy`, `index_state`(`not_applicable`은 baseline 전용), `correct`(외부 평가자가 판정), `fallback`, `verified_reference`, `tool_calls`, `tokenizer`, `elapsed_ms` 필드를 제공한다. 각 호출은 `name`, `outcome`(`ok|error`), `output_bytes`(실제 UTF-8 응답 길이), `output_tokens`(선택, 동일 토크나이저로 측정)로 기록한다. 실패와 fallback 호출도 누락하지 않는다.
+
+서로 다른 SHA·정답 근거, 누락된 전략, 숫자를 가장한 boolean, 불완전한 결과는 거부한다. 바이트 절감률은 정확히 집계하지만 토큰 절감률은 **양쪽 모든 호출이 동일한 토크나이저로 계측되었을 때만** 출력한다. `model_input_tokens_measured=false`는 청구·캐시·프롬프트 토큰이 이번 평가의 측정 범위가 아님을 뜻한다. 평가자가 제출한 `correct`는 독립 검증을 대신하지 않는다.
+
+현재는 비교 기록기와 테스트만 구현됐으며, Cross-MCP 호출 자동 계측·정확도 판정·Trail Code 라우팅 변경은 구현하지 않았다. 우선 C0의 범위 오류를 해결한 뒤 실제 15개 이상 과제를 수집하고, 그 결과가 유의할 때만 자동화를 검토한다.
+
 ## 참고 자료
 
 - [Trail Code 공식 MCP·CLI·자동 갱신 설명](https://github.com/trailhq/trail-code#readme)

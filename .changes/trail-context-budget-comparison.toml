@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "Add a sanitized offline code-navigation cost comparison CLI for paired baseline and Trail Code traces."
+reason = "Introduces an opt-in local evaluation module with strict paired Git SHA and evidence validation, exact tool-response byte accounting, optional consistently metered token counts, and explicit fallback and error costs. Existing MCP tools and required dependencies are unchanged."
+contract = "Optional development workflow benchmarking CLI"
+assessed_by = "agent"
+migration = "Opt in with python -m local_dev_mcp.tools.context_budget <sanitized-runs.json>; no automatic tool routing or model token billing measurement is provided."
+supersedes = []
