@@ -297,3 +297,56 @@ def test_cleanup_plan_unavailable_cli_fails_closed(
         assert await git(tmp_path, "rev-parse", "HEAD") == head
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["read_only_policy", "stale_head"])
+def test_cleanup_plan_never_authorizes_removal(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    async def scenario() -> None:
+        base, _ = await seed(tmp_path, workspace_factory)
+        target = tmp_path / ".lab" / "review-only"
+        await git(tmp_path, "worktree", "add", str(target), "feat/publish")
+        before = await git(tmp_path, "worktree", "list", "--porcelain")
+
+        async def preview(self: WorktrunkAdapter, min_age_days: int) -> list[dict[str, object]]:
+            assert min_age_days == 0
+            return [{"branch": "feat/publish", "path": str(target), "branch_deleted": True}]
+
+        original_which = shutil.which
+
+        def available(command: str, *, mode: int = 1, path: str | None = None) -> str | None:
+            if command == "wt":
+                return "wt-test"
+            return original_which(command, mode=mode, path=path)
+
+        monkeypatch.setattr(shutil, "which", available)
+        monkeypatch.setattr(WorktrunkAdapter, "preview_prune", preview)
+        commands = ("git", "wt") if mode == "read_only_policy" else ("git", "wt", "git.worktree.write")
+        async with Client(create_server(replace(policy(tmp_path), allowed_commands=commands))) as client:
+            plan = await success(client, "plan_project_worktree_cleanup", {"min_age_days": 0})
+            assert plan["complete"] is True
+            assert plan["write_requested"] is False
+            candidates = _candidates(plan)
+            assert len(candidates) == 1
+            assert candidates[0]["branch"] == "feat/publish"
+            assert candidates[0]["head"] == base
+            if mode == "stale_head":
+                (target / "advance.txt").write_text("new committed content\n")
+                await git(target, "add", "advance.txt")
+                await git(target, "commit", "-m", "feat: branch moved after cleanup plan")
+            error = await failure(
+                client,
+                "remove_project_worktrunk",
+                {"branch": "feat/publish", "expected_branch_head": base, "delete_branch": False},
+            )
+            assert error
+        assert target.is_dir()
+        assert await git(tmp_path, "rev-parse", "HEAD") == base
+        assert await git(tmp_path, "branch", "--list", "feat/publish") != ""
+        if mode == "read_only_policy":
+            assert await git(tmp_path, "worktree", "list", "--porcelain") == before
+        else:
+            assert await git(target, "rev-parse", "HEAD") != base
+
+    asyncio.run(scenario())

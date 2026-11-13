@@ -189,10 +189,11 @@ REMOVE_PROJECT_WORKTRUNK: Final = ToolDefinition(
     name="remove_project_worktrunk",
     description=(
         "Remove an explicitly identified, registered linked Worktree inside the allowed workspace. "
-        "Delegate dirty-file protection and integrated-branch deletion to Worktrunk (non-force). "
+        "Revalidate the exact branch HEAD, clean checkout and registered path before invoking Worktrunk. "
+        "Use Worktrunk's non-force removal and safe integrated-branch deletion rules. "
         "delete_branch=null follows Worktrunk's normal cleanup, false preserves the branch, "
         "true requests its safe deletion. run_hooks=false disables lifecycle hooks; true opts in. "
-        "Check branch_outcome for retained refs; never assume removal also deleted a branch."
+        "Verify post-removal filesystem and Git state; never trust the CLI receipt alone."
     ),
     annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=True),
     required_commands=("git", "wt", "git.worktree.write"),
