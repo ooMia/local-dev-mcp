@@ -262,9 +262,12 @@ class WorktrunkAdapter:
             raise ToolError("Unsupported Worktrunk list schema; expected schema 2.")
         return data
 
-    async def require_ready(self, branch: str, expected_head: str) -> ServerSettings:
-        """Bind an exact clean Worktrunk checkout to the controller's startup policy."""
-        _authorize(self.settings, write=True)
+    async def require_ready(self, branch: str, expected_head: str, *, write: bool = True) -> ServerSettings:
+        """Bind an exact clean Worktrunk checkout, enforcing write grants only for writers."""
+        if write:
+            _authorize(self.settings, write=True)
+        else:
+            require_permission(self.settings)
         from .. import _worktrees
         from ..facades import _repository
 
@@ -276,7 +279,7 @@ class WorktrunkAdapter:
             raise ToolError("Worktrunk inspection did not return an authorized checkout path.")
         path = self.settings.policy.root / relative
         try:
-            self.settings.policy.require_path_access(path, write=True)
+            self.settings.policy.require_path_access(path, write=write)
         except PermissionError as error:
             raise ToolError(str(error)) from None
         scoped = _worktrees.scoped_settings(self.settings, path)

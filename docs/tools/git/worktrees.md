@@ -15,7 +15,7 @@ Git hooks·필터나 다른 프로세스의 부작용을 OS 수준으로 차단�
 | `start_project_worktree_task` | 준비 입력 4개, `task`, `request_id`, `targets=null`, `all_tests=false` | `git`, `git.worktree.write`, 선택 recipe 권한 |
 | `prepare_project_worktree_assessment` | 준비 입력 4개, `assessment_id`, `assessment_toml` | `git`, `git.worktree.write` |
 | `commit_project_worktree_assessment` | 준비 입력 4개, `assessment_id`, `expected_digest`, `message` | 시작 commit 권한, `git.worktree.write` |
-| `inspect_project_branch_remote` | `branch`, `expected_branch_head` | `git`, `gh`, `git.remote.read` |
+| `inspect_project_branch_remote` | `branch`, `expected_branch_head`, `backend="native"` | `git`, `gh`, `git.remote.read` |
 | `push_project_branch` | 준비 입력 4개, `expected_remote_main`, `expected_remote_feature=null` | `git`, `gh`, `git.remote.write` |
 | `create_project_branch_draft_pr` | 준비 입력 4개, `expected_remote_main`, `title_text`, `purpose=null`, `exceptions=null` | `git`, `gh`, `gh.pr.create` |
 
@@ -24,6 +24,8 @@ Git hooks·필터나 다른 프로세스의 부작용을 OS 수준으로 차단�
 Worktree 준비·등록 lint/test는 원본에 미커밋 변경이 있어도 진행할 수 있으나, 평가 작성·평가 커밋·원격 게시 등은 기존처럼 원본과 대상이 모두 clean해야 한다.
 평가 커밋은 아래 절차에서 정한 새 평가 하나만 대상 변경으로 허용한다. `main`은 준비 대상이 될 수 없지만 원본 checkout일 수 있다.
 새 브랜치가 필요하면 먼저 `create_project_branch_from_ref`로 확인된 원본 SHA에서 생성한다.
+
+`inspect_project_branch_remote(backend="worktrunk")`는 Native 준비 기록이 없는 경우에도 현재 Git에 등록된 허용 Worktree에서 원격 정보를 **읽기 전용**으로 조회한다. 정확한 브랜치·HEAD·Clean 상태를 요구하며, 호출 전후 재확인한다. 기존 `backend="native"` 동작이 기본값이다. Worktrunk 선택은 원격 Push·Draft PR이나 `main` 병합의 승인으로 해석하지 않는다.
 
 ## 준비와 관측
 

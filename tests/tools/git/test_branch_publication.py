@@ -182,3 +182,58 @@ def test_partial_add_failure_is_inspectable_and_never_retried(
         assert await git(tmp_path, "rev-parse", "HEAD") == base
 
     asyncio.run(scenario())
+
+
+def test_worktrunk_remote_inspection_uses_registered_checkout_without_native_receipt(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        base, _ = await seed(tmp_path, workspace_factory)
+        origin = tmp_path.parent / (tmp_path.name + "-remote-inspection.git")
+        await git(tmp_path, "init", "--bare", str(origin))
+        await git(tmp_path, "remote", "add", "origin", str(origin))
+        await git(tmp_path, "push", "origin", "main")
+        await git(tmp_path, "update-ref", "refs/remotes/origin/main", base)
+
+        checkout = tmp_path / ".lab" / "external-branch"
+        await git(tmp_path, "worktree", "add", str(checkout), "feat/publish")
+        roots: list[Path] = []
+
+        class LocalRemote(_remote.Remote):
+            async def repo(self) -> tuple[str, str]:
+                roots.append(self.root)
+                return "example/project", "https://github.com/example/project"
+
+            async def main_sha(self, name: str) -> str:
+                return base
+
+            async def branch(self, name: str) -> str | None:
+                return None
+
+        monkeypatch.setattr(remote_pr, "Remote", LocalRemote)
+        permissions = replace(policy(tmp_path), allowed_commands=("git", "gh", "git.remote.read"))
+        async with Client(create_server(permissions)) as session:
+            await failure(
+                session,
+                "inspect_project_branch_remote",
+                {"branch": "feat/publish", "expected_branch_head": base},
+            )
+            inspected = await success(
+                session,
+                "inspect_project_branch_remote",
+                {"branch": "feat/publish", "expected_branch_head": base, "backend": "worktrunk"},
+            )
+            assert inspected["branch"] == "feat/publish"
+            assert inspected["head"] == inspected["remote_main"] == base
+            assert inspected["tracking_is_fresh"] is True
+            assert roots == [checkout]
+
+            (checkout / "dirty.txt").write_text("uncommitted user data")
+            await failure(
+                session,
+                "inspect_project_branch_remote",
+                {"branch": "feat/publish", "expected_branch_head": base, "backend": "worktrunk"},
+            )
+            assert (checkout / "dirty.txt").read_text() == "uncommitted user data"
+
+    asyncio.run(scenario())

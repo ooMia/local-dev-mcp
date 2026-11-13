@@ -5,13 +5,14 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Literal
 
 from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from ....mcp.registry import ToolDefinition
 from .. import _worktrees
+from ..worktrunk import WorktrunkAdapter
 from . import remote_pr
 from ._refs import BranchName, ExpectedHead
 
@@ -42,11 +43,22 @@ async def publication(
 class InspectProjectBranchRemoteTool:
     settings: ServerSettings
 
-    async def execute(self, branch: BranchName, expected_branch_head: ExpectedHead) -> remote_pr.RemoteState:
+    async def execute(
+        self,
+        branch: BranchName,
+        expected_branch_head: ExpectedHead,
+        backend: Literal["native", "worktrunk"] = "native",
+    ) -> remote_pr.RemoteState:
         remote_pr.require_permission(self.settings, "git.remote.read")
-        target = await _worktrees.require_ready(self.settings, branch, expected_branch_head)
+
+        async def selected_checkout() -> ServerSettings:
+            if backend == "worktrunk":
+                return await WorktrunkAdapter(self.settings).require_ready(branch, expected_branch_head, write=False)
+            return await _worktrees.require_ready(self.settings, branch, expected_branch_head)
+
+        target = await selected_checkout()
         result = await remote_pr.InspectRemoteTool(target).execute()
-        await _worktrees.require_ready(self.settings, branch, expected_branch_head)
+        await selected_checkout()
         result["project"] = str(self.settings.policy.root)
         return result
 
@@ -115,7 +127,9 @@ class CreateProjectBranchDraftPRTool:
 INSPECT_PROJECT_BRANCH_REMOTE: Final = ToolDefinition(
     name="inspect_project_branch_remote",
     description=(
-        "Inspect remote refs for an exactly observed branch in its clean managed worktree; never switches the original."
+        "Inspect remote refs for an exact clean branch HEAD. backend=native (default) uses the existing "
+        "managed checkout; backend=worktrunk uses an authorized Git-registered linked checkout without "
+        "Native receipts. Read-only: no checkout switching, fetch, push or PR creation."
     ),
     annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=True),
     required_commands=("git", "gh", "git.remote.read"),

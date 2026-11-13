@@ -23,6 +23,8 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 | `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=null`, `run_hooks=false` | 허용된 Workspace 내 Git 등록 Worktree를 비강제 제거. `null`은 Worktrunk의 브랜치 정리 기본값, `false`는 보존, `true`는 안전한 삭제 시도 |
 | `get_project_worktrunk_merge_plan` | `evidence_id`, `branch`, `expected_source_head`, `expected_main_head` | 서버 로컬 검사 증거·Main Ref·Fast-forward 관계 검증, 별도 Main Checkout 없는 읽기 전용 제안 |
 
+원격 읽기 전용 검사는 기존 `inspect_project_branch_remote(backend="worktrunk")`를 사용한다. 공개 입력·권한과 기본 `native` 경로는 [Worktree 계약](worktrees.md)을 따른다.
+
 검토 계획의 `mode`는 `ff`로 명시하며 `plan_digest` 역시 동일한 모드를 포함한다.
 이는 외부 실행 경로에서 암묵적인 Squash로 작업 종류가 변경되는 것을 방지하기 위한 검토 정보다.
 
