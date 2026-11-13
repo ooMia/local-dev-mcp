@@ -12,6 +12,7 @@ from ....mcp.registry import ToolDefinition
 from .._prepare import git_readiness
 from ..worktrunk import WorktrunkAdapter
 from ..worktrunk.inventory import inventory
+from ..worktrunk.review import review
 from ._refs import BranchName, ExpectedHead
 
 if TYPE_CHECKING:
@@ -32,6 +33,26 @@ class ListProjectWorktreesTool:
 
     async def execute(self, include_branches: bool = True, include_remote: bool = False) -> dict[str, object]:
         return await inventory(self.settings, include_branches=include_branches, include_remote=include_remote)
+
+
+@dataclass(frozen=True)
+class GetProjectWorktreeReviewTool:
+    settings: ServerSettings
+
+    async def execute(
+        self,
+        branch: BranchName,
+        expected_head: ExpectedHead,
+        include_patch: bool = False,
+        base_branch: str = "main",
+    ) -> dict[str, object]:
+        return await review(
+            self.settings,
+            branch=branch,
+            expected_head=expected_head,
+            include_patch=include_patch,
+            base_branch=base_branch,
+        )
 
 
 @dataclass(frozen=True)
@@ -76,6 +97,21 @@ class RemoveProjectWorktrunkTool:
             return await WorktrunkAdapter(self.settings).remove(
                 branch, expected_branch_head, delete_branch=delete_branch, run_hooks=run_hooks
             )
+
+
+GET_PROJECT_WORKTREE_REVIEW: Final = ToolDefinition(
+    name="get_project_worktree_review",
+    description=(
+        "Review an exact authorized Git-registered Worktrunk checkout: compare committed changes "
+        "against a stable local base, count visible staged/unstaged/untracked changes, "
+        "and optionally return restricted-path-filtered bounded patches. "
+        "No staging, checkout, network access, merging, or untracked content preview."
+    ),
+    annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False),
+    required_commands=("git",),
+    create_runtime=GetProjectWorktreeReviewTool,
+    readiness=git_readiness,
+)
 
 
 LIST_PROJECT_WORKTREES: Final = ToolDefinition(

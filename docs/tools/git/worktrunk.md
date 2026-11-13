@@ -20,6 +20,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 | --- | --- | --- |
 | `inspect_project_worktrunk` | `branch` | Git 등록 상태 기반 읽기 전용 조회. `state=absent/not_checked_out/ready/dirty/blocked`, `branch_head`, `head`, `clean`, `registered`, 허용된 `path`와 차단 `reason` 반환 |
 | `list_project_worktrees` | `include_branches=true`, `include_remote=false` | Git 등록 Worktree와 로컬 브랜치 목록. 허용 경로만 상대 경로로 표시하고 차단 Worktree는 개수로만 집계. Worktrunk Schema 2와 Git SHA·경로가 일치할 때만 Ahead/Behind·충돌 상태 추가 |
+| `get_project_worktree_review` | `branch`, `expected_head`, `include_patch=false`, `base_branch="main"` | Git 등록 Checkout의 커밋된 변경·Staged·Unstaged·Untracked 요약. 패치는 명시 선택이며 보호 경로는 제외. SHA·기준 브랜치 이동 시 거부 |
 | `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head=null`, `expected_branch_head=null`, `base_branch="main"`, `run_hooks=false`, `worktree_path=null` | 새 브랜치 생성·기존 브랜치 체크아웃·등록된 Worktree 재사용. `action=created/checked_out/reused` |
 | `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=null`, `run_hooks=false` | 허용된 Workspace 내 Git 등록 Worktree를 비강제 제거. `null`은 Worktrunk의 브랜치 정리 기본값, `false`는 보존, `true`는 안전한 삭제 시도 |
 | `get_project_worktrunk_merge_plan` | `evidence_id`, `branch`, `expected_source_head`, `expected_main_head` | 서버 로컬 검사 증거·Main Ref·Fast-forward 관계 검증, 별도 Main Checkout 없는 읽기 전용 제안 |
@@ -34,6 +35,8 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 이는 외부 실행 경로에서 암묵적인 Squash로 작업 종류가 변경되는 것을 방지하기 위한 검토 정보다.
 
 `list_project_worktrees`도 **Git 읽기 권한만으로 호출**할 수 있다. `wt` 권한 또는 실행 파일이 없으면 Git 기준의 등록·HEAD·Dirty·로컬 브랜치만 반환하며 Ahead/Behind 등 Worktrunk 전용 정보는 `null`, `enrichment=not_available`로 남긴다. `wt list --branches --no-progressive --format=json`의 Schema 2를 사용할 때는 Git과 경로·SHA가 모두 일치해야 추가 정보를 확정한다. 불일치·CLI 실패는 `complete=false`와 원인으로 알리고, 일부 값만 신뢰하는 일은 없다. 조회는 최대 128개 행이며 `include_remote=true`는 원격 읽기 승인/노출 정책이 확립되지 않아 명시적으로 거부한다. 차단 Worktree의 경로·브랜치명은 표시하지 않고 `blocked_count`만 반환한다. 이 도구는 CI나 Agent 상태를 직접 확정하지 않는다.
+
+`get_project_worktree_review`는 기존 Git Compare/Diff의 보호 경로 필터와 1 MiB Git 출력 상한을 재사용한다. 기본은 커밋된 변경 목록·Staged·Unstaged·Untracked 개수만 반환한다. `include_patch=true`인 경우 256 KiB 이하의 커밋·Staged·Unstaged 패치를 제공하지만 Untracked 파일 본문은 포함하지 않는다. 보호 경로가 누락되면 `complete=false`로 보고한다. 원본 및 대상 브랜치의 HEAD 이동은 거부하며, 진행 중 독립 프로세스의 파일 변경까지 원자적으로 차단하지는 못한다.
 
 `inspect_project_worktrunk`는 **`git` 읽기 권한만** 요구한다. CLI 실행과 변경 작업에는 각 도구의 `wt`, `git.worktree.write` 등 선언된 권한이 별도로 필요하다.
 `config.toml`의 허용 목록이 실행 파일 설치를 의미하지 않으며,
