@@ -67,7 +67,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 - 제거는 `--foreground`, 비강제 옵션만 사용한다. MCP가 CLI 호출 직전 등록 경로·HEAD·Clean 상태를 재검증하고, Dirty/Untracked Checkout이나 이동된 Checkout은 삭제 요청 전에 거부한다. 미병합 브랜치 삭제 판단과 별도의 비강제 안전 확인은 Worktrunk에 위임한다.
   MCP `remove_project_worktrunk`는 기존 Task Manager의 `exclusive_git_cleanup` 잠금을 재사용하여
   실행 중·정리 불확실한 Job과 Worktree 삭제를 직렬화한다. 독립 Git 프로세스까지 잠그지는 않는다.
-  `branch_outcome`을 확인해 실제 삭제·보존을 구분하며, 명령이 실패하면 제거되지 않았다고 단정하지 않는다.
+  CLI의 결과 JSON만으로 삭제 성공을 확정하지 않고 대상 경로의 부재, Git Worktree 등록 해제, `branch_outcome`과 실제 브랜치 Ref 존재 여부를 재확인한다. 불일치하거나 재조회에 실패하면 성공을 반환하지 않고 현재 상태를 다시 점검하도록 한다.
 - Worktrunk의 stdout JSON 형태는 명령마다 다르며, 삭제는 결과의 대상·`branch_outcome`을 검증한다. 지원하지 않는 결과는 성공으로 보고하지 않는다.
 - 모든 외부 실행은 argv 기반이며 stdin을 닫고 stdout 크기·시간을 제한한다. 호출자 제공 쉘 문자열은 실행하지 않는다.
 - 타임아웃 또는 결과 확인 실패 이후 동일한 쓰기 명령을 자동 재실행하지 않는다.

@@ -207,3 +207,54 @@ def test_cleanup_rejects_checkout_moved_after_registration(
         assert await git(moved, "rev-parse", "HEAD") == base
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "misreport",
+    ["path_present", "stale_registration", "false_deleted", "false_retained"],
+)
+def test_cleanup_never_accepts_unverified_cli_removal_receipt(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch, misreport: str
+) -> None:
+    async def scenario() -> None:
+        from local_dev_mcp.tools.git.worktrunk import WorktrunkAdapter
+
+        base, _ = await seed(tmp_path, workspace_factory)
+        target = tmp_path / ".lab" / "receipt"
+        moved = tmp_path / ".lab" / "orphan"
+        await git(tmp_path, "worktree", "add", str(target), "feat/publish")
+        called = 0
+
+        async def misreport_remove(self: WorktrunkAdapter, *argv: str, write: bool) -> dict[str, object]:
+            nonlocal called
+            assert write and argv[0] == "remove"
+            called += 1
+            if misreport == "stale_registration":
+                target.rename(moved)  # The Git registration still points to the old location.
+            elif misreport != "path_present":
+                await git(tmp_path, "worktree", "remove", str(target))
+                if misreport == "false_retained":
+                    await git(tmp_path, "branch", "-d", "feat/publish")
+            return {
+                "branch": "feat/publish",
+                "path": str(target),
+                "branch_outcome": "deleted" if misreport == "false_deleted" else "not_attempted",
+            }
+
+        monkeypatch.setattr(WorktrunkAdapter, "_run", misreport_remove)
+        cfg = replace(policy(tmp_path), allowed_commands=("git", "wt", "git.worktree.write"))
+        async with Client(create_server(cfg)) as client:
+            error = await failure(
+                client,
+                "remove_project_worktrunk",
+                {"branch": "feat/publish", "expected_branch_head": base, "delete_branch": False},
+            )
+            assert "unconfirmed" in error.lower()
+        assert called == 1
+        assert await git(tmp_path, "rev-parse", "HEAD") == base
+        if misreport == "path_present":
+            assert target.is_dir()
+        if misreport == "stale_registration":
+            assert moved.is_dir()
+
+    asyncio.run(scenario())

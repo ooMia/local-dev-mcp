@@ -478,6 +478,24 @@ class WorktrunkAdapter:
             }
         ):
             raise ToolError("Worktrunk removal result did not identify the requested target.")
+
+        # CLI JSON is a receipt, not proof that Git and the filesystem agree.
+        # On uncertainty require a fresh inspection; never report a confirmed removal.
+        if path.exists() or path.is_symlink():
+            raise ToolError("Worktrunk removal is unconfirmed: checkout path still exists.")
+        registered = await worktree.list_registered(repo)
+        if any(record.path == path for record in registered):
+            raise ToolError("Worktrunk removal is unconfirmed: Git still registers the checkout.")
+        ref = await repo.run(
+            "show-ref",
+            "--verify",
+            "--quiet",
+            "refs/heads/" + branch,
+            operation="Verify Worktrunk branch after removal",
+            allow_failure=True,
+        )
+        if ref.code not in (0, 1) or (branch_outcome == "deleted") != (ref.code == 1):
+            raise ToolError("Worktrunk branch outcome is unconfirmed; reobserve Git state.")
         return {
             "branch": branch,
             "path": str(path.relative_to(repo.root)),
