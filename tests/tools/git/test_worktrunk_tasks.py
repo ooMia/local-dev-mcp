@@ -179,3 +179,48 @@ def test_worktrunk_task_reuses_checkout_created_by_git(tmp_path: Path, workspace
             assert (external / "base.txt").read_text() == "dirty\n"
 
     asyncio.run(scenario())
+
+
+def test_worktrunk_job_detects_controller_content_mutation_without_status_change(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        controller_file = tmp_path / "base.txt"
+        controller_file.write_text("before\n")
+        status_before = await git(tmp_path, "status", "--porcelain")
+        assert status_before
+
+        external = tmp_path / ".lab" / "external-task"
+        await git(tmp_path, "worktree", "add", str(external), "feat/publish")
+        script = f"from pathlib import Path; Path({str(controller_file)!r}).write_text('after!\\n')"
+        config = replace(
+            _policy(tmp_path),
+            jobs=(JobDefinition("check", "lint", "task.check", (sys.executable, "-c", script)),),
+        )
+        async with Client(create_server(config)) as client:
+            started = await success(
+                client,
+                "start_project_worktree_task",
+                {
+                    "task": "check",
+                    "request_id": "controller-mutated-by-worktrunk-task",
+                    "branch": "feat/publish",
+                    "expected_branch_head": head,
+                    "expected_branch": "main",
+                    "expected_head": head,
+                    "backend": "worktrunk",
+                },
+            )
+            result = await _terminal(client, str(started["job_id"]))
+            assert result["state"] == "failed", result
+            assert result["exit_code"] == 0
+            context = cast(dict[str, object], result["worktree"])
+            assert context["backend"] == "worktrunk"
+            assert context["verified"] is False
+
+        assert controller_file.read_text() == "after!\n"
+        assert await git(tmp_path, "status", "--porcelain") == status_before
+        assert await git(tmp_path, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())

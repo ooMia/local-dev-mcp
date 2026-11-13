@@ -21,11 +21,13 @@ Worktrunk 기본 위치는 사용자 설정에 따라 Workspace 바깥이 될 �
 | --- | --- | --- |
 | `prepare_project_worktree` | `create_project_worktrunk`의 기존 브랜치 체크아웃/재사용, 신규 생성까지 지원 | **기능 대체 가능**, 공개 입력·반환 호환은 별도 |
 | `inspect_project_worktree` | `inspect_project_worktrunk`가 Git 등록·브랜치·HEAD·Dirty 여부 및 권한 차단을 조회하며 Native Receipt는 요구하지 않음 | **조회 기능 대체 가능**, 반환 상태의 의미는 Native와 다름 |
-| `start_project_worktree_task` | 기존 도구의 `backend="worktrunk"`가 실제 등록 경로에서 실행 | **선택적 경로 이미 제공**; Native의 원본 Dirty Snapshot 제한은 후속 검토 |
+| `start_project_worktree_task` | 기존 도구의 `backend="worktrunk"`가 실제 등록 경로에서 실행 | **선택적 경로 이미 제공**; 검사 recipe의 원본 손상 탐지를 위해 Dirty Snapshot 검증 유지 |
 | `finalize_project_worktree` | `remove_project_worktrunk`가 비강제 삭제·브랜치 처리를 위임 | **물리적 정리만 대체**; 병합 PR 출처 검증은 별도 책임 |
 | `prepare_project_worktree_assessment`, `commit_project_worktree_assessment` | 두 호출 모두 `backend="worktrunk"`가 Git 등록된 실제 Checkout에서 평가 작성·검토·서명 커밋을 지원 | **함께 선택적 대체 가능**; 원본 Clean·Digest·Scope 검증 유지 |
 | `inspect_project_branch_remote` | `backend="worktrunk"`가 Git 등록된 Clean Checkout에서 원격 정보를 읽으며 기존 `native`가 기본값 | **읽기 기능 선택적 대체 가능** |
 | `push_project_branch`, `create_project_branch_draft_pr` | `backend="worktrunk"`가 허용된 실제 Checkout에서 기존 비강제 Push·Draft PR 공통 계약을 실행 | **선택적 대체 가능**, 실제 원격 운영·승인은 별도 |
+
+Worktree **확보**는 원본 파일을 해시할 필요가 없지만, **검사 recipe 실행**은 실행 파일이 원본 Checkout을 수정할 수 있다. 따라서 `backend="worktrunk"`의 검사 작업에서도 Native에서 재사용하는 원본 Dirty Snapshot 검증을 유지한다. 원본 Git status가 동일하더라도 파일 내용이 바뀌면 검사 프로세스가 exit 0으로 종료해도 검증 실패로 판정해야 한다. 이 경우 256개 Dirty 경로 상한은 남는 제약이며, 상한 완화는 원본 변경 탐지의 강도를 유지하는 대안이 확보될 때 별도 검토한다.
 
 다른 로컬 Git 브랜치·커밋·Cherry-pick 도구는 Worktree 생성기의 대체 범위가 아니다.
 Worktrunk의 `wt merge`도 이 결정만으로 `main` 실행 경로를 얻지 않는다.
