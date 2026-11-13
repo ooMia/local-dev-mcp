@@ -393,3 +393,56 @@ def test_worktrunk_existing_branch_cannot_overwrite_occupied_target(
         assert await git(tmp_path, "worktree", "list", "--porcelain") != ""
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("branch_already_exists", [False, True])
+def test_worktrunk_recovers_successful_switch_after_response_loss(
+    tmp_path: Path,
+    workspace_factory: WorkspaceFactory,
+    monkeypatch: pytest.MonkeyPatch,
+    branch_already_exists: bool,
+) -> None:
+    _require_wt()
+
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        branch = "feat/lost-response"
+        if branch_already_exists:
+            await git(tmp_path, "branch", branch, head)
+        (tmp_path / "controller-notes.txt").write_text("preserve original changes\n")
+        adapter = _adapter(tmp_path)
+        original_run = WorktrunkAdapter._run  # pyright: ignore[reportPrivateUsage]  # Test-only fault injection.
+        observed_path: list[Path] = []
+
+        async def lose_response_after_success(self: WorktrunkAdapter, *argv: str, write: bool) -> None:
+            result = await original_run(self, *argv, write=write)
+            assert isinstance(result, dict)
+            assert result["branch"] == branch
+            observed_path.append(Path(str(result["path"])))
+            raise ToolError("simulated response loss after successful Worktrunk switch")
+
+        monkeypatch.setattr(WorktrunkAdapter, "_run", lose_response_after_success)
+        with pytest.raises(ToolError, match="simulated response loss"):
+            await adapter.create(
+                branch,
+                "main",
+                None if branch_already_exists else head,
+                "main",
+                head,
+                expected_branch_head=head if branch_already_exists else None,
+            )
+        monkeypatch.setattr(WorktrunkAdapter, "_run", original_run)
+
+        assert len(observed_path) == 1
+        target = observed_path[0]
+        assert target.is_dir()
+        (target / "recovery-notes.txt").write_text("new untracked work\n")
+        recovered = await adapter.create(branch, "main", None, "main", head, expected_branch_head=head)
+        assert recovered["action"] == "reused"
+        assert recovered["path"] == str(target.relative_to(tmp_path))
+        assert (target / "recovery-notes.txt").read_text() == "new untracked work\n"
+        assert (tmp_path / "controller-notes.txt").read_text() == "preserve original changes\n"
+        assert await git(tmp_path, "symbolic-ref", "--short", "HEAD") == "main"
+        assert await git(target, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())
