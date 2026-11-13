@@ -11,6 +11,7 @@ from mcp.types import ToolAnnotations
 from ....mcp.registry import ToolDefinition
 from .._prepare import git_readiness
 from ..worktrunk import WorktrunkAdapter
+from ..worktrunk.cleanup_plan import cleanup_plan
 from ..worktrunk.inventory import inventory
 from ..worktrunk.review import review
 from ._refs import BranchName, ExpectedHead
@@ -56,6 +57,14 @@ class GetProjectWorktreeReviewTool:
 
 
 @dataclass(frozen=True)
+class PlanProjectWorktreeCleanupTool:
+    settings: ServerSettings
+
+    async def execute(self, min_age_days: int = 1) -> dict[str, object]:
+        return await cleanup_plan(self.settings, min_age_days=min_age_days)
+
+
+@dataclass(frozen=True)
 class CreateProjectWorktrunkTool:
     settings: ServerSettings
 
@@ -97,6 +106,20 @@ class RemoveProjectWorktrunkTool:
             return await WorktrunkAdapter(self.settings).remove(
                 branch, expected_branch_head, delete_branch=delete_branch, run_hooks=run_hooks
             )
+
+
+PLAN_PROJECT_WORKTREE_CLEANUP: Final = ToolDefinition(
+    name="plan_project_worktree_cleanup",
+    description=(
+        "Read-only Worktrunk prune --dry-run with an exact local main and checked-out branch verification. "
+        "Only report clean, accessible, Git-ancestor-integrated candidates; never remove Worktrees or branches. "
+        "Unsupported CLI/permissions return an incomplete plan, not a fabricated safe candidate."
+    ),
+    annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False),
+    required_commands=("git",),
+    create_runtime=PlanProjectWorktreeCleanupTool,
+    readiness=git_readiness,
+)
 
 
 GET_PROJECT_WORKTREE_REVIEW: Final = ToolDefinition(

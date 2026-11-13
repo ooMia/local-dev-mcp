@@ -21,6 +21,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 | `inspect_project_worktrunk` | `branch` | Git 등록 상태 기반 읽기 전용 조회. `state=absent/not_checked_out/ready/dirty/blocked`, `branch_head`, `head`, `clean`, `registered`, 허용된 `path`와 차단 `reason` 반환 |
 | `list_project_worktrees` | `include_branches=true`, `include_remote=false` | Git 등록 Worktree와 로컬 브랜치 목록. 허용 경로만 상대 경로로 표시하고 차단 Worktree는 개수로만 집계. Worktrunk Schema 2와 Git SHA·경로가 일치할 때만 Ahead/Behind·충돌 상태 추가 |
 | `get_project_worktree_review` | `branch`, `expected_head`, `include_patch=false`, `base_branch="main"` | Git 등록 Checkout의 커밋된 변경·Staged·Unstaged·Untracked 요약. 패치는 명시 선택이며 보호 경로는 제외. SHA·기준 브랜치 이동 시 거부 |
+| `plan_project_worktree_cleanup` | `min_age_days=1` (0–365) | `wt step prune --dry-run` 후보에 대해 Clean·Git 등록·허용 경로·로컬 `main` 조상 관계를 재확인한 읽기 전용 제안. 미지원 CLI는 `complete=false`; 삭제 없음 |
 | `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head=null`, `expected_branch_head=null`, `base_branch="main"`, `run_hooks=false`, `worktree_path=null` | 새 브랜치 생성·기존 브랜치 체크아웃·등록된 Worktree 재사용. `action=created/checked_out/reused` |
 | `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=null`, `run_hooks=false` | 허용된 Workspace 내 Git 등록 Worktree를 비강제 제거. `null`은 Worktrunk의 브랜치 정리 기본값, `false`는 보존, `true`는 안전한 삭제 시도 |
 | `get_project_worktrunk_merge_plan` | `evidence_id`, `branch`, `expected_source_head`, `expected_main_head` | 서버 로컬 검사 증거·Main Ref·Fast-forward 관계 검증, 별도 Main Checkout 없는 읽기 전용 제안 |

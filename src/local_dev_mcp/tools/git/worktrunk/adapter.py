@@ -263,6 +263,17 @@ class WorktrunkAdapter:
             raise ToolError("Unsupported Worktrunk list schema; expected schema 2.")
         return data
 
+    async def preview_prune(self, min_age_days: int) -> list[dict[str, object]]:
+        """Use Worktrunk's actual dry-run criteria, without granting cleanup execution."""
+        if not 0 <= min_age_days <= 365:
+            raise ToolError("Cleanup min_age_days must be between 0 and 365.")
+        result = await self._run("step", "prune", "--dry-run", "--min-age", f"{min_age_days}d", write=False)
+        if not isinstance(result, list) or len(result) > 128:
+            raise ToolError("Worktrunk prune preview returned an unsupported candidate set.")
+        if not all(isinstance(row, dict) for row in result):
+            raise ToolError("Worktrunk prune preview returned an invalid candidate.")
+        return cast(list[dict[str, object]], result)
+
     async def require_ready(self, branch: str, expected_head: str, *, write: bool = True) -> ServerSettings:
         """Bind an exact clean Worktrunk checkout, enforcing write grants only for writers."""
         if write:
