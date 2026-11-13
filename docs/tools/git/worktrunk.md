@@ -76,5 +76,6 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
   검증된 변경 제안은 별도의 사용자 승인·GitHub PR/CI 또는 사용자가 직접 통제하는 Git 작업으로 통합한다.
 - `get_project_worktrunk_merge_plan`은 읽기 전용이며 실행 권한을 생성하지 않는다.
 
-기존 도구와 기능 중복을 제거하는 단계는 새 흐름이 기존 테스트를 만족하고 PR 강제 정책 변경을
-안전하게 분리한 뒤 진행한다.
+[ADR 0016: Worktrunk의 기능 단위 Native 대체 경계](../../adr/0016-worktrunk-native-migration-boundary.md)에
+준비·조회·검사·삭제·평가·원격 게시별 대체 가능성과 이행 순서를 기록한다.
+기존 Native 도구는 계약과 호환성이 검증되기 전까지 유지한다.
