@@ -121,3 +121,61 @@ def test_worktrunk_stops_collecting_oversized_output(tmp_path: Path, monkeypatch
         assert process.waits == 1
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("payload", "exit_code", "message"),
+    [
+        (b'{"status":"ok"}', 1, "did not complete successfully"),
+        (b"invalid-json", 1, "Worktrunk failed"),
+        (b"invalid-json", 0, "did not return valid JSON"),
+        (b"true", 0, "unsupported JSON"),
+    ],
+)
+def test_worktrunk_rejects_failed_or_untrusted_cli_results(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    payload: bytes,
+    exit_code: int,
+    message: str,
+) -> None:
+    class Stream:
+        read_count = 0
+
+        async def read(self, size: int) -> bytes:
+            self.read_count += 1
+            return payload if self.read_count == 1 else b""
+
+    class Process:
+        stdout = Stream()
+        returncode = exit_code
+        waits = 0
+
+        def kill(self) -> None:
+            raise AssertionError("A finished child should not be killed")
+
+        async def wait(self) -> int:
+            self.waits += 1
+            return exit_code
+
+    process = Process()
+    launches = 0
+
+    async def launch(*argv: str, **options: Any) -> Process:
+        nonlocal launches
+        launches += 1
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", launch)
+    (tmp_path / ".env").write_text("")
+    settings = ServerSettings.load(Policy(tmp_path, (tmp_path,), ("git", "wt", "git.worktree.write")))
+    adapter = WorktrunkAdapter(settings, binary="wt-test")
+
+    async def scenario() -> None:
+        with pytest.raises(ToolError, match=message):
+            await adapter._run("remove", str(tmp_path / ".lab" / "target"), write=True)  # pyright: ignore[reportPrivateUsage]
+        assert launches == 1
+        assert process.stdout.read_count == 2
+        assert process.waits == 1
+
+    asyncio.run(scenario())
