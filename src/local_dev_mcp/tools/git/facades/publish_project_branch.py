@@ -28,13 +28,20 @@ async def publication(
     original_branch: str,
     original_head: str,
     permission: str,
+    backend: Literal["native", "worktrunk"] = "native",
 ) -> AsyncGenerator[ServerSettings]:
     remote_pr.require_permission(settings, permission)
     fingerprint = await _worktrees.original_snapshot(settings, original_branch, original_head)
-    target = await _worktrees.require_ready(settings, branch, head)
+
+    async def selected_checkout() -> ServerSettings:
+        if backend == "worktrunk":
+            return await WorktrunkAdapter(settings).require_ready(branch, head)
+        return await _worktrees.require_ready(settings, branch, head)
+
+    target = await selected_checkout()
     try:
         yield target
-        await _worktrees.require_ready(settings, branch, head)
+        await selected_checkout()
     finally:
         await _worktrees.confirm_original(settings, original_branch, original_head, fingerprint)
 
@@ -75,9 +82,10 @@ class PushProjectBranchTool:
         expected_head: ExpectedHead,
         expected_remote_main: ExpectedHead,
         expected_remote_feature: remote_pr.RemoteBranchHead = None,
+        backend: Literal["native", "worktrunk"] = "native",
     ) -> remote_pr.PushedFeature:
         async with publication(
-            self.settings, branch, expected_branch_head, expected_branch, expected_head, "git.remote.write"
+            self.settings, branch, expected_branch_head, expected_branch, expected_head, "git.remote.write", backend
         ) as target:
             result = await remote_pr.PushFeatureTool(target).execute(
                 branch, expected_branch_head, expected_remote_main, expected_remote_feature
@@ -100,9 +108,10 @@ class CreateProjectBranchDraftPRTool:
         title_text: str,
         purpose: remote_pr.Purpose = None,
         exceptions: list[dict[str, str]] | None = None,
+        backend: Literal["native", "worktrunk"] = "native",
     ) -> remote_pr.PullRequestResult:
         async with publication(
-            self.settings, branch, expected_branch_head, expected_branch, expected_head, "gh.pr.create"
+            self.settings, branch, expected_branch_head, expected_branch, expected_head, "gh.pr.create", backend
         ) as target:
             root = self.settings.policy.root
             template = root / ".github" / "PULL_REQUEST_TEMPLATE.md"
@@ -139,7 +148,7 @@ INSPECT_PROJECT_BRANCH_REMOTE: Final = ToolDefinition(
 PUSH_PROJECT_BRANCH: Final = ToolDefinition(
     name="push_project_branch",
     description=(
-        "Push an exact prepared branch SHA from its clean managed worktree without switching the original checkout. "
+        "Push an exact prepared SHA from backend=native (default) or a Git-registered Worktrunk checkout. "
         "Requires observed original branch/HEAD, target SHA and remote refs. Reuses all non-force/main-history gates; "
         "never updates main, tags or bypasses hooks. Inspect both worktrees and remote refs after failure."
     ),
@@ -151,7 +160,7 @@ PUSH_PROJECT_BRANCH: Final = ToolDefinition(
 CREATE_PROJECT_BRANCH_DRAFT_PR: Final = ToolDefinition(
     name="create_project_branch_draft_pr",
     description=(
-        "Create or rediscover a Draft PR for an exact pushed managed branch, preserving the original checkout. "
+        "Create or rediscover a Draft PR from backend=native (default) or a clean Worktrunk checkout. "
         "Uses controller template and target committed assessments; reuses baseline, history and duplicate-PR gates. "
         "Never invents assessments, merges, marks ready or changes Rulesets."
     ),
