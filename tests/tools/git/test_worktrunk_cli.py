@@ -728,3 +728,19 @@ def test_inspect_worktrunk_blocks_repository_and_head_mismatch(
         assert stale["path"] is None
 
     asyncio.run(scenario())
+
+
+def test_worktrunk_readiness_keeps_write_access_gate(tmp_path: Path, workspace_factory: WorkspaceFactory) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        linked = tmp_path / ".lab" / "inspect-read-only"
+        await git(tmp_path, "worktree", "add", str(linked), "feat/publish")
+        existing = _adapter(tmp_path)
+        restricted = replace(existing.settings.policy, read_only_paths=(linked,))
+        adapter = WorktrunkAdapter(replace(existing.settings, policy=restricted))
+        assert (await adapter.inspect("feat/publish"))["state"] == "ready"
+        with pytest.raises(ToolError, match="not allowed"):
+            await adapter.require_ready("feat/publish", head)
+        assert await git(linked, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())

@@ -268,19 +268,25 @@ class WorktrunkAdapter:
         from .. import _worktrees
         from ..facades import _repository
 
-        feature_name(branch)
-        repo = GitExecution(self.settings)
-        path = await _registered_checkout_path(self.settings, repo, branch)
-        if path is None:
-            raise ToolError("No registered Worktrunk checkout for the requested branch.")
-        target = GitExecution(_worktrees.scoped_settings(self.settings, path))
-        await _repository.verify_root(target)
+        observed = await self.inspect(branch)
+        if observed["state"] != "ready" or observed["head"] != valid_sha(expected_head):
+            raise ToolError("Worktrunk checkout is dirty, unavailable or the observed branch HEAD changed.")
+        relative = observed["path"]
+        if not isinstance(relative, str):
+            raise ToolError("Worktrunk inspection did not return an authorized checkout path.")
+        path = self.settings.policy.root / relative
+        try:
+            self.settings.policy.require_path_access(path, write=True)
+        except PermissionError as error:
+            raise ToolError(str(error)) from None
+        scoped = _worktrees.scoped_settings(self.settings, path)
+        target = GitExecution(scoped)
         await _repository.require_writable_state(target)
         actual_branch, head, entries = await status.read_porcelain_v2(target)
-        _, ref_head = await resolve_local_ref(repo, branch)
+        _, ref_head = await resolve_local_ref(GitExecution(self.settings), branch)
         if actual_branch != branch or head != valid_sha(expected_head) or head != ref_head or entries:
-            raise ToolError("Worktrunk checkout is dirty or the observed branch HEAD changed.")
-        return _worktrees.scoped_settings(self.settings, path)
+            raise ToolError("Worktrunk checkout changed during readiness verification.")
+        return scoped
 
     async def create(
         self,
