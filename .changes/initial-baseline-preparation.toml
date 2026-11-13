@@ -1,7 +1,0 @@
-impact = "none"
-summary = "초기 기준선 게시 정책과 평가 메타데이터를 정합화하고 Git 명령 배치를 개발 규약에 맞춘다."
-reason = "공개 MCP 호출 계약·권한·동작과 버전은 유지한다. 사용자 승인된 최초 기준선에서만 잘못된 평가의 누락 메타데이터를 보완하며, 일반 평가 불변성·PR 통합·hook 검사는 완화하지 않는다."
-contract = "Development workflow and initial baseline publication"
-assessed_by = "agent"
-migration = ""
-supersedes = []

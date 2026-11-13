@@ -1,6 +1,6 @@
 [project]
 name = "local-dev-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Workspace-scoped MCP tools for ChatGPT development sessions"
 readme = "README.md"
 authors = [

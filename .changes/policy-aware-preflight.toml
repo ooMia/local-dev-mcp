@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "main 통합 선행 조건과 정책 참조를 읽기 전용 MCP로 진단한다."
-reason = "기존 Git 쓰기 및 PR 병합 계약은 유지하면서, 정확한 로컬 HEAD·브랜치·조상·평가의 충족 여부와 별도로 확인해야 할 원격 PR 및 CI 조건을 구분한다. 사전 평가는 승인이나 권한을 부여하지 않는다."
-contract = "MCP Git main integration policy preflight"
-assessed_by = "agent"
-migration = "새 inspect_project_policy 도구를 사용하려면 MCP 연결을 재시작한다. PR·CI 확인과 최종 병합은 기존 도구와 정책을 따른다."
-supersedes = []

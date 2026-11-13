@@ -1,7 +1,0 @@
-impact = "patch"
-summary = "이력 게시 대상의 당시 검사 범위를 실행할 고정 recipe를 추가한다."
-reason = "루트 conftest.py와 테스트 marker 도입 이전 브랜치가 현재 recipe에서 실패하거나 테스트를 전부 제외하는 실제 문제를 수정한다. 기존 recipe와 MCP 호출 계약을 유지하며, 과거 검사 문서에 대응하는 명시적 프로필을 추가한다."
-contract = "Repository task configuration for historical publication"
-assessed_by = "agent"
-migration = ""
-supersedes = []

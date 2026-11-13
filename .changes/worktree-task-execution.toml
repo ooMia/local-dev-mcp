@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "관리 Worktree에서 등록된 검사 작업을 실행하는 MCP 도구를 추가한다."
-reason = "기존 작업 실행·조회·취소 계약과 단일 실행 제한을 유지하면서 정확한 브랜치·SHA에 결합된 선택적 검사 경로와 Git 상태 검증 결과를 추가한다."
-contract = "MCP managed worktree checks"
-assessed_by = "agent"
-migration = ""
-supersedes = []

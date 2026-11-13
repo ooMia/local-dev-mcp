@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "Add diagnostic-only MCP elicitation capability and multi-round probes"
-reason = "New read-only capability diagnostics and no-op Form/MRTR probes report negotiated client support, but cannot authorize Git operations or replace explicit main integration approval. Existing MCP write permissions and merge contracts remain unchanged."
-contract = "MCP diagnostic elicitation tools and protocol capability reporting"
-assessed_by = "agent"
-migration = "Restart the MCP server to discover diagnostic tools. Only clients declaring the corresponding Form capability can exercise that probe; unsupported clients receive a blocked result."
-supersedes = []

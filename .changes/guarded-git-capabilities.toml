@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "관측 HEAD에 결합한 Git 상태·index·commit·branch/ref 도구 추가"
-reason = "기준 scaffold에 없던 로컬 Git MCP를 추가한다. 서명과 부분 실패, 보호 경로의 공개 제한을 계약으로 정의한다. 코드 존재를 원격 GitHub 동작·push 성공으로 해석하지 않는다."
-contract = "로컬 Git MCP와 선택적 OpenPGP 서명"
-assessed_by = "agent"
-migration = ""
-supersedes = []

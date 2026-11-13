@@ -1,7 +1,0 @@
-impact = "patch"
-summary = "Preserve host GitHub CLI configuration paths across Tunnel launch"
-reason = "The isolated Tunnel child omitted HOME and gh configuration locations; remote inspection returned gh exit 4 and an untracked gh state file appeared. Forward only non-secret account-config locations while retaining token isolation."
-contract = "MCP Tunnel and GitHub authentication environment"
-assessed_by = "agent"
-migration = "Restart the existing LOCAL-DEV-MCP Tunnel connection; no GitHub plugin permission change or new credential is required if host gh is already authenticated."
-supersedes = []

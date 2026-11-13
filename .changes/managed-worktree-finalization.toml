@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "병합 결과가 검증된 관리형 Worktree를 안전하게 종료하고 선택적으로 로컬 topic 브랜치를 삭제한다."
-reason = "기존 병합·준비 계약을 변경하지 않고, 정확한 PR 출처·HEAD·브랜치·Git 등록·작업 상태·ignored 파일을 확인한 후 명시적 종료만 허용한다. 외부에서 Worktree를 정상 제거해 남은 고아 준비 기록도 제한적으로 정리할 수 있다."
-contract = "MCP managed worktree finalization"
-assessed_by = "agent"
-migration = "새 finalize_project_worktree 도구를 이용하려면 MCP 연결을 다시 시작한다. 브랜치 삭제는 delete_branch=true를 명시한 경우만 수행한다."
-supersedes = []

@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "명시적 영향 평가가 필요한 squash와 누적 릴리스 도구 추가"
-reason = "새 개발 CLI와 opt-in 통합 검사를 추가한다. 미설정 workspace의 fast-forward는 유지하며 설정한 workspace는 새 squash commit SHA·mode·평가 ID를 받는다. 실제 호환성 분류는 명시적 판단이며 tool type에서 추론하지 않는다."
-contract = "개발 CLI와 opt-in Git 통합 결과"
-assessed_by = "agent"
-migration = ""
-supersedes = []

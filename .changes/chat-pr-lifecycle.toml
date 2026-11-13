@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "Complete chat-operated PR status and Ready transitions with safe post-squash main acquisition"
-reason = "Adds exact-head CI observation and independently permissioned Ready transition without changing deferred merge CI enforcement. Previously unobservable remote commits now have an explicit unknown-ancestry state and guarded object acquisition before tracking updates."
-contract = "MCP GitHub PR lifecycle and remote-main observation"
-assessed_by = "agent"
-migration = "Restart server and refresh chat tool discovery. Enable gh.pr.ready explicitly for Ready transitions. Remote ancestry fields can now be null when the observed remote commit is not yet local; fetch before treating them as booleans."
-supersedes = []

@@ -1,7 +1,0 @@
-impact = "minor"
-summary = "Expose shared quality check profiles for Worktrunk and registered task recipes"
-reason = "Adds opt-in named verification profiles and evidence binding without removing existing lint, format or test recipes or weakening their scoped permissions. A profile identifies required check names and does not grant execution or merge approval."
-contract = "MCP task catalogue quality profiles and Worktrunk verification evidence"
-assessed_by = "agent"
-migration = "Restart the MCP server when enabling shared profile metadata. Existing task calls remain supported; new Worktrunk quality verification requires a fresh set of completed, exact-source full-scope jobs."
-supersedes = []

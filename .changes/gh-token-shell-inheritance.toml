@@ -1,7 +1,0 @@
-impact = "patch"
-summary = "Allow explicitly exported GH_TOKEN to authenticate Tunnel-hosted GitHub CLI"
-reason = "The Tunnel boundary accepted a GH_TOKEN only from workspace .env, blocking the existing host pattern of exporting a token obtained with gh auth token. Reuse the explicitly exported GH_TOKEN in the child, retain protected .env precedence, and keep unrelated ambient credentials isolated."
-contract = "Authenticated private GitHub publication via LOCAL-DEV-MCP Tunnel"
-assessed_by = "agent"
-migration = "Start the updated LOCAL-DEV-MCP connect command in the same shell as export GH_TOKEN; no GitHub plugin permission or token file is required."
-supersedes = []
