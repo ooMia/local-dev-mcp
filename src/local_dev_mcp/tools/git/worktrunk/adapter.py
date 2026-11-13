@@ -152,6 +152,9 @@ class WorktrunkAdapter:
                 await process.wait()
             raise
         except OSError:
+            if process is not None and process.returncode is None:
+                process.kill()
+                await process.wait()
             raise ToolError("Worktrunk process could not be started or observed.") from None
         if len(stdout) > _OUTPUT_LIMIT:
             raise ToolError("Worktrunk output exceeded the 1 MiB limit.")
