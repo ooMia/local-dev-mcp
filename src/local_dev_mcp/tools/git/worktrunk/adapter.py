@@ -11,7 +11,7 @@ import hashlib
 import json
 import shutil
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import TYPE_CHECKING, Any, cast
 
 from fastmcp.exceptions import ToolError
@@ -28,20 +28,37 @@ if TYPE_CHECKING:
 _OUTPUT_LIMIT = 1_048_576
 
 
-def _managed_path(settings: ServerSettings, branch: str, *, write: bool) -> Path:
+def _checkout_path(settings: ServerSettings, branch: str, *, write: bool, requested_path: str | None = None) -> Path:
+    """Select an explicit allowed checkout path, or preserve the legacy default."""
     feature_name(branch)
     root = settings.policy.root
-    parent = root / ".lab" / "wt"
-    path = parent / hashlib.sha256(branch.encode("ascii")).hexdigest()[:24]
-    for candidate in (parent.parent, parent, path):
+    if requested_path is None:
+        path = root / ".lab" / "wt" / hashlib.sha256(branch.encode("ascii")).hexdigest()[:24]
+    else:
+        relative = PurePosixPath(requested_path)
+        if (
+            not requested_path
+            or len(requested_path) > 1024
+            or any(ord(char) < 32 or char == "\\" for char in requested_path)
+            or relative.is_absolute()
+            or PureWindowsPath(requested_path).drive
+            or ".." in relative.parts
+            or relative.as_posix() != requested_path
+            or relative == PurePosixPath(".")
+        ):
+            raise ToolError("Worktrunk checkout path must be a workspace-relative POSIX path.")
+        path = root.joinpath(*relative.parts)
+    try:
+        settings.policy.require_path_access(path, write=write)
+    except PermissionError as error:
+        raise ToolError(str(error)) from None
+    for candidate in (path, *path.parents):
+        if candidate == root:
+            break
         if candidate.is_symlink():
-            raise ToolError("Worktrunk managed paths cannot traverse symlinks.")
+            raise ToolError("Worktrunk checkout path cannot traverse symlinks.")
         if candidate != path and candidate.exists() and not candidate.is_dir():
-            raise ToolError("Worktrunk managed parent is not a directory.")
-        try:
-            settings.policy.require_path_access(candidate, write=write)
-        except PermissionError as error:
-            raise ToolError(str(error)) from None
+            raise ToolError("Worktrunk checkout parent is not a directory.")
     return path
 
 
@@ -186,11 +203,17 @@ class WorktrunkAdapter:
         *,
         run_hooks: bool = False,
         expected_branch_head: str | None = None,
+        worktree_path: str | None = None,
     ) -> dict[str, str]:
         _authorize(self.settings, write=True)
 
         feature_name(branch)
         repo = GitExecution(self.settings)
+        requested = (
+            _checkout_path(self.settings, branch, write=True, requested_path=worktree_path)
+            if worktree_path is not None
+            else None
+        )
         await _require_original_ref(self.settings, original_branch, original_head)
         result = await repo.run(
             "show-ref",
@@ -205,8 +228,10 @@ class WorktrunkAdapter:
             if expected_branch_head is not None and head != valid_sha(expected_branch_head):
                 raise ToolError("Existing Worktrunk branch HEAD changed; reobserve before reuse.")
             existing = await _registered_checkout_path(self.settings, repo, branch)
+            if existing is not None and requested is not None and existing != requested:
+                raise ToolError("Existing Worktrunk checkout path differs from the requested path.")
             if existing is None:
-                path = _managed_path(self.settings, branch, write=True)
+                path = requested or _checkout_path(self.settings, branch, write=True)
                 if path.exists() or path.is_symlink():
                     raise ToolError("Worktrunk path is occupied; no checkout attempted.")
                 await worktree.require_ignored(repo, path.relative_to(repo.root).as_posix() + "/")
@@ -250,7 +275,7 @@ class WorktrunkAdapter:
         _, base_head = await resolve_local_ref(repo, base)
         if base_head != valid_sha(expected_base_head):
             raise ToolError("Base branch changed; no Worktrunk creation attempted.")
-        path = _managed_path(self.settings, branch, write=True)
+        path = requested or _checkout_path(self.settings, branch, write=True)
         if path.exists() or path.is_symlink():
             raise ToolError("Worktrunk path is occupied.")
         registered = await worktree.list_registered(repo)

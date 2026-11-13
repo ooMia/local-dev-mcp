@@ -502,3 +502,133 @@ def test_worktrunk_rejects_a_registered_path_if_git_resolves_a_different_reposit
         assert await git(tmp_path, "rev-parse", "HEAD") == head
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("existing_branch", [False, True])
+def test_worktrunk_explicit_workspace_path_creates_or_checks_out(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, existing_branch: bool
+) -> None:
+    _require_wt()
+
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        branch = "feat/custom-location"
+        if existing_branch:
+            await git(tmp_path, "branch", branch, head)
+        # The directory is ignored, but is not the adapter's hashed managed path.
+        custom = ".lab/custom/checkout"
+        result = await _adapter(tmp_path).create(
+            branch,
+            "main",
+            None if existing_branch else head,
+            "main",
+            head,
+            expected_branch_head=head if existing_branch else None,
+            worktree_path=custom,
+        )
+        assert result["path"] == custom
+        assert result["action"] == ("checked_out" if existing_branch else "created")
+        assert await git(tmp_path / custom, "rev-parse", "--show-toplevel") == str(tmp_path / custom)
+        reused = await _adapter(tmp_path).create(
+            branch, "main", None, "main", head, expected_branch_head=head, worktree_path=custom
+        )
+        assert reused["action"] == "reused"
+        assert reused["path"] == custom
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "bad_path", ["../outside", "/tmp/outside", "C:/outside", ".git/checkout", "unignored/checkout"]
+)
+def test_worktrunk_explicit_path_rejects_unsafe_targets_without_creating_branch(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, bad_path: str
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        with pytest.raises(ToolError):
+            await _adapter(tmp_path).create("feat/bad-path", "main", head, "main", head, worktree_path=bad_path)
+        assert await git(tmp_path, "branch", "--list", "feat/bad-path") == ""
+
+    asyncio.run(scenario())
+
+
+def test_worktrunk_explicit_path_refuses_occupied_and_mismatched_locations(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    _require_wt()
+
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        occupied = tmp_path / ".lab" / "custom" / "occupied"
+        occupied.mkdir(parents=True)
+        (occupied / "keep.txt").write_text("user content")
+        with pytest.raises(ToolError, match="occupied"):
+            await _adapter(tmp_path).create(
+                "feat/occupied", "main", head, "main", head, worktree_path=".lab/custom/occupied"
+            )
+        assert (occupied / "keep.txt").read_text() == "user content"
+        assert await git(tmp_path, "branch", "--list", "feat/occupied") == ""
+
+        linked = tmp_path / ".lab" / "already-linked"
+        await git(tmp_path, "worktree", "add", "-b", "feat/other-path", str(linked), "main")
+        with pytest.raises(ToolError, match="path"):
+            await _adapter(tmp_path).create(
+                "feat/other-path",
+                "main",
+                None,
+                "main",
+                head,
+                expected_branch_head=head,
+                worktree_path=".lab/different-path",
+            )
+        assert linked.is_dir()
+
+    asyncio.run(scenario())
+
+
+def test_worktrunk_explicit_path_overrides_unsafe_user_layout(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    _require_wt()
+
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        destination = tmp_path.parent / (tmp_path.name + "-outside-layout")
+        original = _adapter(tmp_path)
+        settings = replace(
+            original.settings,
+            environment=(*original.settings.environment, ("WORKTRUNK_WORKTREE_PATH", str(destination))),
+        )
+        adapter = WorktrunkAdapter(settings)
+        result = await adapter.create(
+            "feat/inside-layout", "main", head, "main", head, worktree_path=".lab/layout-inside"
+        )
+        assert result["path"] == ".lab/layout-inside"
+        assert (tmp_path / ".lab" / "layout-inside").is_dir()
+        assert not destination.exists()
+
+    asyncio.run(scenario())
+
+
+def test_worktrunk_explicit_path_rejects_symlink_parents(tmp_path: Path, workspace_factory: WorkspaceFactory) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        outside = tmp_path.parent / (tmp_path.name + "-symlink-target")
+        outside.mkdir()
+        parent = tmp_path / ".lab" / "linked-parent"
+        parent.parent.mkdir(exist_ok=True)
+        parent.symlink_to(outside, target_is_directory=True)
+        with pytest.raises(ToolError, match="symlink"):
+            await _adapter(tmp_path).create(
+                "feat/symlink-path",
+                "main",
+                head,
+                "main",
+                head,
+                worktree_path=".lab/linked-parent/checkout",
+            )
+        assert not (outside / "checkout").exists()
+        assert await git(tmp_path, "branch", "--list", "feat/symlink-path") == ""
+
+    asyncio.run(scenario())

@@ -30,6 +30,7 @@ class CreateProjectWorktrunkTool:
         base_branch: str = "main",
         run_hooks: bool = False,
         expected_branch_head: ExpectedHead | None = None,
+        worktree_path: str | None = None,
     ) -> dict[str, str]:
         return await WorktrunkAdapter(self.settings).create(
             branch,
@@ -39,6 +40,7 @@ class CreateProjectWorktrunkTool:
             expected_head,
             run_hooks=run_hooks,
             expected_branch_head=expected_branch_head,
+            worktree_path=worktree_path,
         )
 
 
@@ -63,8 +65,9 @@ CREATE_PROJECT_WORKTRUNK: Final = ToolDefinition(
     name="create_project_worktrunk",
     description=(
         "Ensure a topic branch has an authorized linked Worktree: reuse an existing registered "
-        "checkout or switch an existing branch into an absent managed path. Create an absent branch "
-        "only with expected_base_head. Optionally pin an existing expected_branch_head. "
+        "checkout or switch an existing branch into an absent allowed path. Create an absent branch "
+        "only with expected_base_head. Optionally specify worktree_path (workspace-relative, ignored) "
+        "or pin an existing expected_branch_head. "
         "Return action=created/checked_out/reused; preserve dirty files and the original checkout. "
         "run_hooks=false disables lifecycle hooks; true opts in for executed switches. "
         "Never clobber; reobserve uncertain failures before retrying."

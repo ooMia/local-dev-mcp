@@ -18,7 +18,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 
 | 도구 | 입력 | 결과 |
 | --- | --- | --- |
-| `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head=null`, `expected_branch_head=null`, `base_branch="main"`, `run_hooks=false` | 새 브랜치 생성·기존 브랜치 체크아웃·등록된 Worktree 재사용. `action=created/checked_out/reused` |
+| `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head=null`, `expected_branch_head=null`, `base_branch="main"`, `run_hooks=false`, `worktree_path=null` | 새 브랜치 생성·기존 브랜치 체크아웃·등록된 Worktree 재사용. `action=created/checked_out/reused` |
 | `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=null`, `run_hooks=false` | 허용된 Workspace 내 Git 등록 Worktree를 비강제 제거. `null`은 Worktrunk의 브랜치 정리 기본값, `false`는 보존, `true`는 안전한 삭제 시도 |
 | `get_project_worktrunk_merge_plan` | `evidence_id`, `branch`, `expected_source_head`, `expected_main_head` | 서버 로컬 검사 증거·Main Ref·Fast-forward 관계 검증, 별도 Main Checkout 없는 읽기 전용 제안 |
 
@@ -32,9 +32,10 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 ## 안전 경계
 
 - 브랜치 이름은 기존 프로젝트 기능 브랜치 검증을 재사용한다.
-- 새로 확보하는 기능 Worktree 경로는 선택 Workspace 하위 `.lab/wt/<branch-sha256-prefix>`로 제한한다. 등록된 기존 Worktree는 허용된 Workspace 내부의 실제 Git 경로를 재사용할 수 있다.
+- `create_project_worktrunk.worktree_path`는 **선택 Workspace 기준 상대 POSIX 경로**다. 지정하면 Git ignore·보호 경로·권한 정책·symlink·점유 여부를 확인한 뒤 해당 위치에 생성/체크아웃한다. 이미 연결된 동일 브랜치는 실제 경로가 지정값과 일치할 때 재사용한다.
+  생략하면 기존 `.lab/wt/<branch-sha256-prefix>` 위치를 사용해 기존 호출을 유지한다. 따라서 **고정 해시 경로는 더 이상 필수 조건이 아니다.**
+  Worktrunk의 기본 `worktree-path` 템플릿은 저장소 밖의 형제 경로를 만들 수 있어 그대로 사용하지 않는다. 생성할 때마다 검증된 경로를 `wt switch --path`로 전달하며, 이 플래그는 현재 Worktrunk에서 **experimental**이므로 업그레이드 회귀가 필요하다.
   검토 계획은 원본과 Source Worktree, Main Git Ref만 확인하며 Main Checkout의 존재를 요구하지 않는다.
-  `wt switch --path` 플래그는 Worktrunk에서 **experimental**이므로 CLI 업그레이드 회귀가 필요하다.
 - 새 Worktree를 확보할 때 현재 Checkout의 **브랜치·HEAD**가 요청값과 일치하는지 전후 확인하고, 생성에 필요한 기본 Ref의 SHA를 확인한다. 원본의 Dirty 파일 내용이나 개수는 Worktree 확보의 선행 조건이 아니며 읽거나 해시하지 않는다. 따라서 다른 프로세스에 의한 원본 파일 내용 변화를 독립적으로 증명하지는 않는다.
 - **생성·확보**는 [ADR 0015](../../adr/0015-worktrunk-state-based-preparation.md)를 따른다. 브랜치가 없으면 정확한 `expected_base_head`가 필요하다. 기존 브랜치에는 `expected_branch_head`를 선택적으로 지정할 수 있으며, 이미 체크아웃된 동일 저장소·브랜치는 생성 주체와 무관하게 재사용한다. 기존 경로나 다른 브랜치를 덮어쓰지 않는다.
 - **삭제**는 [ADR 0013](../../adr/0013-worktrunk-state-based-removal.md)에 따라 생성 주체·Receipt·고정 관리 경로를 요구하지 않는다. Git에 등록된 단일 대상과 허용된 Workspace 경로, 현재 브랜치 HEAD를 확인한다.
