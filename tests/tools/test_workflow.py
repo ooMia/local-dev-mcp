@@ -72,11 +72,11 @@ def test_installed_hooks_reject_failed_quality_and_missing_source_before_main_mo
         )
         assert refused.returncode != 0
         assert await git(tmp_path, "rev-parse", "HEAD") == initial
-        # A feature branch remains available for incremental development.
-        await git(tmp_path, "switch", "-c", "feat/example")
-        await git(tmp_path, "commit", "-m", "work in progress")
+        # Hook-driven ref and commit operations launch a separate Python process.
+        await git(tmp_path, "switch", "-c", "feat/example", timeout=30)
+        await git(tmp_path, "commit", "-m", "work in progress", timeout=30)
         assert await git(tmp_path, "rev-parse", "main") == initial
-        await git(tmp_path, "switch", "main")
+        await git(tmp_path, "switch", "main", timeout=30)
         (tmp_path / "message.txt").write_text("feat: missing source\n")
         missing = run_workflow(tmp_path, "hook", "commit-msg", str(tmp_path / "message.txt"))
         assert missing.returncode != 0
@@ -145,10 +145,10 @@ def test_approved_candidate_can_advance_main_and_stale_approval_is_refused(
     async def scenario() -> None:
         initial = await setup(tmp_path, workspace_factory)
         assert run_workflow(tmp_path, "install").returncode == 0
-        await git(tmp_path, "switch", "-c", "feat/example")
+        await git(tmp_path, "switch", "-c", "feat/example", timeout=30)
         (tmp_path / "data.txt").write_text("validated\n")
         await git(tmp_path, "add", "data.txt")
-        await git(tmp_path, "commit", "-m", "feat: example\n\nSource-PR: https://github.com/o/r/pull/12")
+        await git(tmp_path, "commit", "-m", "feat: example\n\nSource-PR: https://github.com/o/r/pull/12", timeout=30)
         candidate = await git(tmp_path, "rev-parse", "HEAD")
         refused = subprocess.run(
             ["git", "-C", str(tmp_path), "update-ref", "refs/heads/main", candidate, initial],
@@ -161,11 +161,11 @@ def test_approved_candidate_can_advance_main_and_stale_approval_is_refused(
         assert refused.returncode != 0
         approved = run_workflow(tmp_path, "approve-main")
         assert approved.returncode == 0, approved.stderr
-        await git(tmp_path, "update-ref", "refs/heads/main", candidate, initial)
+        await git(tmp_path, "update-ref", "refs/heads/main", candidate, initial, timeout=30)
         assert await git(tmp_path, "rev-parse", "main") == candidate
         (tmp_path / "data.txt").write_text("unapproved followup\n")
         await git(tmp_path, "add", "data.txt")
-        await git(tmp_path, "commit", "-m", "fix: followup\n\nSource-PR: https://github.com/o/r/pull/12")
+        await git(tmp_path, "commit", "-m", "fix: followup\n\nSource-PR: https://github.com/o/r/pull/12", timeout=30)
         next_head = await git(tmp_path, "rev-parse", "HEAD")
         stale = subprocess.run(
             ["git", "-C", str(tmp_path), "update-ref", "refs/heads/main", next_head, candidate],
