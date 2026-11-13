@@ -1,6 +1,17 @@
 # 테스트 실행·스킵 원인·커버리지 관측 — 2026-11-13
 
-## 대상과 실행 범위
+## 현재 HEAD 재검증 (2026-11-13)
+
+- 브랜치: `feat/worktrunk`, HEAD `3a4748ba731c79a2c50552acb79519daa79cc2c6`. 기준 코드 이후 추가된 커밋은 이 감사 문서 작성 1건뿐이다.
+- 등록된 MCP 검사 recipe를 동일 범위(`all_tests=true`)로 재실행했다.
+- Unit: **621 passed, 0 failed, 0 skipped** (`-n 0 -m unit`; 1.00초).
+- Integration: **799 passed, 0 failed, 0 skipped** (`-n 4 -m "integration and not packaging"`; 282.55초).
+- **합계 1,420 PASS, FAIL/ERROR 0, SKIP 0**. Packaging 1건과 실제 ChatGPT E2E는 포함되지 않았다.
+- 초기 감사의 DB 관련 SKIP 81건은 재현되지 않았다. 당시에는 테스트 준비 조건을 충족하지 못했으나, 이번 실행에서는 DB 의존 테스트도 수행됐다. DB 준비 상태가 변한 시점·변경 주체는 이 테스트 결과만으로 알 수 없다.
+- 아래 커버리지 수치는 **SKIP 81건이 존재하던 최초 감사의 잠정 계측치**이며, 이번 1,420 PASS 실행의 최신 커버리지가 아니다. MCP에 등록된 고정 recipe에는 커버리지 실행이 없어 이 재검증과 동일 조건으로 다시 계측하지 않았다.
+- 테스트 재검증 중 소스·테스트의 추적 파일을 수정하지 않았으며, 완료 후 이 감사 문서만 보완했다. DB 자격 증명이나 볼륨을 변경하지 않았다.
+
+## 최초 감사의 대상과 실행 범위
 
 - 저장소: `local-dev-mcp`, 브랜치 `feat/worktrunk`, 기준 HEAD `6ed87454ac10a41e9d250bbbbf2accb00a8f243a`
 - 환경: macOS 개발 호스트, 잠긴 `uv.lock`과 등록된 로컬 MCP 검사 recipe
@@ -19,7 +30,7 @@
 일반 회귀의 미실행 대상을 성공으로 간주하지 않는다.
 계측 없는 Integration 기준 실행에서도 `718 passed, 81 skipped`가 재현됐다.
 
-## 스킵의 실제 원인
+## 최초 감사에서 관측한 스킵의 원인
 
 임시 pytest 리포팅 Hook에서 `terminalreporter.stats["skipped"]`의 사유를 집계한 결과,
 **81건 모두 `Local Podman database not configured`**였다. 다른 스킵 사유는 관측되지 않았다.
@@ -32,9 +43,9 @@
 실행 조건은 [PostgreSQL 18/Podman 개발 가이드](../../infra/postgres/README.md)를 따른다.
 테스트용 `.env`·자격 증명과 Podman Compose 준비가 필요하며,
 기존 볼륨을 삭제하는 `reset-to-18.sh --discard-data`를 이 진단의 일환으로 자동 실행하지 않는다.
-DB 준비 후 같은 Integration 프로필을 다시 실행하고 스킵 수 및 데이터 정리 상태를 확인해야 한다.
+이번 재검증에서는 같은 Integration 프로필의 799건이 모두 PASS로 전환됐다. DB 데이터 정리와 격리의 신뢰성은 별도 검증한다.
 
-## Python 커버리지 (잠정 관측치)
+## Python 커버리지 (초기 감사의 잠정 관측치; 최신 재측정 필요)
 
 `coverage.py 7.17.0`을 사용해 pytest 설정 단계부터 `local_dev_mcp` 소스를
 line·branch 동시 계측했다. Unit 단일 프로세스와 Integration의 xdist 4 worker 데이터를 합산했다.
@@ -71,14 +82,14 @@ line·branch 동시 계측했다. Unit 단일 프로세스와 Integration의 xdi
 특히 `tools/gh/delivery/`의 DB 상태·체크포인트·Claim·Recovery 모듈에는
 10~20%대 관측 결과가 많다. 이는 위 81건의 스킵 및 자식 프로세스 계측 공백과
 연관될 수 있으므로, 곧바로 테스트 부재로 단정하지 않는다.
-DB를 준비한 뒤 동일 범위의 측정으로 얼마나 회복되는지 우선 비교한다.
+현재 DB 의존 81건이 실제로 실행되는 환경이므로 동일 범위의 재계측을 우선해 커버리지 증가 여부를 확인한다.
 
 ## 후속 검증 우선순위
 
-1. **DB Integration 복구:** 안전한 테스트 전용 PostgreSQL 18 환경을 준비하고 스킵 81건이 실제 PASS/FAIL로 전환되는지 확인한다. 인증 정보는 로그·보고서에 기록하지 않는다.
-2. **정규 커버리지 재측정:** 현재 `[tool.coverage.run]`의 source·branch 설정을 재사용하고, `uv run --locked coverage run -m pytest -n 0 -m 'not packaging and not e2e'`로 import 이전부터 순차 계측한다. `coverage json -o .lab/coverage-report.json`은 입력 데이터 파일과 이름을 분리한다. 자식 프로세스의 수집은 별도 opt-in으로 검증한다.
+1. **DB Integration 재검증 완료:** 81건의 초기 스킵은 이번 실행에서 사라졌다. 향후 DB 필수 CI의 준비 실패가 SKIP으로 묻히지 않도록 검증 정책을 분리하고, 테스트용 데이터 격리·정리 상태를 확인한다. 인증 정보는 로그·보고서에 기록하지 않는다.
+2. **정규 커버리지 재측정 (최우선 미완료):** 현재 `[tool.coverage.run]`의 source·branch 설정을 재사용하고, `uv run --locked coverage run -m pytest -n 0 -m 'not packaging and not e2e'`로 import 이전부터 순차 계측한다. `coverage json -o .lab/coverage-report.json`은 입력 데이터 파일과 이름을 분리한다. 현재 MCP에는 coverage recipe가 등록되어 있지 않으므로 CLI 실행 또는 명시적인 recipe 추가·서버 재시작이 필요하다. 자식 프로세스 수집은 별도 opt-in으로 검증한다.
 3. **조건부 기능 검증 분리:** Packaging 1건을 명시적 별도 프로필로 기록하고, DB 필수 CI에서는 설정 누락을 조용히 SKIP하지 않도록 별도 정책을 검토한다.
 4. **나머지 미측정 분석:** DB 의존 범위가 해소된 뒤 `workflow.py`, Hooks, 릴리스 CLI 등 실제로 남는 미측정 분기를 정상·거부·실패 사례 중심으로 평가한다.
 5. **의존성 경고 확인:** `beartype`의 `@runtime_checkable` 관련 DeprecationWarning은 현재 실패는 아니지만 향후 Python 버전 호환성 검토 항목으로 분리한다.
 
-실패가 0건이라는 사실만으로 위 스킵·계측 공백을 통과한 것으로 평가하지 않는다.
+현재 FAIL과 SKIP이 0건이어도 과거의 스킵 원인이 제거된 코드 변경이라고 단정할 수 없다. 또한 초기 커버리지를 이번 실행의 수치로 재사용하지 않는다.
