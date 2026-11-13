@@ -11,6 +11,7 @@ from mcp.types import ToolAnnotations
 from ....mcp.registry import ToolDefinition
 from .._prepare import git_readiness
 from ..worktrunk import WorktrunkAdapter
+from ..worktrunk.inventory import inventory
 from ._refs import BranchName, ExpectedHead
 
 if TYPE_CHECKING:
@@ -23,6 +24,14 @@ class InspectProjectWorktrunkTool:
 
     async def execute(self, branch: BranchName) -> dict[str, object]:
         return await WorktrunkAdapter(self.settings).inspect(branch)
+
+
+@dataclass(frozen=True)
+class ListProjectWorktreesTool:
+    settings: ServerSettings
+
+    async def execute(self, include_branches: bool = True, include_remote: bool = False) -> dict[str, object]:
+        return await inventory(self.settings, include_branches=include_branches, include_remote=include_remote)
 
 
 @dataclass(frozen=True)
@@ -67,6 +76,21 @@ class RemoveProjectWorktrunkTool:
             return await WorktrunkAdapter(self.settings).remove(
                 branch, expected_branch_head, delete_branch=delete_branch, run_hooks=run_hooks
             )
+
+
+LIST_PROJECT_WORKTREES: Final = ToolDefinition(
+    name="list_project_worktrees",
+    description=(
+        "Read-only Git inventory of registered local worktrees and optional branch-only rows. "
+        "Filter disallowed paths before exposing any checkout, mark unknown Worktrunk facts null, "
+        "and enrich only when Worktrunk Schema 2 agrees with Git identity. "
+        "include_remote=true is unsupported; no fetch, push or network requests."
+    ),
+    annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False),
+    required_commands=("git",),
+    create_runtime=ListProjectWorktreesTool,
+    readiness=git_readiness,
+)
 
 
 INSPECT_PROJECT_WORKTRUNK: Final = ToolDefinition(

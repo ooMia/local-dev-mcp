@@ -256,8 +256,9 @@ class WorktrunkAdapter:
             registered=True,
         )
 
-    async def list_worktrees(self) -> dict[str, Any]:
-        data = await self._run("list", "--no-progressive", write=False)
+    async def list_worktrees(self, *, include_branches: bool = False) -> dict[str, Any]:
+        args = ("list", "--no-progressive", "--branches") if include_branches else ("list", "--no-progressive")
+        data = await self._run(*args, write=False)
         if not isinstance(data, dict) or data.get("schema") != 2 or not isinstance(data.get("items"), list):
             raise ToolError("Unsupported Worktrunk list schema; expected schema 2.")
         return data
