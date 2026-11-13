@@ -446,6 +446,12 @@ class WorktrunkAdapter:
         if actual_head != valid_sha(expected_branch_head):
             raise ToolError("Worktrunk cleanup branch changed; reobserve before removal.")
 
+        # Refuse dirty or moved checkouts before invoking the destructive CLI.
+        # This narrows the race window; Worktrunk's non-force guards remain mandatory.
+        ready = await self.require_ready(branch, expected_branch_head, write=True)
+        if ready.policy.root != path:
+            raise ToolError("Worktrunk removal checkout moved; reobserve before removal.")
+
         args = ["remove", "--foreground", "--yes" if run_hooks else "--no-hooks"]
         if delete_branch is not None:
             args.append("--delete-branch" if delete_branch else "--no-delete-branch")

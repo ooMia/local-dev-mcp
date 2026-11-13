@@ -75,3 +75,135 @@ def test_cleanup_refuses_running_worktrunk_check_and_preserves_source(
             assert cancelled["state"] in ("cancelled", "cleanup_unconfirmed")
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("change", ["tracked", "staged", "untracked"])
+def test_cleanup_refuses_dirty_checkout_before_worktrunk_invocation(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    async def scenario() -> None:
+        from local_dev_mcp.tools.git.worktrunk import WorktrunkAdapter
+
+        base, _ = await seed(tmp_path, workspace_factory)
+        target = tmp_path / ".lab" / "candidate"
+        await git(tmp_path, "worktree", "add", str(target), "feat/publish")
+        if change == "untracked":
+            (target / "untracked.txt").write_text("keep me\n")
+        else:
+            (target / "base.txt").write_text("keep me\n")
+            if change == "staged":
+                await git(target, "add", "base.txt")
+
+        invoked = False
+
+        async def forbidden_remove(self: WorktrunkAdapter, *argv: str, write: bool) -> dict[str, object]:
+            nonlocal invoked
+            invoked = True
+            return {"branch": "feat/publish", "path": str(target), "branch_outcome": "not_attempted"}
+
+        monkeypatch.setattr(WorktrunkAdapter, "_run", forbidden_remove)
+        cfg = replace(policy(tmp_path), allowed_commands=("git", "wt", "git.worktree.write"))
+        async with Client(create_server(cfg)) as client:
+            await failure(
+                client,
+                "remove_project_worktrunk",
+                {"branch": "feat/publish", "expected_branch_head": base, "delete_branch": False},
+            )
+        assert not invoked
+        assert target.is_dir()
+        assert await git(target, "rev-parse", "HEAD") == base
+        assert await git(tmp_path, "rev-parse", "HEAD") == base
+        if change == "untracked":
+            assert (target / "untracked.txt").read_text() == "keep me\n"
+        else:
+            assert (target / "base.txt").read_text() == "keep me\n"
+
+    asyncio.run(scenario())
+
+
+def test_cleanup_rejects_checkout_dirtied_during_final_readiness(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        from local_dev_mcp.tools.git.worktrunk import WorktrunkAdapter
+
+        base, _ = await seed(tmp_path, workspace_factory)
+        target = tmp_path / ".lab" / "racing"
+        await git(tmp_path, "worktree", "add", str(target), "feat/publish")
+        original = WorktrunkAdapter.inspect
+        inspected = 0
+        invoked = False
+
+        async def inspect_then_dirty(self: WorktrunkAdapter, branch: str) -> dict[str, object]:
+            nonlocal inspected
+            result = await original(self, branch)
+            inspected += 1
+            if inspected == 1:
+                assert result["state"] == "ready"
+                (target / "base.txt").write_text("concurrent edit\n")
+            return result
+
+        async def forbidden_remove(self: WorktrunkAdapter, *argv: str, write: bool) -> dict[str, object]:
+            nonlocal invoked
+            invoked = True
+            return {"branch": "feat/publish", "path": str(target), "branch_outcome": "not_attempted"}
+
+        monkeypatch.setattr(WorktrunkAdapter, "inspect", inspect_then_dirty)
+        monkeypatch.setattr(WorktrunkAdapter, "_run", forbidden_remove)
+        cfg = replace(policy(tmp_path), allowed_commands=("git", "wt", "git.worktree.write"))
+        async with Client(create_server(cfg)) as client:
+            await failure(
+                client,
+                "remove_project_worktrunk",
+                {"branch": "feat/publish", "expected_branch_head": base, "delete_branch": False},
+            )
+        assert inspected == 1
+        assert not invoked
+        assert target.is_dir()
+        assert (target / "base.txt").read_text() == "concurrent edit\n"
+
+    asyncio.run(scenario())
+
+
+def test_cleanup_rejects_checkout_moved_after_registration(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        from local_dev_mcp.tools.git.worktrunk import WorktrunkAdapter
+
+        base, _ = await seed(tmp_path, workspace_factory)
+        target = tmp_path / ".lab" / "original"
+        moved = tmp_path / ".lab" / "moved"
+        await git(tmp_path, "worktree", "add", str(target), "feat/publish")
+        original = WorktrunkAdapter.inspect
+        invoked = False
+        inspected = 0
+
+        async def inspect_moved(self: WorktrunkAdapter, branch: str) -> dict[str, object]:
+            nonlocal inspected
+            inspected += 1
+            if inspected == 1:
+                await git(tmp_path, "worktree", "move", str(target), str(moved))
+            return await original(self, branch)
+
+        async def forbidden_remove(self: WorktrunkAdapter, *argv: str, write: bool) -> dict[str, object]:
+            nonlocal invoked
+            invoked = True
+            return {"branch": "feat/publish", "path": str(target), "branch_outcome": "not_attempted"}
+
+        monkeypatch.setattr(WorktrunkAdapter, "inspect", inspect_moved)
+        monkeypatch.setattr(WorktrunkAdapter, "_run", forbidden_remove)
+        cfg = replace(policy(tmp_path), allowed_commands=("git", "wt", "git.worktree.write"))
+        async with Client(create_server(cfg)) as client:
+            await failure(
+                client,
+                "remove_project_worktrunk",
+                {"branch": "feat/publish", "expected_branch_head": base, "delete_branch": False},
+            )
+        assert inspected == 1
+        assert not invoked
+        assert not target.exists()
+        assert moved.is_dir()
+        assert await git(moved, "rev-parse", "HEAD") == base
+
+    asyncio.run(scenario())

@@ -126,7 +126,7 @@ def test_worktrunk_rejects_dirty_source_and_preserves_untracked_files(
         with pytest.raises(ToolError, match="dirty"):
             await adapter.require_ready("feat/wt-guard", head)
         assert (path / "untracked.txt").read_text() == "preserve\n"
-        with pytest.raises(ToolError, match="Worktrunk failed"):
+        with pytest.raises(ToolError, match="dirty"):
             await adapter.remove("feat/wt-guard", head, delete_branch=True)
         (path / "untracked.txt").unlink()
         assert (await adapter.require_ready("feat/wt-guard", head)).policy.root == path

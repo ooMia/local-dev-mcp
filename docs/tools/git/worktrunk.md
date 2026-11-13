@@ -64,7 +64,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
   Hooks는 MCP 경로·명령 허용 목록의 OS 수준 격리 대상이 아니며, 해당 호출의 외부 부작용은 MCP가 검증하지 않는다.
 - 검토 계획은 등록된 관리형 소스, 정확한 Main·Source SHA 및 Main 조상 관계를 검증한다.
   실제 통합 시점의 승인·Clean 상태·Refs 경합 방어는 별도의 실행 경로가 책임진다.
-- 제거는 `--foreground`, 비강제 옵션만 사용하고 Dirty 상태·미병합 브랜치의 처리 판단은 Worktrunk에 위임한다.
+- 제거는 `--foreground`, 비강제 옵션만 사용한다. MCP가 CLI 호출 직전 등록 경로·HEAD·Clean 상태를 재검증하고, Dirty/Untracked Checkout이나 이동된 Checkout은 삭제 요청 전에 거부한다. 미병합 브랜치 삭제 판단과 별도의 비강제 안전 확인은 Worktrunk에 위임한다.
   MCP `remove_project_worktrunk`는 기존 Task Manager의 `exclusive_git_cleanup` 잠금을 재사용하여
   실행 중·정리 불확실한 Job과 Worktree 삭제를 직렬화한다. 독립 Git 프로세스까지 잠그지는 않는다.
   `branch_outcome`을 확인해 실제 삭제·보존을 구분하며, 명령이 실패하면 제거되지 않았다고 단정하지 않는다.
