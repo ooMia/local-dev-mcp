@@ -38,7 +38,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 - 새 Worktree를 확보할 때 현재 Checkout의 **브랜치·HEAD**가 요청값과 일치하는지 전후 확인하고, 생성에 필요한 기본 Ref의 SHA를 확인한다. 원본의 Dirty 파일 내용이나 개수는 Worktree 확보의 선행 조건이 아니며 읽거나 해시하지 않는다. 따라서 다른 프로세스에 의한 원본 파일 내용 변화를 독립적으로 증명하지는 않는다.
 - **생성·확보**는 [ADR 0015](../../adr/0015-worktrunk-state-based-preparation.md)를 따른다. 브랜치가 없으면 정확한 `expected_base_head`가 필요하다. 기존 브랜치에는 `expected_branch_head`를 선택적으로 지정할 수 있으며, 이미 체크아웃된 동일 저장소·브랜치는 생성 주체와 무관하게 재사용한다. 기존 경로나 다른 브랜치를 덮어쓰지 않는다.
 - **삭제**는 [ADR 0013](../../adr/0013-worktrunk-state-based-removal.md)에 따라 생성 주체·Receipt·고정 관리 경로를 요구하지 않는다. Git에 등록된 단일 대상과 허용된 Workspace 경로, 현재 브랜치 HEAD를 확인한다.
-- 새 Worktree를 생성하기 전에 Git ignore, 접근 정책, 보호 이름을 확인한다. 이미 등록된 Worktree는 경로·Git 연결·정확한 브랜치를 확인해 변경사항을 보존한다. **재사용 가능**과 후속 **Clean 상태 요구**는 서로 다른 조건이다.
+- 새 Worktree를 생성하기 전에 Git ignore, 접근 정책, 보호 이름을 확인한다. 이미 등록된 Worktree는 허용된 경로·Git Worktree 등록·실제 Checkout 루트·공통 Git 디렉터리·정확한 브랜치를 확인해 변경사항을 보존한다. Native의 `.git` 포인터·backlink 해석이나 Receipt를 재사용의 조건으로 요구하지 않는다. **재사용 가능**과 후속 **Clean 상태 요구**는 서로 다른 조건이다.
 - Worktrunk Backend의 Task 실행·품질 증거 검증은 고정 해시 경로가 아니라 현재 Git에 등록된 Worktree 경로를 사용한다. 이때는 브랜치/HEAD 일치와 Clean 상태를 별도 요구하며, Quality Job과 증거는 실제 경로에 결합한다.
 - Lifecycle Hooks는 [ADR 0014](../../adr/0014-worktrunk-hooks-opt-in.md)에 따라 기본 비활성화다.
   `run_hooks=true`를 명시하면 Worktrunk 사용자·프로젝트 설정의 Hooks를 실행한다.

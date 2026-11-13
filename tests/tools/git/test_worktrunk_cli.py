@@ -479,3 +479,26 @@ def test_worktrunk_ensure_does_not_limit_original_dirty_file_count(
         assert await git(tmp_path, "rev-parse", "HEAD") == head
 
     asyncio.run(scenario())
+
+
+def test_worktrunk_rejects_a_registered_path_if_git_resolves_a_different_repository(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        from local_dev_mcp.tools.git.commands.worktree import Worktree
+
+        head, _ = await seed(tmp_path, workspace_factory)
+        foreign = tmp_path / ".lab" / "foreign-repository"
+        foreign.mkdir(parents=True)
+        await git(foreign, "init")
+
+        async def forged_registration(_execution: object) -> tuple[Worktree, ...]:
+            return (Worktree(foreign, head, "refs/heads/feat/publish", False),)
+
+        monkeypatch.setattr("local_dev_mcp.tools.git.worktrunk.adapter.worktree.list_registered", forged_registration)
+        with pytest.raises(ToolError, match="not linked"):
+            await _adapter(tmp_path).create("feat/publish", "main", None, "main", head, expected_branch_head=head)
+        assert (foreign / ".git").exists()
+        assert await git(tmp_path, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())

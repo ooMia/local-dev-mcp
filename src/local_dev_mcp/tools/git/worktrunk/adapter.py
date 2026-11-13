@@ -78,7 +78,13 @@ async def _registered_checkout_path(settings: ServerSettings, repo: GitExecution
         settings.policy.require_path_access(path, write=True)
     except PermissionError as error:
         raise ToolError(str(error)) from None
-    if not _worktrees.bound_git_pointer(path, await worktree.common_directory(repo)):
+    # Ask Git which repository owns this checkout rather than interpreting the
+    # Native worktree receipt, .git pointer, and backlink metadata ourselves.
+    from ..facades import _repository
+
+    target = GitExecution(_worktrees.scoped_settings(settings, path))
+    await _repository.verify_root(target)
+    if await worktree.common_directory(target) != await worktree.common_directory(repo):
         raise ToolError("Target Worktrunk checkout is not linked to the selected repository.")
     return path
 
