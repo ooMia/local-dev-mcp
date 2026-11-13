@@ -291,7 +291,8 @@ def test_linked_worktree_uses_common_main_guard_and_approval(
         initial = await setup(tmp_path, workspace_factory)
         assert run_workflow(tmp_path, "install").returncode == 0
         linked = tmp_path / "linked"
-        await git(tmp_path, "worktree", "add", "-b", "feat/linked", str(linked))
+        # Workflow hooks may start an interpreter while other tests run concurrently.
+        await git(tmp_path, "worktree", "add", "-b", "feat/linked", str(linked), timeout=30)
         (linked / "data.txt").write_text("linked candidate\n")
         await git(linked, "add", "data.txt")
         await git(linked, "commit", "-m", "feat: linked\n\nSource-PR: https://github.com/o/r/pull/12")
