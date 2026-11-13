@@ -258,3 +258,50 @@ def test_cleanup_never_accepts_unverified_cli_removal_receipt(
             assert moved.is_dir()
 
     asyncio.run(scenario())
+
+
+def test_cleanup_refuses_head_advanced_after_initial_inspection(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        from local_dev_mcp.tools.git.worktrunk import WorktrunkAdapter
+
+        base, _ = await seed(tmp_path, workspace_factory)
+        target = tmp_path / ".lab" / "head-race"
+        await git(tmp_path, "worktree", "add", str(target), "feat/publish")
+        original = WorktrunkAdapter.inspect
+        inspections = 0
+        invoked = False
+
+        async def inspect_then_commit(self: WorktrunkAdapter, branch: str) -> dict[str, object]:
+            nonlocal inspections
+            inspected = await original(self, branch)
+            inspections += 1
+            if inspections == 1:
+                assert inspected["head"] == base
+                (target / "race.txt").write_text("new commit\n")
+                await git(target, "add", "race.txt")
+                await git(target, "commit", "-m", "feat: concurrent update")
+            return inspected
+
+        async def forbidden_remove(self: WorktrunkAdapter, *argv: str, write: bool) -> dict[str, object]:
+            nonlocal invoked
+            invoked = True
+            return {"branch": "feat/publish", "path": str(target), "branch_outcome": "not_attempted"}
+
+        monkeypatch.setattr(WorktrunkAdapter, "inspect", inspect_then_commit)
+        monkeypatch.setattr(WorktrunkAdapter, "_run", forbidden_remove)
+        cfg = replace(policy(tmp_path), allowed_commands=("git", "wt", "git.worktree.write"))
+        async with Client(create_server(cfg)) as client:
+            await failure(
+                client,
+                "remove_project_worktrunk",
+                {"branch": "feat/publish", "expected_branch_head": base, "delete_branch": False},
+            )
+        assert inspections == 1
+        assert not invoked
+        assert target.is_dir()
+        assert await git(target, "rev-parse", "HEAD") != base
+        assert await git(tmp_path, "rev-parse", "HEAD") == base
+
+    asyncio.run(scenario())
