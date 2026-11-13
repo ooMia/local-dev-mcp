@@ -115,7 +115,7 @@ Worktree job 결과에는 `worktree`가 추가된다. `branch`, `head`, `origina
 
 평가 내용의 의미와 TOML 필드는 [릴리스 평가 계약](../release/README.md#설정과-평가-기록)을 따른다.
 도구는 호환성을 추론하거나 다른 변경의 평가를 자동 복사·배정하지 않는다.
-대상에 새 committed `.changes` 평가가 없으면 Draft PR 생성을 거부한다.
+일반 기능 대상에 새 committed `.changes` 평가가 없으면 Draft PR 생성을 거부한다. `release/X.Y.Z`는 [검증된 릴리스 영수증](remote-pr.md)을 사용하므로 예외다.
 
 1. 원본 status와 대상 SHA를 관측한 뒤 `prepare_project_worktree_assessment`에 검토한 ID·TOML을 전달한다.
 2. 반환된 `path`를 `read_workspace_file`로 읽어 원문을 검토한다. `digest`는 해당 UTF-8 bytes의 SHA-256이다.

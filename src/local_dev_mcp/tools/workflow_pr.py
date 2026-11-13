@@ -141,9 +141,46 @@ def _facts(value: object) -> dict[str, Any]:
         or _SHA.fullmatch(head) is None
     ):
         raise ValueError("Invalid PR snapshot identity.")
-    for key in ("commits", "assessments"):
-        if not isinstance(data.get(key), list) or not data[key]:
-            raise ValueError("PR snapshot missing " + key + ".")
+    if not isinstance(data.get("commits"), list) or not data["commits"]:
+        raise ValueError("PR snapshot missing commits.")
+    candidate: object = data.get("release")
+    if candidate is None:
+        if not isinstance(data.get("assessments"), list) or not data["assessments"]:
+            raise ValueError("PR snapshot missing assessments.")
+    else:
+        keys = {"version", "previous_version", "maximum_impact", "plan_digest", "source_head", "consumed"}
+        if not isinstance(candidate, dict) or data.get("assessments") != []:
+            raise ValueError("Invalid release PR snapshot.")
+        release = cast(dict[str, object], candidate)
+        if set(release) != keys:
+            raise ValueError("Invalid release PR snapshot.")
+        for key in ("version", "previous_version"):
+            value = release[key]
+            if (
+                not isinstance(value, str)
+                or re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", value) is None
+            ):
+                raise ValueError("Invalid release version.")
+        digest = release["plan_digest"]
+        source_head = release["source_head"]
+        if (
+            release["maximum_impact"] not in _IMPACTS
+            or not isinstance(digest, str)
+            or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+            or not isinstance(source_head, str)
+            or _SHA.fullmatch(source_head) is None
+        ):
+            raise ValueError("Invalid release receipt identity.")
+        consumed = release["consumed"]
+        if not isinstance(consumed, list):
+            raise ValueError("Invalid consumed assessment IDs.")
+        ids = cast(list[object], consumed)
+        if (
+            not 0 < len(ids) <= 256
+            or any(not isinstance(item, str) or _ID.fullmatch(item) is None for item in ids)
+            or len(set(ids)) != len(ids)
+        ):
+            raise ValueError("Invalid consumed assessment IDs.")
     return data
 
 
@@ -176,6 +213,12 @@ def _review(value: object) -> dict[str, Any]:
 def _purpose(facts: dict[str, Any], review: dict[str, Any]) -> str:
     if "purpose" in review:
         result = review["purpose"].strip()
+    elif "release" in facts:
+        release = facts["release"]
+        result = (
+            f"Publish the verified {release['version']} release from {release['previous_version']}, "
+            f"consuming {len(release['consumed'])} explicitly assessed changes."
+        )
     else:
         assessments = facts["assessments"]
         strongest = max(_IMPACTS[r["impact"]] for r in assessments)
@@ -210,9 +253,23 @@ def _generated(facts: dict[str, Any], number: int | None) -> str:
     tick = chr(96)
     assessments = facts["assessments"]
     lines = ["<!-- pr-body:head:" + facts["head"] + " -->", "## Changes", ""]
-    lines += ["- " + _inline(item["summary"]) for item in assessments]
-    lines += ["", "## Release impact", ""]
-    lines += ["- " + tick + item["impact"] + tick + " — " + tick + item["id"] + tick for item in assessments]
+    if "release" in facts:
+        release = facts["release"]
+        lines += [
+            f"- Update project and lock version from `{release['previous_version']}` to `{release['version']}`.",
+            f"- Consume {len(release['consumed'])} assessed changes into the deterministic changelog and receipt.",
+            "- Review migration notes in `CHANGELOG.md`.",
+            "",
+            "## Release impact",
+            "",
+            f"- Maximum assessed impact: `{release['maximum_impact']}`.",
+            f"- Source HEAD: `{release['source_head']}`.",
+            f"- Plan digest: `{release['plan_digest']}`.",
+        ]
+    else:
+        lines += ["- " + _inline(item["summary"]) for item in assessments]
+        lines += ["", "## Release impact", ""]
+        lines += ["- " + tick + item["impact"] + tick + " — " + tick + item["id"] + tick for item in assessments]
     lines += ["", "## Commits", ""]
     commits = facts["commits"]
     if len(commits) <= 5:

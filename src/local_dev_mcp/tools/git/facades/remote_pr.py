@@ -18,6 +18,7 @@ from ....errors import DependencyError
 from ....mcp.registry import ToolDefinition
 from ....readiness import PreparationIssue
 from ... import executable, workflow_pr
+from ...release._snapshots import check_integration
 from .. import _remote
 from .._prepare import git_readiness
 from .._remote import Remote, feature_name, title, valid_sha
@@ -345,6 +346,8 @@ class PushFeatureTool:
         if not await remote.ancestor(base, head):
             raise ToolError("The feature branch does not contain current remote main. Reconcile before publishing.")
         await _require_clean_public_history(remote, base, head)
+        if branch.startswith("release/"):
+            await _release_facts(remote, base, head, branch)
         before = await remote.branch(branch)
         if before != expected_remote_feature:
             raise ToolError("Remote feature ref changed since observation; no push performed.")
@@ -368,7 +371,34 @@ class PushFeatureTool:
         }
 
 
-async def _facts(remote: Remote, base: str, head: str, url: str) -> dict[str, Any]:
+async def _release_facts(remote: Remote, base: str, head: str, branch: str) -> dict[str, Any]:
+    """Verify the exact release snapshot before publishing a canonical release branch."""
+
+    async def read_git(*args: str) -> bytes:
+        return (await remote.git(*args)).output.encode("utf-8")
+
+    try:
+        result = await check_integration(read_git, base, head)
+    except (ValueError, UnicodeError) as error:
+        raise ToolError("Invalid release snapshot; inspect its receipt and committed base.") from error
+    plan = result["plan"]
+    if result["kind"] != "release" or plan is None or plan["next_version"] is None:
+        raise ToolError("Release publication requires a verified release integration snapshot.")
+    if branch != "release/" + plan["next_version"]:
+        raise ToolError("Release branch version does not match the verified release receipt.")
+    return {
+        "version": plan["next_version"],
+        "previous_version": plan["current_version"],
+        "maximum_impact": plan["maximum_impact"],
+        "plan_digest": plan["digest"],
+        "source_head": base,
+        "consumed": result["assessments"],
+    }
+
+
+async def _facts(
+    remote: Remote, base: str, head: str, url: str, branch: str, verified_release: dict[str, Any] | None
+) -> dict[str, Any]:
     log = (await remote.git("log", "--reverse", "-z", "--format=%H%x00%s", base + ".." + head)).output
     parts = log.rstrip("\x00").split("\x00") if log else []
     if not parts or len(parts) % 2:
@@ -376,6 +406,20 @@ async def _facts(remote: Remote, base: str, head: str, url: str) -> dict[str, An
     commits: list[dict[str, str]] = []
     for sha, subject in zip(parts[::2], parts[1::2], strict=True):
         commits.append({"sha": valid_sha(sha), "title": subject.strip()})
+    if branch.startswith("release/"):
+        if verified_release is None:
+            raise ToolError("Release snapshot must be verified before PR body generation.")
+        release = verified_release
+        return {
+            "schema": 1,
+            "repo_url": url,
+            "base": base,
+            "merge_base": base,
+            "head": head,
+            "commits": commits,
+            "assessments": [],
+            "release": release,
+        }
     changed = (await remote.git("diff", "--name-only", "--diff-filter=A", "-z", base, head, "--", ".changes/")).output
     assessments: list[dict[str, str]] = []
     for path in sorted(filter(None, changed.split("\x00"))):
@@ -458,6 +502,7 @@ class CreateFeaturePRTool:
         if await remote.branch(branch) != head:
             raise ToolError("Remote feature has not been pushed at the observed exact SHA.")
         title(title_text)
+        verified_release = await _release_facts(remote, base, head, branch) if branch.startswith("release/") else None
         rows = await _existing(remote, branch, url)
         if rows:
             current = rows[0]
@@ -479,7 +524,7 @@ class CreateFeaturePRTool:
                 "created": False,
                 "observed_at": observed_at(),
             }
-        facts = await _facts(remote, base, head, url)
+        facts = await _facts(remote, base, head, url, branch, verified_release)
         context: dict[str, Any] = {}
         if purpose is not None:
             context["purpose"] = purpose
@@ -597,7 +642,7 @@ FETCH_PROJECT_REMOTE_MAIN: Final = ToolDefinition(
 PUSH_PROJECT_FEATURE: Final = ToolDefinition(
     name="push_project_feature",
     description=(
-        "Push only the current clean and remote-main-based topic branch to the same named origin ref. "
+        "Push only the clean, remote-main-based topic or receipt-verified release branch to its named origin ref. "
         "Requires exact observed local HEAD and remote refs, forbids main, tags, force and hook bypass. "
         "If publication cannot be confirmed, inspect remote refs before retrying."
     ),
@@ -609,8 +654,9 @@ PUSH_PROJECT_FEATURE: Final = ToolDefinition(
 CREATE_PROJECT_DRAFT_PR: Final = ToolDefinition(
     name="create_project_draft_pr",
     description=(
-        "Create at most one draft PR from an already-pushed, exactly verified feature branch to main. "
-        "Generate body from committed new .changes and Git commits with optional reviewed purpose and exceptions; "
+        "Create at most one draft PR from an already-pushed topic or verified release branch to main. "
+        "Use new .changes for feature PRs or a verified release receipt for release PRs; "
+        "allow reviewed purpose and exceptions; "
         "never merge, mark ready, change Rulesets or bypass CI. Recheck existing PRs to avoid duplicates."
     ),
     annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=True),

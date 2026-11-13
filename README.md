@@ -86,7 +86,7 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `inspect_project_remote` | private GitHub origin 및 로컬·원격 `main`과 기능 Ref 상태 조회 |
 | `fetch_project_remote_main` | 관측 SHA가 일치할 때 `origin/main`만 비강제 Fetch |
 | `push_project_feature` | 미공개 main 혼입을 거부하고 기능 브랜치만 비강제 Push |
-| `create_project_draft_pr` | 신규 `.changes`와 커밋을 기반으로 중복 없이 Draft PR 생성 |
+| `create_project_draft_pr` | 일반 변경은 신규 `.changes`, 릴리스는 검증된 영수증을 기반으로 중복 없이 Draft PR 생성 |
 | `get_project_pr_merge_plan` | 실제 PR head와 고정 squash 메시지·검토 Digest 조회 |
 | `get_project_pr_status` | 정확한 PR head의 CI·Draft·병합 가능 상태 조회 |
 | `mark_project_pr_ready` | 검토 head·Digest에 대해 명시적으로 Ready 전환하고 결과 확인 |

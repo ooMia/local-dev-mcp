@@ -263,3 +263,28 @@ def test_cli_render_entrypoint_writes_markdown(tmp_path: Path, capsys: pytest.Ca
     code = workflow.main(["--workspace", str(ROOT), "pr-body", "render", "--input", str(snapshot)])
     assert code == 0
     assert "## Release impact" in capsys.readouterr().out
+
+
+def test_release_body_requires_verified_receipt_facts_and_preserves_head() -> None:
+    data = facts()
+    data["assessments"] = []
+    data["release"] = {
+        "version": "0.2.0",
+        "previous_version": "0.1.0",
+        "maximum_impact": "major",
+        "plan_digest": "d" * 64,
+        "source_head": A,
+        "consumed": ["first", "second"],
+    }
+    body = workflow_pr.render(ROOT, data)
+    assert workflow_pr.parse(body)["head"] == B
+    assert "2 assessed changes" in body
+    assert "0.2.0" in body
+    assert "## Release impact" in body
+    data["release"]["consumed"] = ["../../secrets"]
+    with pytest.raises(ValueError, match="consumed"):
+        workflow_pr.render(ROOT, data)
+    data["release"]["consumed"] = ["first"]
+    data["release"]["version"] = "0.2.0-dev"
+    with pytest.raises(ValueError, match="release version"):
+        workflow_pr.render(ROOT, data)

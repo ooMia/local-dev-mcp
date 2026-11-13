@@ -39,8 +39,10 @@ def valid_sha(value: object) -> str:
 
 
 def feature_name(branch: str) -> str:
-    if not branch_name_allowed(branch) or not branch.startswith(tuple(t + "/" for t in _TYPES)):
-        raise ToolError("Only allowed topic branches can be published.")
+    if not branch_name_allowed(branch) or not (
+        branch.startswith(tuple(t + "/" for t in _TYPES)) or branch.startswith("release/")
+    ):
+        raise ToolError("Only allowed topic or canonical release branches can be published.")
     return branch
 
 
