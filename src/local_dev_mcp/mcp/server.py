@@ -11,7 +11,7 @@ from fastmcp import FastMCP
 from ..app.runtime import ServerSettings
 from ..diagnostics import warn_preparation
 from ..settings import Policy
-from ..tools import documents, get_tool_readiness, git, release, tasks, workspace
+from ..tools import client_elicitation, documents, get_tool_readiness, git, release, tasks, workspace
 from . import registry
 
 TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
@@ -52,9 +52,20 @@ TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
     git.PREPARE_PROJECT_WORKTREE_ASSESSMENT,
     git.COMMIT_PROJECT_WORKTREE_ASSESSMENT,
     git.START_PROJECT_WORKTREE_TASK,
+    git.CREATE_PROJECT_WORKTRUNK,
+    git.INSPECT_PROJECT_WORKTRUNK,
+    git.LIST_PROJECT_WORKTREES,
+    git.GET_PROJECT_WORKTREE_REVIEW,
+    git.PLAN_PROJECT_WORKTREE_CLEANUP,
+    git.VERIFY_PROJECT_WORKTRUNK_QUALITY,
+    git.GET_PROJECT_WORKTRUNK_MERGE_PLAN,
+    git.REMOVE_PROJECT_WORKTRUNK,
     release.GET_RELEASE_PLAN,
     release.PREPARE_PROJECT_RELEASE,
     get_tool_readiness.GET_TOOL_READINESS,
+    client_elicitation.DIAGNOSE_CLIENT_ELICITATION,
+    client_elicitation.PROBE_CLIENT_ELICITATION,
+    client_elicitation.PROBE_CLIENT_ELICITATION_MRTR,
     tasks.LIST_PROJECT_TASKS,
     tasks.START_PROJECT_TASK,
     tasks.GET_PROJECT_TASK,

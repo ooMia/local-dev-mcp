@@ -2,6 +2,7 @@
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import Literal
 
 from ...settings import Policy
 
@@ -14,7 +15,8 @@ class TaskWorktree:
     original_head: str
     prepare: Callable[[], Awaitable[Policy]]
     verify: Callable[[], Awaitable[None]]
+    backend: Literal["native", "worktrunk"] = "native"
 
     @property
     def identity(self) -> tuple[str, ...]:
-        return (self.branch, self.head, self.original_branch, self.original_head)
+        return (self.backend, self.branch, self.head, self.original_branch, self.original_head)

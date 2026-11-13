@@ -24,6 +24,7 @@ class TaskInfo(TypedDict):
 
 
 class WorktreeTaskResult(TypedDict):
+    backend: Literal["native", "worktrunk"]
     branch: str
     head: str
     original_branch: str

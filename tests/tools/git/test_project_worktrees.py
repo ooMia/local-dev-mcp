@@ -146,6 +146,24 @@ def test_prepare_rejects_relative_denied_source_paths(tmp_path: Path, workspace_
     asyncio.run(scenario())
 
 
+def test_prepare_rejects_tracked_protected_file_before_checkout(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    async def scenario() -> None:
+        await seed(tmp_path, workspace_factory)
+        await git(tmp_path, "add", "-f", ".env")
+        await git(tmp_path, "commit", "-m", "test: tracked protected file")
+        head = await git(tmp_path, "rev-parse", "HEAD")
+        await git(tmp_path, "branch", "-f", "feat/publish", head)
+        async with Client(create_server(policy(tmp_path))) as session:
+            await failure(session, "prepare_project_worktree", request(head))
+            state = await success(session, "inspect_project_worktree", {"branch": "feat/publish"})
+            assert state["state"] == "absent"
+        assert await git(tmp_path, "status", "--porcelain") == ""
+
+    asyncio.run(scenario())
+
+
 def test_inspect_rejects_git_pointer_borrowed_from_another_worktree(
     tmp_path: Path, workspace_factory: WorkspaceFactory
 ) -> None:

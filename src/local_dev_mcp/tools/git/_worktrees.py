@@ -36,10 +36,15 @@ class WorktreeState(TypedDict):
     observed_at: str
 
 
-def require_permission(settings: ServerSettings, *, write: bool = False) -> None:
+def require_permission(
+    settings: ServerSettings, *, write: bool = False, backend_commands: tuple[str, ...] = ()
+) -> None:
+    """Require the shared Git worktree permission before backend-specific access."""
     try:
         settings.policy.require_project_access()
         settings.policy.require_command("git")
+        for command in backend_commands:
+            settings.policy.require_command(command)
         if write:
             settings.policy.require_command("git.worktree.write")
     except PermissionError as error:

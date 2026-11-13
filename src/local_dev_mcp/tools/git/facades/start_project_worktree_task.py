@@ -1,7 +1,7 @@
 """Run registered checks in a pinned managed worktree through the shared task manager."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Literal
 
 from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
@@ -12,6 +12,7 @@ from ...tasks import RequestId, Targets, TaskName, TaskResult, TaskWorktree
 from .. import _worktrees
 from .._prepare import git_readiness
 from .._remote import feature_name
+from ..worktrunk import WorktrunkAdapter
 from ._refs import BranchName, ExpectedHead
 
 if TYPE_CHECKING:
@@ -32,6 +33,7 @@ class StartProjectWorktreeTaskTool:
         expected_head: ExpectedHead,
         targets: Targets | None = None,
         all_tests: bool = False,
+        backend: Literal["native", "worktrunk"] = "native",
     ) -> TaskResult:
         _worktrees.require_permission(self.settings, write=True)
         feature_name(branch)
@@ -45,13 +47,19 @@ class StartProjectWorktreeTaskTool:
             if fingerprint is not None and fingerprint != observed:
                 raise ToolError("Original checkout state changed before the worktree check started.")
             fingerprint = observed
-            target = await _worktrees.require_ready(self.settings, branch, expected_branch_head)
-            _worktrees.locations(self.settings, branch, write=True)
+            if backend == "worktrunk":
+                target = await WorktrunkAdapter(self.settings).require_ready(branch, expected_branch_head)
+            else:
+                target = await _worktrees.require_ready(self.settings, branch, expected_branch_head)
+                _worktrees.locations(self.settings, branch, write=True)
             return target.policy
 
         async def verify() -> None:
             try:
-                await _worktrees.require_ready(self.settings, branch, expected_branch_head)
+                if backend == "worktrunk":
+                    await WorktrunkAdapter(self.settings).require_ready(branch, expected_branch_head)
+                else:
+                    await _worktrees.require_ready(self.settings, branch, expected_branch_head)
             finally:
                 if fingerprint is None:
                     raise ToolError("Original state was not captured; inspect both worktrees.")
@@ -59,17 +67,19 @@ class StartProjectWorktreeTaskTool:
                     self.settings, expected_branch, expected_head, fingerprint, allow_dirty=True
                 )
 
-        context = TaskWorktree(branch, expected_branch_head, expected_branch, expected_head, prepare, verify)
+        context = TaskWorktree(branch, expected_branch_head, expected_branch, expected_head, prepare, verify, backend)
         return await self.settings.tasks.start(task, request_id, targets, all_tests, worktree=context)
 
 
 START_PROJECT_WORKTREE_TASK: Final = ToolDefinition(
     name="start_project_worktree_task",
     description=(
-        "Run one startup-registered lint/test check in an exact prepared managed worktree. "
+        "Run one registered lint/test check in a selected linked worktree; "
+        "native uses the managed path, Worktrunk accepts the authorized Git-registered path. "
         "Requires observed original/target refs, git.worktree.write and the selected recipe permission. "
         "Shares the original task manager's single slot, request ledger, get/cancel tools and masked diagnostics. "
-        "Never loads historical config or accepts cwd/commands; format recipes are rejected. "
+        "Worktrunk requires wt permission; never loads historical config or accepts cwd/commands. "
+        "Format recipes are rejected. "
         "Inspect optional worktree.verified independently of process exit and test output. "
         "Recipes may change files; no rollback, automatic retry, commit or publication."
     ),

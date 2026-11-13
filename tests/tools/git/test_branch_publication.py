@@ -21,8 +21,9 @@ from tests.support.worktrees import policy, request, seed
 pytestmark = pytest.mark.integration
 
 
+@pytest.mark.parametrize("backend", ["native", "worktrunk"])
 def test_branch_publication_reuses_remote_gates_in_target_checkout(
-    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch, backend: str
 ) -> None:
     async def scenario() -> None:
         base, _ = await seed(tmp_path, workspace_factory)
@@ -39,7 +40,15 @@ def test_branch_publication_reuses_remote_gates_in_target_checkout(
         await git(tmp_path, "update-ref", "refs/remotes/origin/main", base)
         permissions = replace(
             policy(tmp_path),
-            allowed_commands=("git", "gh", "git.worktree.write", "git.remote.read", "git.remote.write", "gh.pr.create"),
+            allowed_commands=(
+                "git",
+                "wt",
+                "gh",
+                "git.worktree.write",
+                "git.remote.read",
+                "git.remote.write",
+                "gh.pr.create",
+            ),
         )
         roots: list[Path] = []
         bodies: list[str] = []
@@ -95,8 +104,12 @@ def test_branch_publication_reuses_remote_gates_in_target_checkout(
         async with Client(create_server(permissions)) as session:
             initial = request(base)
             await failure(session, "push_project_branch", {**initial, "expected_remote_main": base})
-            ready = await success(session, "prepare_project_worktree", initial)
-            target = tmp_path / str(ready["path"])
+            if backend == "native":
+                ready = await success(session, "prepare_project_worktree", initial)
+                target = tmp_path / str(ready["path"])
+            else:
+                target = tmp_path / ".lab" / "manually-registered"
+                await git(tmp_path, "worktree", "add", str(target), "feat/publish")
             assert not (target / ".github").exists()
             (target / ".changes").mkdir()
             (target / ".changes" / "example.toml").write_text(
@@ -106,9 +119,11 @@ def test_branch_publication_reuses_remote_gates_in_target_checkout(
             await git(target, "add", ".changes")
             await git(target, "commit", "-m", "feat: assess isolated publication")
             head = await git(target, "rev-parse", "HEAD")
-            arguments = {**initial, "expected_branch_head": head, "expected_remote_main": base}
+            arguments = {**initial, "expected_branch_head": head, "expected_remote_main": base, "backend": backend}
             inspected = await success(
-                session, "inspect_project_branch_remote", {"branch": "feat/publish", "expected_branch_head": head}
+                session,
+                "inspect_project_branch_remote",
+                {"branch": "feat/publish", "expected_branch_head": head, "backend": backend},
             )
             assert inspected["branch"] == "feat/publish" and inspected["head"] == head
             (target / "base.txt").write_text("dirty")
@@ -180,5 +195,60 @@ def test_partial_add_failure_is_inspectable_and_never_retried(
             await failure(session, "prepare_project_worktree", request(base))
         assert await git(tmp_path, "status", "--porcelain") == ""
         assert await git(tmp_path, "rev-parse", "HEAD") == base
+
+    asyncio.run(scenario())
+
+
+def test_worktrunk_remote_inspection_uses_registered_checkout_without_native_receipt(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        base, _ = await seed(tmp_path, workspace_factory)
+        origin = tmp_path.parent / (tmp_path.name + "-remote-inspection.git")
+        await git(tmp_path, "init", "--bare", str(origin))
+        await git(tmp_path, "remote", "add", "origin", str(origin))
+        await git(tmp_path, "push", "origin", "main")
+        await git(tmp_path, "update-ref", "refs/remotes/origin/main", base)
+
+        checkout = tmp_path / ".lab" / "external-branch"
+        await git(tmp_path, "worktree", "add", str(checkout), "feat/publish")
+        roots: list[Path] = []
+
+        class LocalRemote(_remote.Remote):
+            async def repo(self) -> tuple[str, str]:
+                roots.append(self.root)
+                return "example/project", "https://github.com/example/project"
+
+            async def main_sha(self, name: str) -> str:
+                return base
+
+            async def branch(self, name: str) -> str | None:
+                return None
+
+        monkeypatch.setattr(remote_pr, "Remote", LocalRemote)
+        permissions = replace(policy(tmp_path), allowed_commands=("git", "gh", "git.remote.read"))
+        async with Client(create_server(permissions)) as session:
+            await failure(
+                session,
+                "inspect_project_branch_remote",
+                {"branch": "feat/publish", "expected_branch_head": base},
+            )
+            inspected = await success(
+                session,
+                "inspect_project_branch_remote",
+                {"branch": "feat/publish", "expected_branch_head": base, "backend": "worktrunk"},
+            )
+            assert inspected["branch"] == "feat/publish"
+            assert inspected["head"] == inspected["remote_main"] == base
+            assert inspected["tracking_is_fresh"] is True
+            assert roots == [checkout]
+
+            (checkout / "dirty.txt").write_text("uncommitted user data")
+            await failure(
+                session,
+                "inspect_project_branch_remote",
+                {"branch": "feat/publish", "expected_branch_head": base, "backend": "worktrunk"},
+            )
+            assert (checkout / "dirty.txt").read_text() == "uncommitted user data"
 
     asyncio.run(scenario())

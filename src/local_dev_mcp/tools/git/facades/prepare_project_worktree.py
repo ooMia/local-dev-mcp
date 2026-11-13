@@ -7,9 +7,8 @@ from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from ....mcp.registry import ToolDefinition
-from ....settings import protected_name
 from .. import _worktrees
-from .._execution import GitExecution, text_output
+from .._execution import GitExecution
 from .._prepare import git_readiness
 from .._remote import feature_name
 from ..commands import status, worktree
@@ -49,16 +48,9 @@ class PrepareProjectWorktreeTool:
             raise ToolError("Target path, receipt or branch is already occupied; inspect it before continuing.")
         await worktree.require_ignored(repo, path.relative_to(repo.root).as_posix() + "/")
         await worktree.require_ignored(repo, receipt.relative_to(repo.root).as_posix())
-        # Checkout must not materialize a tracked secret or escape an explicit path policy.
-        tree = await repo.run("ls-tree", "-r", "--name-only", "-z", head, operation="Check checkout paths")
-        for name in filter(None, text_output(tree.output).split("\0")):
-            if any(protected_name(part) for part in name.split("/")):
-                raise ToolError("Target tree contains protected paths; no worktree was created.")
-            candidate = path / name
-            if not self.settings.policy.allows_path(candidate) or not self.settings.policy.allows_path(
-                repo.root / name
-            ):
-                raise ToolError("Target checkout includes paths outside the configured access policy.")
+        await worktree.require_safe_checkout_tree(
+            repo, self.settings.policy, path, head, operation="Check checkout paths"
+        )
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             _worktrees.locations(self.settings, branch, write=True)

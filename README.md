@@ -100,6 +100,17 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `inspect_project_branch_remote` | 준비된 지정 브랜치를 기준으로 원격 refs·기준선 관계 조회 |
 | `push_project_branch` | 원본을 보존하며 관리 Worktree의 관측 SHA를 동일 원격 기능 ref에 비강제 Push |
 | `create_project_branch_draft_pr` | 현재 템플릿과 대상 커밋·평가로 지정 브랜치 Draft PR 게시 |
+| `inspect_project_worktrunk` | Git 등록 Worktree의 브랜치·HEAD·Dirty·접근 차단 상태를 Receipt 없이 읽기 전용 조회 |
+| `list_project_worktrees` | 권한이 허용된 Git Worktree·브랜치 목록을 읽고, 확인된 Worktrunk 상태만 추가 |
+| `get_project_worktree_review` | 지정 Worktree의 커밋·Staged·Unstaged·Untracked 변경을 보호 경로 필터와 함께 검토 |
+| `plan_project_worktree_cleanup` | Worktrunk dry-run 후보 중 Clean·허용 경로·Main 조상 관계를 확인한 정리 계획만 조회 (삭제 없음) |
+| `create_project_worktrunk` | 로컬 기준 SHA에서 보호된 경로의 새 브랜치·Worktree 생성 (실험적) |
+| `verify_project_worktrunk_quality` | Worktrunk Source의 완전한 검사 Job·HEAD·Tree·Manifest 증거 발급 (승인과 별개) |
+| `get_project_worktrunk_merge_plan` | 품질 증거·Main Ref·FF 선행조건 검증, 별도 Main Checkout 없이 읽기 전용 제안 생성 |
+| `diagnose_client_elicitation` | 현재 호출의 MCP Elicitation Capability·프로토콜 진단 (쓰기 없음) |
+| `probe_client_elicitation` | 지원 가능한 Form 모드만 무해한 진단 요청, 미지원 프로토콜 거부 |
+| `probe_client_elicitation_mrtr` | MCP 2026-07-28 다중 왕복 Form 진단; 실제 승인·Git 쓰기 없음 |
+| `remove_project_worktrunk` | Clean Worktree 정리 및 선택적 안전한 브랜치 삭제 (실험적) |
 | `diagnose_documents` | 등록된 문서의 진단·관계 승인 대기 상태 확인 |
 
 파일 탐색·읽기·변경은 Git·identity 없이 사용할 수 있다. 보호 파일과 symlink는 읽지 않는다.

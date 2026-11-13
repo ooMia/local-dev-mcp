@@ -18,6 +18,7 @@ from .facades.get_project_pr_merge_plan import GET_PROJECT_PR_MERGE_PLAN
 from .facades.get_project_pr_status import GET_PROJECT_PR_STATUS
 from .facades.get_project_ref import GET_PROJECT_REF
 from .facades.get_project_status import GET_PROJECT_STATUS
+from .facades.get_project_worktrunk_merge_plan import GET_PROJECT_WORKTRUNK_MERGE_PLAN
 from .facades.inspect_project_commit_history import INSPECT_PROJECT_COMMIT_HISTORY
 from .facades.inspect_project_policy import INSPECT_PROJECT_POLICY
 from .facades.inspect_project_worktree import INSPECT_PROJECT_WORKTREE
@@ -43,9 +44,26 @@ from .facades.stage_project_paths import STAGE_PROJECT_PATHS
 from .facades.start_project_worktree_task import START_PROJECT_WORKTREE_TASK
 from .facades.switch_project_branch import SWITCH_PROJECT_BRANCH
 from .facades.unstage_project_paths import UNSTAGE_PROJECT_PATHS
+from .facades.verify_project_worktrunk_quality import VERIFY_PROJECT_WORKTRUNK_QUALITY
+from .facades.worktrunk import (
+    CREATE_PROJECT_WORKTRUNK,
+    GET_PROJECT_WORKTREE_REVIEW,
+    INSPECT_PROJECT_WORKTRUNK,
+    LIST_PROJECT_WORKTREES,
+    PLAN_PROJECT_WORKTREE_CLEANUP,
+    REMOVE_PROJECT_WORKTRUNK,
+)
 
 __all__ = [
     "CONSOLIDATE_PROJECT_HISTORY",
+    "CREATE_PROJECT_WORKTRUNK",
+    "INSPECT_PROJECT_WORKTRUNK",
+    "LIST_PROJECT_WORKTREES",
+    "GET_PROJECT_WORKTREE_REVIEW",
+    "PLAN_PROJECT_WORKTREE_CLEANUP",
+    "VERIFY_PROJECT_WORKTRUNK_QUALITY",
+    "GET_PROJECT_WORKTRUNK_MERGE_PLAN",
+    "REMOVE_PROJECT_WORKTRUNK",
     "START_PROJECT_WORKTREE_TASK",
     "PREPARE_PROJECT_WORKTREE_ASSESSMENT",
     "COMMIT_PROJECT_WORKTREE_ASSESSMENT",

@@ -19,9 +19,9 @@ class WorkspaceFactory(Protocol):
     ) -> Path: ...
 
 
-async def git(root: Path, *args: str) -> str:
+async def git(root: Path, *args: str, timeout: float = 10) -> str:
     return (
-        await sh("git", "-C", str(root), *args).set(inherit_env=False, env=command_environment(), timeout=10)
+        await sh("git", "-C", str(root), *args).set(inherit_env=False, env=command_environment(), timeout=timeout)
     ).removesuffix("\n")
 
 

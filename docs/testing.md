@@ -161,6 +161,7 @@ coverage는 line과 branch를 함께 측정한다. `-n 0`인 위 경로의 pytes
 기본 합계 백분율은 line·branch 기회의 합계이므로 순수 branch 비율로 표시하지 않는다.
 프로세스별 실행 범위를 분명히 하고, 측정을 위해 제품의 환경 격리 계약을 느슨하게 하지 않는다.
 [coverage 프로세스 측정](https://coverage.readthedocs.io/en/7.17.0/config.html#run-patch)
+실제 실행에서 발생한 스킵 81건과 영역별 계측 수치는 [2026-11-13 테스트 감사](research/test-coverage-audit-2026-11-13.md)에 기록한다.
 
 mutation은 선택 개발 그룹으로 설치하며 현재 대상은 순수 바이트 처리 `_text.py`다.
 소스 package 전체를 복사할 수 있도록 `source_paths`를 지정하고 `only_mutate`로 변이 파일을 제한한다.

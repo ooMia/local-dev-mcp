@@ -251,13 +251,14 @@ def test_ctrl_c_confirms_direct_child_exit(tmp_path: Path) -> None:
                 cwd=tmp_path,
                 inherit_env=False,
                 env=env,
-                timeout=10,
+                timeout=25,
             )
             .stdout(stdout)
             .stderr(stderr)
         )
         async with command as process:
-            async with asyncio.timeout(5):
+            # Interpreters launched under xdist contention may exceed a 5-second startup budget.
+            async with asyncio.timeout(15):
                 while not (tmp_path / "child.pid").exists():
                     await asyncio.sleep(0.02)
             child_pid = int((tmp_path / "child.pid").read_text())

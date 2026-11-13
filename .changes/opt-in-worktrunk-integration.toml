@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "Add opt-in Worktrunk checkout, inspection, review and cleanup workflows"
+reason = "New MCP tools and optional backend=worktrunk paths reuse existing Git registration, permissions, task quality and remote publication gates. Native worktree tools and default backend values remain available. Removal is fail-closed before and after non-force Worktrunk execution, and read-only plans do not approve deletion or merging."
+contract = "MCP Worktrunk opt-in lifecycle, Git worktree review and task backend"
+assessed_by = "agent"
+migration = "Restart the MCP server to discover new tools. Install a compatible wt executable and explicitly enable wt and git.worktree.write for CLI-backed write operations. Existing Native callers require no migration; run_hooks remains opt-in."
+supersedes = []
