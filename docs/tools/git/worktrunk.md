@@ -39,7 +39,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 
 `get_project_worktree_review`는 기존 Git Compare/Diff의 보호 경로 필터와 1 MiB Git 출력 상한을 재사용한다. 기본은 커밋된 변경 목록·Staged·Unstaged·Untracked 개수만 반환한다. `include_patch=true`인 경우 256 KiB 이하의 커밋·Staged·Unstaged 패치를 제공하지만 Untracked 파일 본문은 포함하지 않는다. 보호 경로가 누락되면 `complete=false`로 보고한다. 원본 및 대상 브랜치의 HEAD 이동은 거부하며, 진행 중 독립 프로세스의 파일 변경까지 원자적으로 차단하지는 못한다.
 
-`plan_project_worktree_cleanup`은 `wt step prune --dry-run` 결과의 브랜치·절대 경로를 Git 등록 Checkout의 브랜치·경로와 정확히 대조한다. CLI 후보의 경로가 다르면 후보를 제외하고, 필수 JSON 필드가 누락되면 `complete=false`로 실패 폐쇄한다. 조상 관계 및 Clean 상태는 추가 검증하며, 이 계획은 실제 삭제 권한이나 실행 승인으로 사용하지 않는다. 후보 상태를 재조회한 뒤 `main` HEAD를 다시 확인하므로 검증 중 변경은 거부한다. 단, 독립 Git 프로세스의 마지막 조회 이후 변경까지 원자적으로 차단하지는 못하며, 삭제 실행 시 별도 검증이 필요하다.
+`plan_project_worktree_cleanup`은 `wt step prune --dry-run` 결과의 브랜치·절대 경로를 Git 등록 Checkout의 브랜치·경로와 정확히 대조한다. CLI 후보의 경로가 다르면 후보를 제외하고, 필수 JSON 필드가 누락되거나 브랜치·경로가 중복되면 `complete=false`로 실패 폐쇄한다. 조상 관계 및 Clean 상태는 추가 검증하며, 이 계획은 실제 삭제 권한이나 실행 승인으로 사용하지 않는다. 후보 상태를 재조회한 뒤 `main` HEAD를 다시 확인하므로 검증 중 변경은 거부한다. 단, 독립 Git 프로세스의 마지막 조회 이후 변경까지 원자적으로 차단하지는 못하며, 삭제 실행 시 별도 검증이 필요하다.
 
 `inspect_project_worktrunk`는 **`git` 읽기 권한만** 요구한다. CLI 실행과 변경 작업에는 각 도구의 `wt`, `git.worktree.write` 등 선언된 권한이 별도로 필요하다.
 `config.toml`의 허용 목록이 실행 파일 설치를 의미하지 않으며,

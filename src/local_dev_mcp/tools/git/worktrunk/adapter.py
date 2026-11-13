@@ -281,6 +281,10 @@ class WorktrunkAdapter:
             for row in candidates
         ):
             raise ToolError("Worktrunk prune preview returned an invalid candidate.")
+        if len({cast(str, row["branch"]) for row in candidates}) != len(candidates) or len(
+            {cast(str, row["path"]) for row in candidates}
+        ) != len(candidates):
+            raise ToolError("Worktrunk prune preview contains ambiguous duplicate candidates.")
         return candidates
 
     async def require_ready(self, branch: str, expected_head: str, *, write: bool = True) -> ServerSettings:

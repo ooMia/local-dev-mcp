@@ -245,3 +245,31 @@ def test_cleanup_plan_rejects_checkout_dirty_between_inspections(
         assert await git(target, "rev-parse", "HEAD") == head
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("duplicate_field", ["branch", "path"])
+def test_cleanup_plan_rejects_duplicate_cli_candidates(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch, duplicate_field: str
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+
+        async def duplicate_cli(self: WorktrunkAdapter, *argv: str, write: bool) -> list[dict[str, object]]:
+            assert not write
+            rows: list[dict[str, object]] = [
+                {"branch": "feat/publish", "path": str(tmp_path / ".lab" / "first")},
+                {"branch": "feat/other", "path": str(tmp_path / ".lab" / "second")},
+            ]
+            rows[1][duplicate_field] = rows[0][duplicate_field]
+            return rows
+
+        monkeypatch.setattr(WorktrunkAdapter, "_run", duplicate_cli)
+        async with Client(create_server(replace(policy(tmp_path), allowed_commands=("git", "wt")))) as client:
+            result = await success(client, "plan_project_worktree_cleanup", {"min_age_days": 0})
+            assert result["complete"] is False
+            assert result["reason"] == "prune_preview_unavailable"
+            assert _candidates(result) == []
+            assert result["write_requested"] is False
+        assert await git(tmp_path, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())
