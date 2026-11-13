@@ -178,3 +178,70 @@ def test_cleanup_plan_real_cli_dry_run_does_not_modify_git_state(
         assert await git(tmp_path, "rev-parse", "HEAD") == head
 
     asyncio.run(scenario())
+
+
+def test_cleanup_plan_rejects_main_move_during_final_checkout_check(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        target = tmp_path / ".lab" / "clean"
+        await git(tmp_path, "worktree", "add", str(target), "feat/publish")
+
+        async def preview(self: WorktrunkAdapter, min_age_days: int) -> list[dict[str, object]]:
+            return [{"branch": "feat/publish", "path": str(target)}]
+
+        inspect_original = WorktrunkAdapter.inspect
+        inspections = 0
+
+        async def inspect(self: WorktrunkAdapter, branch: str) -> dict[str, object]:
+            nonlocal inspections
+            result = await inspect_original(self, branch)
+            inspections += 1
+            if inspections == 2:
+                await git(tmp_path, "commit", "--allow-empty", "-m", "chore: advance main")
+            return result
+
+        monkeypatch.setattr(WorktrunkAdapter, "preview_prune", preview)
+        monkeypatch.setattr(WorktrunkAdapter, "inspect", inspect)
+        async with Client(create_server(replace(policy(tmp_path), allowed_commands=("git", "wt")))) as client:
+            await failure(client, "plan_project_worktree_cleanup", {"min_age_days": 0})
+        assert inspections == 2
+        assert await git(tmp_path, "rev-parse", "HEAD") != head
+        assert await git(target, "rev-parse", "HEAD") == head
+        assert target.exists()
+
+    asyncio.run(scenario())
+
+
+def test_cleanup_plan_rejects_checkout_dirty_between_inspections(
+    tmp_path: Path, workspace_factory: WorkspaceFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        target = tmp_path / ".lab" / "clean"
+        await git(tmp_path, "worktree", "add", str(target), "feat/publish")
+
+        async def preview(self: WorktrunkAdapter, min_age_days: int) -> list[dict[str, object]]:
+            return [{"branch": "feat/publish", "path": str(target)}]
+
+        inspect_original = WorktrunkAdapter.inspect
+        inspections = 0
+
+        async def inspect(self: WorktrunkAdapter, branch: str) -> dict[str, object]:
+            nonlocal inspections
+            inspections += 1
+            if inspections == 2:
+                (target / "base.txt").write_text("concurrent user edit\n")
+            return await inspect_original(self, branch)
+
+        monkeypatch.setattr(WorktrunkAdapter, "preview_prune", preview)
+        monkeypatch.setattr(WorktrunkAdapter, "inspect", inspect)
+        async with Client(create_server(replace(policy(tmp_path), allowed_commands=("git", "wt")))) as client:
+            await failure(client, "plan_project_worktree_cleanup", {"min_age_days": 0})
+        assert inspections == 2
+        assert (target / "base.txt").read_text() == "concurrent user edit\n"
+        assert await git(tmp_path, "rev-parse", "HEAD") == head
+        assert await git(target, "rev-parse", "HEAD") == head
+
+    asyncio.run(scenario())

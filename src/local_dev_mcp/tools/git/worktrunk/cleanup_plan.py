@@ -110,6 +110,15 @@ async def cleanup_plan(settings: ServerSettings, *, min_age_days: int = 1) -> di
         if not isinstance(branch, str):
             raise ToolError("Invalid cleanup candidate.")
         now = await adapter.inspect(branch)
-        if now["state"] != "ready" or now["head"] != candidate["head"] or now["path"] != candidate["path"]:
+        if (
+            now["state"] != "ready"
+            or now["registered"] is not True
+            or now["head"] != candidate["head"]
+            or now["path"] != candidate["path"]
+        ):
             raise ToolError("A candidate changed during cleanup preview; reobserve before acting.")
+    # The final checkout status checks can themselves race an independent main update.
+    _, final_main = await resolve_local_ref(repo, "main")
+    if final_main != main_head:
+        raise ToolError("Main moved during cleanup preview; discard the candidates.")
     return report(selected, skipped, complete=True, reason=None)
