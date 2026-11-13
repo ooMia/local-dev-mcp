@@ -421,3 +421,33 @@ def test_review_plan_rejects_stale_and_diverged_main(tmp_path: Path, workspace_f
             assert await git(source_root, "rev-parse", "HEAD") == source
 
     asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("wt") is None, reason="Worktrunk CLI is required")
+def test_quality_evidence_uses_registered_external_checkout(
+    tmp_path: Path, workspace_factory: WorkspaceFactory
+) -> None:
+    async def scenario() -> None:
+        base = await _fixture(tmp_path, workspace_factory)
+        external = tmp_path / ".lab" / "external-quality"
+        await git(tmp_path, "worktree", "add", "-b", "feat/wt-proof", str(external), "main")
+        async with Client(create_server(_policy(tmp_path))) as client:
+            job_ids = [
+                await _job(client, "check", base, "external-quality-check", False),
+                await _job(client, "unit", base, "external-quality-unit", True),
+            ]
+            evidence = await success(
+                client,
+                VERIFY,
+                {
+                    "branch": "feat/wt-proof",
+                    "expected_source_head": base,
+                    "expected_main_head": base,
+                    "job_ids": job_ids,
+                },
+            )
+            assert evidence["status"] == "VERIFIED"
+            assert evidence["worktree_path"] == ".lab/external-quality"
+            assert await git(external, "rev-parse", "HEAD") == base
+
+    asyncio.run(scenario())

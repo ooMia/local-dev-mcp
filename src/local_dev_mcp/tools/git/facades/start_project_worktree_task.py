@@ -74,8 +74,8 @@ class StartProjectWorktreeTaskTool:
 START_PROJECT_WORKTREE_TASK: Final = ToolDefinition(
     name="start_project_worktree_task",
     description=(
-        "Run one registered lint/test check in an exact managed worktree; "
-        "choose native (default) or worktrunk backend. "
+        "Run one registered lint/test check in a selected linked worktree; "
+        "native uses the managed path, Worktrunk accepts the authorized Git-registered path. "
         "Requires observed original/target refs, git.worktree.write and the selected recipe permission. "
         "Shares the original task manager's single slot, request ledger, get/cancel tools and masked diagnostics. "
         "Worktrunk requires wt permission; never loads historical config or accepts cwd/commands. "

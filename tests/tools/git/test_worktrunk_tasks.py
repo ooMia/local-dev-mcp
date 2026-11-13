@@ -134,3 +134,48 @@ def test_worktrunk_task_rejects_dirty_target_and_missing_wt_permission(
             assert not (target / ".lab/executed").exists()
 
     asyncio.run(scenario())
+
+
+@pytest.mark.skipif(shutil.which("wt") is None, reason="Worktrunk CLI is required")
+def test_worktrunk_task_reuses_checkout_created_by_git(tmp_path: Path, workspace_factory: WorkspaceFactory) -> None:
+    async def scenario() -> None:
+        head, _ = await seed(tmp_path, workspace_factory)
+        external = tmp_path / ".lab" / "external-task"
+        await git(tmp_path, "worktree", "add", str(external), "feat/publish")
+        async with Client(create_server(_policy(tmp_path))) as client:
+            reused = await success(
+                client,
+                "create_project_worktrunk",
+                {
+                    "branch": "feat/publish",
+                    "expected_branch": "main",
+                    "expected_head": head,
+                    "expected_branch_head": head,
+                },
+            )
+            assert reused["action"] == "reused"
+            assert tmp_path / str(reused["path"]) == external
+            args: dict[str, object] = {
+                "task": "check",
+                "request_id": "external-task-check",
+                "branch": "feat/publish",
+                "expected_branch_head": head,
+                "expected_branch": "main",
+                "expected_head": head,
+                "backend": "worktrunk",
+            }
+            started = await success(client, "start_project_worktree_task", args)
+            result = await _terminal(client, str(started["job_id"]))
+            assert result["state"] == "succeeded", result
+            context = cast(dict[str, object], result["worktree"])
+            assert context["verified"] is True
+            assert context["path"] == str(external.relative_to(tmp_path))
+            assert (external / ".lab/executed").read_text() == "yes"
+            (external / "base.txt").write_text("dirty\n")
+            refusal = await failure(
+                client, "start_project_worktree_task", {**args, "request_id": "external-dirty-check"}
+            )
+            assert "dirty" in refusal or "changed" in refusal
+            assert (external / "base.txt").read_text() == "dirty\n"
+
+    asyncio.run(scenario())

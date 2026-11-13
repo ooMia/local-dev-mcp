@@ -143,21 +143,13 @@ class WorktrunkAdapter:
         from .. import _worktrees
         from ..facades import _repository
 
+        feature_name(branch)
         repo = GitExecution(self.settings)
-        path = _managed_path(self.settings, branch, write=True)
-        if path.is_symlink() or not path.is_dir():
-            raise ToolError("Worktrunk managed path is missing or is not a directory.")
-        records = await worktree.list_registered(repo)
-        selected = [row for row in records if row.path == path]
-        if len(selected) != 1 or selected[0].unavailable or selected[0].branch != "refs/heads/" + branch:
-            raise ToolError("Target is not an available registered Worktrunk worktree.")
-        common = await worktree.common_directory(repo)
-        if not _worktrees.bound_git_pointer(path, common):
-            raise ToolError("Worktrunk .git pointer does not belong to the selected repository.")
+        path = await _registered_checkout_path(self.settings, repo, branch)
+        if path is None:
+            raise ToolError("No registered Worktrunk checkout for the requested branch.")
         target = GitExecution(_worktrees.scoped_settings(self.settings, path))
         await _repository.verify_root(target)
-        if await worktree.common_directory(target) != common:
-            raise ToolError("Worktrunk checkout belongs to a different repository.")
         await _repository.require_writable_state(target)
         actual_branch, head, entries = await status.read_porcelain_v2(target)
         _, ref_head = await resolve_local_ref(repo, branch)
