@@ -47,8 +47,8 @@ SSH origin에는 HTTPS Credential Helper를 적용하지 않는다.
 | `diagnose_project_remote_auth` | 설정 경로·GitHub CLI 인증 상태와 저장소 접근을 비밀값 없이 구분 | `git.remote.read` |
 | `inspect_project_remote` | `origin`·실제 GitHub `main`·로컬 `main`·`origin/main`·기능 HEAD와 원격 기능 Ref 조회 | `git.remote.read` |
 | `fetch_project_remote_main` | 관측한 SHA의 원격 `main`을 `origin/main`으로 Fetch | `git.remote.write` |
-| `push_project_feature` | 현재 브랜치를 동일 이름의 원격 기능 Ref로 비강제 Push | `git.remote.write` |
-| `create_project_draft_pr` | 같은 SHA의 원격 기능에서 `main` 대상으로 Draft PR 생성 | `gh.pr.create` |
+| `push_project_feature` | 일반 기능 또는 검증된 `release/X.Y.Z` 브랜치를 비강제 Push | `git.remote.write` |
+| `create_project_draft_pr` | 일반 변경 또는 검증된 릴리스 스냅샷에서 `main` 대상 Draft PR 생성 | `gh.pr.create` |
 | `get_project_pr_merge_plan` | PR head·고정 squash 메시지·계획 digest 조회 | `git.remote.read` |
 | `get_project_pr_status` | 정확한 PR head의 검사·Draft·병합 가능 상태 조회 | `git.remote.read` |
 | `mark_project_pr_ready` | 검토한 PR head·계획 digest에 대해 Ready 전환 및 결과 관측 | `gh.pr.ready` |
@@ -56,6 +56,11 @@ SSH origin에는 HTTPS Credential Helper를 적용하지 않는다.
 
 모든 도구는 `git`과 `gh` 실행 권한도 필요하다. `config.toml`의 `system.allowed_commands`에 논리 권한이
 명시돼 있어야 하며, 서버 시작 시 설정과 프로그램 준비 상태를 확인한다. **변경한 설정과 새 MCP 도구 등록은 서버 재시작 후 적용된다.**
+
+릴리스 PR은 canonical `release/X.Y.Z` 브랜치에서만 생성한다. 게시 전 base/main과 source의 정확한 SHA에 대해
+기존 `check_integration`으로 릴리스 영수증·버전·lock·Changelog·소비 평가를 검증하며, 브랜치의 버전이
+영수증의 계산 버전과 일치하지 않으면 Push 및 PR 생성을 거부한다. 일반 기능 PR의 신규 평가 요구는 유지한다.
+릴리스 PR 본문은 검증된 버전·소비 개수·원본 HEAD·계획 digest를 별도로 표시하며 새 평가를 꾸며내지 않는다.
 
 현재 checkout을 전환하지 않고 과거 브랜치를 게시하려면 [격리형 Worktree 도구](worktrees.md)를 사용한다.
 
@@ -168,10 +173,10 @@ entry가 생기면 그 entry 자체가 direct ref로 교체될 수 있지만, �
 - `origin`은 `github.com/OWNER/REPO`에 대응하는 HTTPS/SSH URL만 허용하고 `gh repo view` 결과와 일치해야 한다.
 - 원격 `main` SHA는 `gh api`에서 매 작업 확인한다. `origin/main`이 오래됐으면 Push와 PR 생성은 거부한다.
 - Fetch는 관측 객체를 먼저 취득하고 검증 후 원격 추적 Ref만 갱신한다. Non-fast-forward remote update는 자동 강제하지 않는다.
-- Push는 `feat/`, `fix/`, `refactor/`, `docs/`, `test/`, `build/`, `ci/`, `chore/` 접두사의 현재 브랜치만 허용한다.
+- Push는 `feat/`, `fix/`, `refactor/`, `docs/`, `test/`, `build/`, `ci/`, `chore/` 및 검증된 `release/X.Y.Z`만 허용한다.
 - 로컬 `main`의 미공개 커밋을 기능 브랜치가 포함한다면 원격 `main`을 조상으로 가지더라도 의도치 않은 변경 유입을 막기 위해 게시를 거부한다.
 - 동시 변경은 사전 확인과 비강제 Push로 거부한다. 네트워크 결과가 불확실하면 재시도 전에 Ref를 다시 조회한다.
-- Draft PR은 새로 추가된 `.changes` 평가와 원본 커밋에서 생성한다. Purpose가 중복 최상위 이유로 모호할 때는 입력을 요구한다.
+- 일반 Draft PR은 신규 `.changes` 평가와 원본 커밋에서 생성한다. 릴리스 Draft PR은 기존 평가의 완전한 소비가 검증된 영수증을 기준으로 생성한다. Purpose가 중복 최상위 이유로 모호할 때는 입력을 요구한다.
 - PR 중복 방지를 위해 동일 Head 브랜치의 기존 PR을 조회한다. 폐쇄된 PR의 재사용·재개방은 자동화하지 않는다.
 - 인증된 호스트의 Git/gh 프로세스는 실제 파일·네트워크 권한을 가진다. MCP 정책은 OS-level sandbox가 아니다.
 - GitHub 앱별 요금제·리포지터리 보호 기능 활성화 여부까지 이 단계에서 보장하지는 않는다.

@@ -149,10 +149,20 @@ def _tool(monkeypatch: pytest.MonkeyPatch, mock: MockRemote, kind: type[Any]) ->
 
 
 def test_branch_and_title_names_refuse_main_and_option_injection() -> None:
-    for branch in ("main", "develop", "release/1.2.3", "feat/../main", "--delete", "feat/a..b"):
+    for branch in (
+        "main",
+        "develop",
+        "release/01.2.3",
+        "release/1.2",
+        "release/1.2.3/evil",
+        "feat/../main",
+        "--delete",
+        "feat/a..b",
+    ):
         with pytest.raises(ToolError):
             _remote.feature_name(branch)
     assert _remote.feature_name("feat/workflow-mvp") == "feat/workflow-mvp"
+    assert _remote.feature_name("release/1.2.3") == "release/1.2.3"
     assert _remote.title("feat(workflow): enable guarded PRs")
     with pytest.raises(ToolError):
         _remote.title("feat: valid\n--force")
@@ -380,3 +390,64 @@ def test_pr_facts_accept_release_assessment_default_migration(monkeypatch: pytes
     result = asyncio.run(tool.execute("feat/example", B, A, "feat: publish default migration"))
     assert result["created"] is True and result["draft"] is True
     assert mock.published_body is not None
+
+
+def test_release_pr_requires_verified_receipt_and_renders_distinct_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    verified: list[tuple[str, str]] = []
+
+    async def check(_read_git: Any, base: str, head: str) -> dict[str, Any]:
+        verified.append((base, head))
+        return {
+            "kind": "release",
+            "plan": {
+                "current_version": "0.1.0",
+                "next_version": "0.2.0",
+                "maximum_impact": "major",
+                "digest": "d" * 64,
+            },
+            "assessments": ["first", "second"],
+        }
+
+    monkeypatch.setattr(remote_pr, "check_integration", check)
+    mock = MockRemote(current_branch="release/0.2.0")
+    pushed = asyncio.run(_tool(monkeypatch, mock, PushFeatureTool).execute("release/0.2.0", B, A))
+    assert pushed["changed"] is True and mock.branch_head == B
+    created = asyncio.run(
+        _tool(monkeypatch, mock, CreateFeaturePRTool).execute("release/0.2.0", B, A, "chore(release): prepare v0.2.0")
+    )
+    assert created["created"] is True and mock.published_body is not None
+    assert "verified 0.2.0 release" in mock.published_body
+    assert "Consume 2 assessed changes" in mock.published_body
+    assert "Maximum assessed impact: `major`" in mock.published_body
+    assert verified == [(A, B), (A, B)]
+
+
+def test_release_branch_rejects_nonrelease_snapshot_before_push(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def check(_read_git: Any, _base: str, _head: str) -> dict[str, Any]:
+        return {"kind": "change", "plan": None, "assessments": []}
+
+    monkeypatch.setattr(remote_pr, "check_integration", check)
+    mock = MockRemote(current_branch="release/0.2.0")
+    with pytest.raises(ToolError, match="verified release"):
+        asyncio.run(_tool(monkeypatch, mock, PushFeatureTool).execute("release/0.2.0", B, A))
+    assert not any(call[1] == "push" for call in mock.records)
+
+
+def test_release_branch_rejects_mismatched_receipt_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def check(_read_git: Any, _base: str, _head: str) -> dict[str, Any]:
+        return {
+            "kind": "release",
+            "plan": {
+                "current_version": "0.1.0",
+                "next_version": "0.3.0",
+                "maximum_impact": "minor",
+                "digest": "d" * 64,
+            },
+            "assessments": ["first"],
+        }
+
+    monkeypatch.setattr(remote_pr, "check_integration", check)
+    mock = MockRemote(current_branch="release/0.2.0")
+    with pytest.raises(ToolError, match="branch version"):
+        asyncio.run(_tool(monkeypatch, mock, PushFeatureTool).execute("release/0.2.0", B, A))
+    assert not any(call[1] == "push" for call in mock.records)

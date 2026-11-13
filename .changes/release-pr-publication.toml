@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "Support verified release branch publication and Draft PR generation through MCP."
+reason = "Extends guarded GitHub publication to canonical release/X.Y.Z branches only after the shared release integration check verifies the exact source SHA, version, changelog, lock and consumed change assessments. Existing feature PR requirements, non-force push and reviewed merge gates stay unchanged."
+contract = "MCP GitHub release PR publication and deterministic PR body"
+assessed_by = "agent"
+migration = "Restart the LOCAL-DEV-MCP server to load release branch publication; CLI pr-body collect/sync remains feature-only."
+supersedes = []

@@ -1,7 +1,7 @@
 # PR Body Generator
 
 기존 [ADR 0005](../../adr/0005-assessed-squash-and-batched-releases.md)와 [ADR 0006](../../adr/0006-native-pr-workflow-mvp.md)의 공개 통합·출처·릴리스 평가 계약을 유지한다.
-이 기능은 신규 .changes 평가를 추가하는 기능·수정 PR의 설명을 간결하게 유지하기 위한 개발 CLI다. 평가를 소비하는 release PR은 아직 지원하지 않는다.
+개발 CLI의 `pr-body collect/sync`는 신규 `.changes` 평가를 추가하는 일반 PR 전용이다. 평가를 소비하는 릴리스 PR은 별도 MCP `create_project_draft_pr` 경로에서 검증된 릴리스 영수증을 사용해 지원한다. CLI의 release collect/sync까지 확장한 것은 아니다.
 새로운 GitHub App, 버전 계산 방식 또는 별도 보존 Ref를 추가하지 않는다.
 
 ## 소유권과 데이터 출처

@@ -78,7 +78,9 @@ Git 조회 출력은 명령당 1 MiB, 10초로 제한하고 외부 Git 오류 �
 1. `get_release_plan`으로 전체 SHA·Digest·권장 버전과 Clean 여부를 확인한다. `next_version=null`이면 준비할 릴리스가 없다.
 2. `main`에서 `create_project_branch(new_branch="release/<next_version>", expected_branch="main", expected_head=<plan.head>)`를 호출한다. 브랜치 변경은 사용자 요청의 실행 범위와 Git 정책을 따른다.
 3. `prepare_project_release(expected_head=<plan.head>, expected_plan=<plan.digest>, expected_version=<plan.next_version>)`를 호출한다. 이 도구는 `git` 외에 **`uv.release`** 명시 권한 및 uv 실행 파일을 요구하며, Clean 릴리스 브랜치와 출력/평가 파일의 접근·쓰기 정책을 다시 검사한다. `uv.release` 권한을 설정했다면 서버를 재시작한다.
-4. 생성된 파일(`pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `.release.toml`)과 소비된 `.changes/*.toml`을 검토한다. 이후 기존 도구로 stage·commit하고, 전체 검사와 정확한 두 SHA의 릴리스 통합 검사를 거쳐 `merge_project_branch`의 명시적 squash를 사용한다. Tag·Push·Publish는 별도 작업이다.
+4. 생성된 파일(`pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `.release.toml`)과 소비된 `.changes/*.toml`을 검토하고 stage·commit한다. 정확한 base/head의 릴리스 통합 검사와 전체 품질 검사를 수행한다.
+5. `release/X.Y.Z` 브랜치를 원격 main에 대한 비강제 Push 후 `create_project_draft_pr`로 Draft PR을 연다. 게시 전 영수증과 소비 범위를 다시 검증하며 일반 기능 PR용 신규 평가를 요구하지 않는다. [PR 통합 절차](../git/remote-pr.md#채팅-내-ci-관측과-ready-전환)에 따라 정확한 HEAD의 CI·Ready·검토된 Squash Merge를 확인한다. 로컬의 `merge_project_branch` 경로는 별도 로컬 통합 정책을 따른다.
+6. Tag·artifact Push·Publish는 병합된 최종 release commit에 대한 별도 작업이다.
 
 `get_release_plan`은 읽기 전용이며 `prepare_project_release`는 파일 쓰기 도구다. Prepare는 **재실행용 영속 영수증을 제공하지 않으므로**, 실패·응답 유실 후 동일 요청을 즉시 재호출하면 안 된다. 상태를 재조회해 부분 변경을 검토한다. 둘 모두 원격 Release를 자동 수행하지 않고 임의 명령을 실행할 수 없다.
 
