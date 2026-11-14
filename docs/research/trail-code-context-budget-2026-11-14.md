@@ -10,27 +10,36 @@
 
 2026-11-14 KST에 연결된 Trail Code MCP를 직접 호출한 결과:
 
-| 검사 | 실제 응답 | 판정 |
+| 검사 | 관측된 결과 | 판정 |
 | --- | --- | --- |
 | `trail_check_freshness` | 7개 저장소 인식, `local-dev-mcp/: STALE (30 stale)` | Stale 원인 미확인 |
-| `trail_find_all` | URL 검증 문자열을 `remote_pr.py:L567`에서 탐색 | PASS (정확한 위치) |
-| `trail_file_api(file="remote_pr.py")` | `no wiring graph — run trail build first` | BLOCKED |
-| `trail_trace_calls(symbol="CreateFeaturePRTool.execute", in="local-dev-mcp")` | `nothing indexed under "local-dev-mcp/"`; 반환한 scope는 FDE의 경로 | BLOCKED |
-| LOCAL_DEV_MCP `search_workspace_text` | 같은 문자열을 `remote_pr.py:567`에서 탐색 | PASS |
+| `trail_find_all` | PR URL 오류 문자열을 `remote_pr.py:L567`에서 탐색 | PASS (현재 HEAD와 일치 여부는 별도 검증) |
+| `trail_find_code(in="local-dev-mcp/src/local_dev_mcp/tools/git")` | `CreateFeaturePRTool` 정의 및 코드 출력 | PASS (해당 범위 검색) |
+| `trail_repo_map` | `local-dev-mcp/`를 별도 저장소로 식별, 356파일·2,985심볼 | PASS (지도 출력) |
+| `trail_trace_calls(symbol="CreateFeaturePRTool.execute")` | 스코프 생략 시 여러 저장소의 `execute`를 반환하고 `local-dev-mcp/` 심볼 포함 | 부분 PASS (중복 이름·호출 누락 주의) |
+| `trail_trace_calls(..., in="local-dev-mcp/src/local_dev_mcp/tools/git")` | `nothing indexed under ...`, FDE 내부 경로만 스코프 후보로 제시 | BLOCKED |
+| `trail_file_api(file="remote_pr.py")` 및 전체 저장소 접두어 | `no wiring graph — run trail build first` | BLOCKED |
+| LOCAL_DEV_MCP `search_workspace_text` | 같은 오류 문자열을 `remote_pr.py:567`에서 탐색 | PASS |
 
-도구별 선택 저장소가 일치하지 않는다. `trail_find_all` 결과만을 근거로 다른 Trail Code 도구의 활성화·신선도를 추정하지 않는다. 출력에 표시된 `tokens saved ≈ 6,818`은 **파일 전체 읽기와 비교한 도구 자체의 추정치**로, ChatGPT 세션의 실제 사용량이 아니다.
+추가 조회: 2026-11-14 KST. **구조 그래프 전체가 없다는 설명은 관측과 일치하지 않는다.** 지도·스코프 검색·스코프 없는 호출 관계 조회는 `local-dev-mcp`를 인식한다. 반면 `file_api`와 명시적 `in` 인자를 사용한 `trace_calls`는 다른 방식으로 스코프를 해석하는 정황이 있다. 인덱스 드리프트 30건과 라우팅 오류의 인과관계는 아직 확인되지 않았다.
 
-공식 문서는 구조 그래프를 `trail build`로 생성하고, 탐색 전에 변경 감지 기반 자동 갱신을 수행한다고 설명한다. 단, 현재 연결에서 재현된 라우팅 오류를 그 설명만으로 해결했다고 보지 않는다.
+Trail Code가 표시하는 `tokens saved ≈ N`은 대상 **파일 전체 읽기와의 내부 추정 비교**이며, 실제 ChatGPT 사용 토큰이나 유효한 A/B 성과가 아니다. `trail_trace_calls`에서 심볼 이름의 모호성이 있으면 여러 저장소가 함께 출력될 수 있으므로 코드 수정의 근거로 사용하기 전 실제 소스를 검증한다.
 
-### 명시적 운영 진단 후보 (실행·설정 변경 미수행)
+### 저장소별 운영 복구 절차 (실행·설정 변경 미수행)
+
+공식 CLI 문서에 따르면 `trail check`는 팀 지식 검사이고, **인덱스 신선도 검사는 `trail build --check`**다. `--check`는 빌드 없이 드리프트를 보고하며, 기본 `trail build`는 별도 LLM API 없이 구조 그래프를 생성한다.
 
 ```sh
-trail build --check /Users/mia/Github/local-dev-mcp
+trail build --check /Users/mia/Github/local-dev-mcp --json
+# 결과가 missing/stale일 경우에만 해당 저장소 그래프 갱신
 trail build /Users/mia/Github/local-dev-mcp
-trail mcp /Users/mia/Github/local-dev-mcp
+trail build --check /Users/mia/Github/local-dev-mcp --json
+# CLI로 파일·호출 관계 검증
+trail skeleton src/local_dev_mcp/tools/git/facades/remote_pr.py /Users/mia/Github/local-dev-mcp
+trail callers CreateFeaturePRTool.execute /Users/mia/Github/local-dev-mcp
 ```
 
-첫 명령으로 신선도와 그래프 유무를 확인하고, 필요한 경우 해당 저장소에서만 구조 그래프를 다시 생성한다. 프로젝트별 MCP 서버 구성이 실제 `file_api`·`trace_calls` 스코프 오류를 해결하는지는 **별도 E2E 재호출로 검증**해야 한다. 기존 공유 Trail Code 연결을 추측으로 교체하거나 `--deep`(선택 LLM 계층)을 기본 실행하지 않는다.
+CLI에서 정상인데 공유 MCP에서 오류가 유지된다면, 별도의 `trail mcp /Users/mia/Github/local-dev-mcp` 프로세스를 **이 프로젝트 전용 클라이언트 연결로 등록**한 후 동일 도구를 재호출해 라우팅 문제를 분리한다. `trail mcp` 명령만 실행해도 기존 ChatGPT 플러그인 연결이 자동 전환되지는 않는다. 현재 연결에는 호스트 CLI 실행·MCP 등록 변경 수단이 없으므로 빌드·재연결을 수행했다고 표기하지 않는다. `--deep`은 필요하지 않으며 기존 공유 연결과 Git 파일을 임의로 초기화하지 않는다.
 
 C0 통과 기준: 동일 저장소·Git HEAD를 대상으로 `find_code`, `find_all`, `file_api`, `trace_calls`, `repo_map`의 대상이 일치하며, 인덱스 신선도와 자동 갱신 동작을 확인한다. 실패 시 LOCAL_DEV_MCP의 실제 소스를 읽는다.
 
