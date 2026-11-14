@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "Fetch a verified remote main from a clean Git-registered Worktrunk without changing a dirty controller checkout."
+reason = "The controller-only fetch refuses any uncommitted user changes, preventing source-preserving worktree publication after PR squash merges. Expose a narrowly scoped Worktrunk route that reuses existing remote SHA, direct ref, fast-forward-only and no-tags fetch guards."
+contract = "docs/tools/git/worktrunk.md"
+assessed_by = "agent"
+migration = "Reload the MCP instance to expose fetch_project_branch_remote_main. Grant existing git, wt, git.worktree.write, gh and git.remote.write permissions. Existing controller fetch remains clean-only."
+supersedes = []

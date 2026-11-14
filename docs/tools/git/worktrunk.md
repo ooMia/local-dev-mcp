@@ -21,6 +21,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 | `inspect_project_worktrunk` | `branch` | Git 등록 상태 기반 읽기 전용 조회. `state=absent/not_checked_out/ready/dirty/blocked`, `branch_head`, `head`, `clean`, `registered`, 허용된 `path`와 차단 `reason` 반환 |
 | `list_project_worktrees` | `include_branches=true`, `include_remote=false` | Git 등록 Worktree와 로컬 브랜치 목록. 허용 경로만 상대 경로로 표시하고 차단 Worktree는 개수로만 집계. Worktrunk Schema 2와 Git SHA·경로가 일치할 때만 Ahead/Behind·충돌 상태 추가 |
 | `get_project_worktree_review` | `branch`, `expected_head`, `include_patch=false`, `base_branch="main"` | Git 등록 Checkout의 커밋된 변경·Staged·Unstaged·Untracked 요약. 패치는 명시 선택이며 보호 경로는 제외. SHA·기준 브랜치 이동 시 거부 |
+| `fetch_project_branch_remote_main` | `branch`, `expected_branch_head`, `expected_remote_main` | Clean Git 등록 Worktrunk에서 기존 제한적 Fetch 계약으로 `origin/main`만 갱신. 원본 Dirty 파일은 읽거나 변경하지 않음 |
 | `get_project_worktree_pick_state` | `branch`, `expected_branch_head`, `expected_branch`, `expected_head` | 원본 Dirty 변경 지문을 보존한 상태에서 대상 Worktree의 HEAD·index 지문·staged/unstaged 경로 관측. `wt` 실행 파일 불필요 |
 | `cherry_pick_project_worktree_commit` | 앞의 네 값, `commit`, `expected_index_fingerprint`, `allow_staged=false` | Git 등록 대상에서 기존 Cherry-pick 충돌·보호 경로 검사를 재사용하여 `--no-commit` 적용. 원본 Dirty 변경 보존, 자동 커밋·reset 없음 |
 | `commit_project_worktree_pick` | 앞의 네 값, `message`, `expected_index_fingerprint`, `expected_staged_paths` | 리뷰한 대상 인덱스 전체 경로·지문을 일치시킨 뒤 기존 서명/Hook 정책으로 Commit, 정확한 부모·변경 경로·Clean 상태 확인 |
@@ -44,6 +45,8 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 원격 게시도 기존 `push_project_branch`와 `create_project_branch_draft_pr`의 `backend="worktrunk"`를 명시하여 수행한다. 실제 Git 등록 Worktree를 사용하며, 대상 Worktree Clean·비강제 Push·기준 Ref 및 중복 Draft PR 검사는 유지한다. 원본은 기본적으로 Clean을 요구한다. **Worktrunk에서만** `allow_dirty_controller=true`를 명시하면 원본의 Dirty 경로·index·파일 내용 SHA-256 지문을 작업 전후 재확인해 보존한다. 다른 backend에서 이 옵션은 거부하며 기존 Native 계약을 완화하지 않는다. 원본 Dirty 경로 256개·일반 파일 64 MiB 상한 및 외부 프로세스의 비원자적 변경 한계는 기존 Worktree snapshot 계약과 동일하다. 원격 쓰기가 성공한 뒤 원본 검증에 실패할 수도 있으므로 결과가 불확실하면 원격 Ref/PR을 읽기 전용으로 재조회하고 자동 재시도하지 않는다. `main` 승인·병합은 포함하지 않는다.
 
 원격 읽기 전용 검사는 기존 `inspect_project_branch_remote(backend="worktrunk")`를 사용한다. 공개 입력·권한과 기본 `native` 경로는 [Worktree 계약](worktrees.md)을 따른다.
+
+`fetch_project_branch_remote_main`은 원본 체크아웃이 Dirty여도 **Git 등록된 Clean Worktrunk**로만 기존 `FetchRemoteMainTool`을 호출한다. 호출자가 전체 SHA로 고정한 대상 브랜치와 원격 `main`을 검증하고, Git의 `origin/main` 직접 Ref만 Fast-forward 방식으로 갱신한다. 태그·Submodule Fetch·로컬 `main` 이동·원본 index/파일 변경·강제 Fetch는 허용하지 않는다. 실제 Git 실행은 선택된 Worktree에서 수행하며 전후의 Git 등록·브랜치·HEAD·Clean 상태를 검증한다. 반환이 불확실하면 `inspect_project_branch_remote`로 Ref를 다시 확인하고 자동 재시도하지 않는다.
 
 검토 계획의 `mode`는 `ff`로 명시하며 `plan_digest` 역시 동일한 모드를 포함한다.
 이는 외부 실행 경로에서 암묵적인 Squash로 작업 종류가 변경되는 것을 방지하기 위한 검토 정보다.

@@ -103,6 +103,7 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `prepare_project_worktree_assessment` | 명시적으로 검토한 평가 TOML을 관리 Worktree에 새로 작성하고 Digest 반환 |
 | `commit_project_worktree_assessment` | Digest가 일치하는 새 평가 하나만 검증·Stage·서명 설정에 따라 Commit |
 | `inspect_project_branch_remote` | 준비된 지정 브랜치를 기준으로 원격 refs·기준선 관계 조회 |
+| `fetch_project_branch_remote_main` | 등록된 Clean Worktrunk에서 Dirty 원본 변경을 보존하며 `origin/main`만 비강제 Fetch |
 | `push_project_branch` | 원본을 보존하며 관리 Worktree의 관측 SHA를 동일 원격 기능 ref에 비강제 Push |
 | `create_project_branch_draft_pr` | 현재 템플릿과 대상 커밋·평가로 지정 브랜치 Draft PR 게시 |
 | `inspect_project_worktrunk` | Git 등록 Worktree의 브랜치·HEAD·Dirty·접근 차단 상태를 Receipt 없이 읽기 전용 조회 |
