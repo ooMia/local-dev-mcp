@@ -1,5 +1,6 @@
 """Server-local file operations; blocking filesystem work stays off the event loop."""
 
+from collections.abc import Callable
 from typing import Literal
 
 from anyio import from_thread, to_thread
@@ -21,8 +22,9 @@ class WorkspaceFiles:
     write_locks: WriteLocks
     mutations: FileMutations
 
-    def __init__(self, policy: Policy) -> None:
+    def __init__(self, policy: Policy, change_callback: Callable[[], None] | None = None) -> None:
         self.workspace = Workspace(policy)
+        self.change_callback = change_callback
         self.references = ReadStore(self.workspace)
         self.write_locks = WriteLocks()
         self.mutations = FileMutations(self.workspace, self.references, self.write_locks)
@@ -73,19 +75,39 @@ class WorkspaceFiles:
                 Budget(from_thread.check_cancelled),
             )
 
-        return await to_thread.run_sync(work)
+        result = await to_thread.run_sync(work)
+        self._changed(result)
+        return result
 
     async def create_file(self, path: str, content: str, request_id: str, create_parents: bool = False) -> FileMutation:
         def work() -> FileMutation:
             return self.mutations.create(path, content, request_id, create_parents, Budget(from_thread.check_cancelled))
 
-        return await to_thread.run_sync(work)
+        result = await to_thread.run_sync(work)
+        self._changed(result)
+        return result
 
     async def delete_file(self, path: str, read_ref: str, request_id: str) -> FileMutation:
         def work() -> FileMutation:
             return self.mutations.delete(path, read_ref, request_id, Budget(from_thread.check_cancelled))
 
-        return await to_thread.run_sync(work)
+        result = await to_thread.run_sync(work)
+        self._changed(result)
+        return result
+
+    def _changed(self, result: FileEdit | FileMutation) -> None:
+        # The source write is already final; index maintenance must not change its receipt.
+        if (
+            self.change_callback is not None
+            and result.changed
+            and result.outcome in ("applied", "applied_unverified")
+            and not (isinstance(result, FileMutation) and result.replayed)
+        ):
+            try:
+                self.change_callback()
+            except Exception:
+                # Index maintenance is an optional, non-transactional side effect.
+                pass
 
     def clear(self) -> None:
         self.mutations.clear()

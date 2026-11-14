@@ -11,7 +11,7 @@ from fastmcp import FastMCP
 from ..app.runtime import ServerSettings
 from ..diagnostics import warn_preparation
 from ..settings import Policy
-from ..tools import client_elicitation, documents, get_tool_readiness, git, release, tasks, workspace
+from ..tools import client_elicitation, documents, get_tool_readiness, git, indexing, release, tasks, workspace
 from . import registry
 
 TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
@@ -63,6 +63,8 @@ TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
     release.GET_RELEASE_PLAN,
     release.PREPARE_PROJECT_RELEASE,
     get_tool_readiness.GET_TOOL_READINESS,
+    indexing.GET_PROJECT_INDEX_STATUS,
+    indexing.REFRESH_PROJECT_INDEX,
     client_elicitation.DIAGNOSE_CLIENT_ELICITATION,
     client_elicitation.PROBE_CLIENT_ELICITATION,
     client_elicitation.PROBE_CLIENT_ELICITATION_MRTR,
@@ -101,7 +103,10 @@ def create_server(policy: Policy) -> FastMCP:
             try:
                 await settings.tasks.close()
             finally:
-                settings.files.clear()
+                try:
+                    await settings.index.close()
+                finally:
+                    settings.files.clear()
 
     server = FastMCP(
         "local-dev-mcp",

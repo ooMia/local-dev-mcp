@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "Add optional project-root Trail Code status, structural index refresh, and coalesced post-edit synchronization."
+reason = "Two additive MCP tools, get_project_index_status and refresh_project_index, use the existing startup Policy.root and explicit trail command permission. Optional on-write refresh is opt-in and cannot change the original file mutation result. No workspace registry or tool input path is added."
+contract = "docs/tools/indexing/README.md"
+assessed_by = "agent"
+migration = "Grant trail in the instance's allowed_commands and restart; optionally set TRAIL_EXECUTABLE and TRAIL_REFRESH_ON_WRITE=true in the instance's .env, then restart. Existing MCP and tunnel connections remain unchanged."
+supersedes = []
