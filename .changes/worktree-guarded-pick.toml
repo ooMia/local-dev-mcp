@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "Support guarded cherry-pick and reviewed signed commits in Git-registered Worktrunk checkouts while preserving dirty controller files."
+reason = "The existing cherry-pick and commit tools operated on the controller checkout only, blocking safe migration from already merged source histories into a clean remote-main-based linked worktree. Three additive MCP tools reuse existing protected-path, index fingerprint, identity and signing controls without allowing caller-selected paths or arbitrary Git commands."
+contract = "docs/tools/git/worktrunk.md"
+assessed_by = "agent"
+migration = "Restart the LOCAL_DEV_MCP server to expose get_project_worktree_pick_state, cherry_pick_project_worktree_commit and commit_project_worktree_pick. Existing tools and permissions stay unchanged; writes require git, wt and git.worktree.write logical permissions."
+supersedes = []

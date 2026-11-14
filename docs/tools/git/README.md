@@ -43,6 +43,9 @@ Worktrunk CLI를 이용한 별도 실험적 생성·로컬 통합·정리 경로
 | `switch_project_branch` | `target_branch`, `expected_target_head`, `expected_branch`, `expected_head` | 추적 변경이 없는 상태에서 기존 로컬 브랜치 전환 |
 | `get_project_pick_state` | 없음 | HEAD·Index SHA-256 지문·변경 경로 관측 |
 | `cherry_pick_project_commit` | `commit`, `expected_branch`, `expected_head`, `expected_index_fingerprint`, `allow_staged=false` | 비병합 커밋 하나를 commit 없이 적용 |
+| `get_project_worktree_pick_state` | 대상 `branch`·`expected_branch_head`, 원본 `expected_branch`·`expected_head` | Worktrunk 대상의 정확한 HEAD·인덱스 지문 관측, 원본 Dirty 내용 보존 |
+| `cherry_pick_project_worktree_commit` | 위 대상·원본 값과 `commit`, `expected_index_fingerprint`, `allow_staged=false` | Git 등록 대상에서 안전한 `--no-commit` 적용 |
+| `commit_project_worktree_pick` | 위 대상·원본 값과 `message`, `expected_index_fingerprint`, `expected_staged_paths` | 검토된 대상 index만 서명 커밋, 부모·경로·Clean 상태 확인 |
 | `restore_project_pick_paths` | `paths`, `expected_branch`, `expected_head`, `expected_index_fingerprint` | 명시한 staged 파일만 HEAD 기준으로 복구 |
 
 

@@ -82,6 +82,9 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `switch_project_branch` | 기존 로컬 브랜치로 전환 |
 | `get_project_pick_state` | cherry-pick 진행 상태 확인 |
 | `cherry_pick_project_commit` | 선택한 로컬 커밋을 현재 브랜치에 적용 |
+| `get_project_worktree_pick_state` | Git 등록 Worktrunk의 정확한 HEAD·Index 지문·변경 경로 조회; 원본 Dirty 상태 보존 |
+| `cherry_pick_project_worktree_commit` | 원본을 유지하면서 등록된 Worktree에 선택한 Commit을 `--no-commit`으로 적용 |
+| `commit_project_worktree_pick` | Worktree의 검토된 staged 범위만 서명 정책에 따라 Commit·검증 |
 | `restore_project_pick_paths` | cherry-pick 관련 명시적 경로 복원 |
 | `merge_project_branch` | 평가 기록 기반 squash 또는 미설정 workspace의 fast-forward 통합 |
 | `diagnose_project_remote_auth` | 인증 설정·GitHub 로그인·private 저장소 접근을 비밀값 없이 진단 |

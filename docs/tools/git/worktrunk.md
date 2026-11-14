@@ -21,10 +21,23 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 | `inspect_project_worktrunk` | `branch` | Git 등록 상태 기반 읽기 전용 조회. `state=absent/not_checked_out/ready/dirty/blocked`, `branch_head`, `head`, `clean`, `registered`, 허용된 `path`와 차단 `reason` 반환 |
 | `list_project_worktrees` | `include_branches=true`, `include_remote=false` | Git 등록 Worktree와 로컬 브랜치 목록. 허용 경로만 상대 경로로 표시하고 차단 Worktree는 개수로만 집계. Worktrunk Schema 2와 Git SHA·경로가 일치할 때만 Ahead/Behind·충돌 상태 추가 |
 | `get_project_worktree_review` | `branch`, `expected_head`, `include_patch=false`, `base_branch="main"` | Git 등록 Checkout의 커밋된 변경·Staged·Unstaged·Untracked 요약. 패치는 명시 선택이며 보호 경로는 제외. SHA·기준 브랜치 이동 시 거부 |
+| `get_project_worktree_pick_state` | `branch`, `expected_branch_head`, `expected_branch`, `expected_head` | 원본 Dirty 변경 지문을 보존한 상태에서 대상 Worktree의 HEAD·index 지문·staged/unstaged 경로 관측. `wt` 실행 파일 불필요 |
+| `cherry_pick_project_worktree_commit` | 앞의 네 값, `commit`, `expected_index_fingerprint`, `allow_staged=false` | Git 등록 대상에서 기존 Cherry-pick 충돌·보호 경로 검사를 재사용하여 `--no-commit` 적용. 원본 Dirty 변경 보존, 자동 커밋·reset 없음 |
+| `commit_project_worktree_pick` | 앞의 네 값, `message`, `expected_index_fingerprint`, `expected_staged_paths` | 리뷰한 대상 인덱스 전체 경로·지문을 일치시킨 뒤 기존 서명/Hook 정책으로 Commit, 정확한 부모·변경 경로·Clean 상태 확인 |
 | `plan_project_worktree_cleanup` | `min_age_days=1` (0–365) | `wt step prune --dry-run` 후보에 대해 Clean·Git 등록·허용 경로·로컬 `main` 조상 관계를 재확인한 읽기 전용 제안. 미지원 CLI는 `complete=false`; 삭제 없음 |
 | `create_project_worktrunk` | `branch`, `expected_branch`, `expected_head`, `expected_base_head=null`, `expected_branch_head=null`, `base_branch="main"`, `run_hooks=false`, `worktree_path=null` | 새 브랜치 생성·기존 브랜치 체크아웃·등록된 Worktree 재사용. `action=created/checked_out/reused` |
 | `remove_project_worktrunk` | `branch`, `expected_branch_head`, `delete_branch=null`, `run_hooks=false` | 허용된 Workspace 내 Git 등록 Worktree를 비강제 제거. `null`은 Worktrunk의 브랜치 정리 기본값, `false`는 보존, `true`는 안전한 삭제 시도 |
 | `get_project_worktrunk_merge_plan` | `evidence_id`, `branch`, `expected_source_head`, `expected_main_head` | 서버 로컬 검사 증거·Main Ref·Fast-forward 관계 검증, 별도 Main Checkout 없는 읽기 전용 제안 |
+
+
+### 격리된 Worktree 커밋 이식
+
+1. `get_project_worktree_pick_state`로 **Git 등록된 대상**의 현재 HEAD, 인덱스 SHA-256 지문 및 변경 목록을 확인한다. `expected_branch`·`expected_head`는 **원본 controller**, `branch`·`expected_branch_head`는 **대상 Worktree**다.
+2. `cherry_pick_project_worktree_commit`으로 단일 비병합 커밋을 `--no-commit`으로 적용한다. 시작은 빈 index가 원칙이며 후속 `allow_staged=true`는 관측된 인덱스 지문에만 허용된다. 사용자 파일/ignore 충돌·보호 경로·중간 Git 작업 상태를 기존 Cherry-pick 안전 계약으로 거부한다.
+3. `get_project_worktree_review(include_patch=true)`의 `patches.staged`와 새 Pick State로 실제 staged 경로를 검토한다. 이후 `commit_project_worktree_pick`에 정확한 `expected_staged_paths`와 지문을 전달하여 한 단위의 변경을 커밋한다. 대상에 unstaged 또는 untracked 파일이 있으면 커밋을 거부한다.
+4. 커밋의 새로운 HEAD를 다시 관측한다. 다음 Source Commit은 새로운 대상 HEAD를 사용한다. PR 게시와 `main` 병합은 기존 원격 PR·CI 정책을 별도 적용한다.
+
+세 도구 모두 원본 controller의 Dirty 경로 상태·파일 내용 지문을 작업 전후 검사하지만, 별도 OS Git 프로세스와 원자적 락을 공유하지는 않는다. 원본 Dirty 경로 256개·64 MiB 상한, 접근 정책, 등록된 Worktree와 공통 Git 저장소 검증을 유지한다. 쓰기에는 `git`·`wt`·`git.worktree.write` 논리 권한이 필요하며 `wt` CLI 실행을 요구하지 않는다. 커밋은 별도 Git identity/서명 설정도 필요하다. 충돌·훅 오류·통신 중단 이후에는 `HEAD`·index·status를 관측하고 재시도·abort·reset을 자동으로 수행하지 않는다. 수정 코드 반영을 위해 MCP 재시작이 필요하다.
 
 평가 작성·커밋도 기존 `prepare_project_worktree_assessment` 및 `commit_project_worktree_assessment`에 동일한 `backend="worktrunk"`를 지정하여 함께 사용한다. Native Receipt 없이도 원본 Clean·평가 Digest·정확한 단일 파일 커밋·서명 검증을 유지한다.
 
