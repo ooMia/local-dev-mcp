@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "Permit explicitly guarded Worktrunk remote publication from a dirty controller checkout without changing Native defaults."
+reason = "Worktrunk cherry-pick, local inspection and quality checks preserve verified dirty controller files, but publication still required clean original state. Add a Worktrunk-only opt-in that snapshots the original index and dirty file bytes before and after non-force push or Draft PR creation while retaining exact target-head and remote gates."
+contract = "docs/tools/git/worktrunk.md"
+assessed_by = "agent"
+migration = "After restart, set backend=worktrunk and allow_dirty_controller=true on push_project_branch or create_project_branch_draft_pr when the original checkout contains user changes. Omitting the flag keeps the existing clean-only behavior. Native backend explicitly rejects this option."
+supersedes = []

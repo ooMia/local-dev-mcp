@@ -130,7 +130,23 @@ def test_branch_publication_reuses_remote_gates_in_target_checkout(
             await failure(session, "push_project_branch", arguments)
             (target / "base.txt").write_text("base\n")
             await failure(session, "push_project_branch", {**arguments, "expected_branch_head": base})
-            result = await success(session, "push_project_branch", arguments)
+            if backend == "worktrunk":
+                (tmp_path / "base.txt").write_text("dirty controller only\n")
+                await failure(session, "push_project_branch", arguments)
+                await failure(
+                    session,
+                    "push_project_branch",
+                    {**arguments, "backend": "native", "allow_dirty_controller": True},
+                )
+                publication_args = {**arguments, "allow_dirty_controller": True}
+            else:
+                await failure(
+                    session,
+                    "push_project_branch",
+                    {**arguments, "allow_dirty_controller": True},
+                )
+                publication_args = arguments
+            result = await success(session, "push_project_branch", publication_args)
             assert result["remote_after"] == head
             assert roots and set(roots) == {target}
             assert len(pushes) == 1 and pushes[0][-1] == head + ":refs/heads/feat/publish"
@@ -140,7 +156,7 @@ def test_branch_publication_reuses_remote_gates_in_target_checkout(
                 await failure(
                     denied,
                     "create_project_branch_draft_pr",
-                    {**arguments, "title_text": "feat(git): publish isolated branch"},
+                    {**publication_args, "title_text": "feat(git): publish isolated branch"},
                 )
             assert not created
             template_path = tmp_path / ".github" / "PULL_REQUEST_TEMPLATE.md"
@@ -150,7 +166,7 @@ def test_branch_publication_reuses_remote_gates_in_target_checkout(
             await failure(
                 session,
                 "create_project_branch_draft_pr",
-                {**arguments, "title_text": "feat(git): publish isolated branch"},
+                {**publication_args, "title_text": "feat(git): publish isolated branch"},
             )
             assert not created
             template_path.unlink()
@@ -158,19 +174,23 @@ def test_branch_publication_reuses_remote_gates_in_target_checkout(
             draft = await success(
                 session,
                 "create_project_branch_draft_pr",
-                {**arguments, "title_text": "feat(git): publish isolated branch"},
+                {**publication_args, "title_text": "feat(git): publish isolated branch"},
             )
             assert draft["created"] is True and draft["draft"] is True
             duplicate = await success(
                 session,
                 "create_project_branch_draft_pr",
-                {**arguments, "title_text": "feat(git): publish isolated branch"},
+                {**publication_args, "title_text": "feat(git): publish isolated branch"},
             )
             assert duplicate["created"] is False and len(created) == 1 and len(bodies) == 1
             assert head in bodies[0]
         assert await git(tmp_path, "symbolic-ref", "--short", "HEAD") == "main"
         assert await git(tmp_path, "rev-parse", "HEAD") == base
-        assert await git(tmp_path, "status", "--porcelain") == ""
+        if backend == "worktrunk":
+            assert (tmp_path / "base.txt").read_text() == "dirty controller only\n"
+            assert await git(tmp_path, "status", "--porcelain") == " M base.txt"
+        else:
+            assert await git(tmp_path, "status", "--porcelain") == ""
 
     asyncio.run(scenario())
 

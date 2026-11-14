@@ -41,7 +41,7 @@ Worktrunk 실행·JSON 처리·관리 경로는 `tools/git/worktrunk/`가 담당
 
 평가 작성·커밋도 기존 `prepare_project_worktree_assessment` 및 `commit_project_worktree_assessment`에 동일한 `backend="worktrunk"`를 지정하여 함께 사용한다. Native Receipt 없이도 원본 Clean·평가 Digest·정확한 단일 파일 커밋·서명 검증을 유지한다.
 
-원격 게시도 기존 `push_project_branch`와 `create_project_branch_draft_pr`의 `backend="worktrunk"`를 명시하여 수행한다. 실제 Git 등록 Worktree를 사용하되, 원본·대상 Clean, 비강제 Push, 기준 Ref 및 중복 Draft PR 검사는 공통 원격 계약이 유지한다. `main` 승인·병합은 포함하지 않는다.
+원격 게시도 기존 `push_project_branch`와 `create_project_branch_draft_pr`의 `backend="worktrunk"`를 명시하여 수행한다. 실제 Git 등록 Worktree를 사용하며, 대상 Worktree Clean·비강제 Push·기준 Ref 및 중복 Draft PR 검사는 유지한다. 원본은 기본적으로 Clean을 요구한다. **Worktrunk에서만** `allow_dirty_controller=true`를 명시하면 원본의 Dirty 경로·index·파일 내용 SHA-256 지문을 작업 전후 재확인해 보존한다. 다른 backend에서 이 옵션은 거부하며 기존 Native 계약을 완화하지 않는다. 원본 Dirty 경로 256개·일반 파일 64 MiB 상한 및 외부 프로세스의 비원자적 변경 한계는 기존 Worktree snapshot 계약과 동일하다. 원격 쓰기가 성공한 뒤 원본 검증에 실패할 수도 있으므로 결과가 불확실하면 원격 Ref/PR을 읽기 전용으로 재조회하고 자동 재시도하지 않는다. `main` 승인·병합은 포함하지 않는다.
 
 원격 읽기 전용 검사는 기존 `inspect_project_branch_remote(backend="worktrunk")`를 사용한다. 공개 입력·권한과 기본 `native` 경로는 [Worktree 계약](worktrees.md)을 따른다.
 
