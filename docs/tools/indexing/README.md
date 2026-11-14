@@ -22,7 +22,7 @@ TRAIL_REFRESH_ON_WRITE=true
 
 ## M1: get_project_index_status
 
-입력은 없다. 고정 루트에서 `trail build --check <Policy.root>`를 실행한다. 구조 인덱스(`graft check`)와 선택적 Deep 요약(`graph check`)을 따로 판정한다. 고정 출력 형식을 인식하지 못하면 Fresh로 추정하지 않고 `unknown`이다. `ready_for_structural_search`는 구조 인덱스가 최신이고 미반영 변경 이벤트가 없을 때만 참이다.
+입력은 없다. 고정 루트에서 `trail build --check <Policy.root>`를 실행한다. 구조 인덱스(`graph check`의 changed/added/removed)와 선택적 Deep/context 상태(`trail build --check` 헤더 및 stale summaries)를 따로 판정한다. `graph check: STALE`여도 **stale summaries만 존재하고 구조 변화가 없다면** 구조 인덱스는 `fresh`다. 고정 출력 형식을 인식하지 못하면 Fresh로 추정하지 않고 `unknown`이다. `ready_for_structural_search`는 구조 인덱스가 최신이고 미반영 변경 이벤트가 없을 때만 참이다.
 
 - `structural_state`: `fresh / stale / missing / unknown / unavailable`
 - `deep_state`: `fresh / stale / unknown / unavailable`
@@ -38,6 +38,7 @@ TRAIL_REFRESH_ON_WRITE=true
 - 실행 인자는 서버에서 고정하며, 경로나 셸 문자열을 MCP 호출자가 전달하지 않는다.
 - `trail` 권한·실행 파일 존재·실행 루트가 확인되어야 실행한다.
 - 상태 확인은 30초, 빌드는 120초 제한. 출력은 최대 128 KiB이며 외부 출력 원문을 도구 결과로 노출하지 않는다.
+- 증분 `trail build`가 종료 코드 0을 반환해도 후속 검사에서 구조 변화가 남는 경우, `trail build --no-reuse`를 **한 번만** 실행하고 재검증한다. 구조 상태가 여전히 불명확하면 Fresh로 간주하지 않는다.
 - 같은 서버 인스턴스의 동시 Refresh는 Lock으로 직렬화하고, 이전 요청의 성공 결과를 재검증해 중복 빌드를 억제한다.
 - 실패는 `failed`로 보고한다. 파일 수정이나 커밋을 취소하지 않는다.
 
@@ -54,8 +55,10 @@ TRAIL_REFRESH_ON_WRITE=true
 
 ## 현재 범위의 미해결 검증
 
-실행 정책·MCP 도구 스키마·동시 호출·출력 제한·파일 수정 후 동작은 로컬 테스트에서 검증한다. 현재 연결에 새 도구를 노출하려면 **수정된 LOCAL_DEV_MCP 서버의 재시작/재로드**가 필요하다. 실제 호스트 `trail` 바이너리를 통한 프로젝트별 E2E 및 Windows native 검증은 배포 이후 별도로 수행한다.
+실행 정책·MCP 도구 스키마·동시 호출·출력 제한·파일 수정 후 동작은 로컬 테스트에서 검증한다. **실제 설치된 Trail CLI를 사용한 임시 프로젝트 통합 테스트**(`tests/mcp/test_trail_index_e2e.py`)로 초기 인덱스 생성·파일 변경 후 자동 갱신·중복 요청 재생을 검증했다. 이 E2E는 Trail이 설치되지 않은 환경에서는 skip 처리하므로, skip을 성공 근거로 삼지 않는다. **수정된 LOCAL_DEV_MCP 서버의 재시작/재로드 및 운영 인스턴스의 Fresh 확인**과 **Windows native 검증**은 별도로 남아 있다.
 
 Trail Code 구조 그래프 준비와 현재 터널의 조회 도구가 그 그래프를 참조하는지는 독립적으로 검증해야 한다. 인덱스 갱신 성공만으로 토큰 절감 성과가 입증되는 것은 아니다.
 
 참고: [Trail Code 및 토큰 실험 연구 기록](../../research/trail-code-context-budget-2026-11-14.md)
+
+M4 준비: [Git Linked Worktree별 Trail 그래프 격리·회귀 매트릭스](../../research/trail-worktree-index-m4-2026-11-14.md).

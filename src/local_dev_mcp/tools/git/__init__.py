@@ -45,6 +45,11 @@ from .facades.start_project_worktree_task import START_PROJECT_WORKTREE_TASK
 from .facades.switch_project_branch import SWITCH_PROJECT_BRANCH
 from .facades.unstage_project_paths import UNSTAGE_PROJECT_PATHS
 from .facades.verify_project_worktrunk_quality import VERIFY_PROJECT_WORKTRUNK_QUALITY
+from .facades.worktree_pick import (
+    CHERRY_PICK_PROJECT_WORKTREE_COMMIT,
+    COMMIT_PROJECT_WORKTREE_PICK,
+    GET_PROJECT_WORKTREE_PICK_STATE,
+)
 from .facades.worktrunk import (
     CREATE_PROJECT_WORKTRUNK,
     GET_PROJECT_WORKTREE_REVIEW,
@@ -74,6 +79,9 @@ __all__ = [
     "PUSH_PROJECT_BRANCH",
     "CREATE_PROJECT_BRANCH_DRAFT_PR",
     "CHERRY_PICK_PROJECT_COMMIT",
+    "GET_PROJECT_WORKTREE_PICK_STATE",
+    "CHERRY_PICK_PROJECT_WORKTREE_COMMIT",
+    "COMMIT_PROJECT_WORKTREE_PICK",
     "COMMIT_PROJECT_CHANGES",
     "COMPARE_PROJECT_REFS",
     "CREATE_PROJECT_BRANCH",

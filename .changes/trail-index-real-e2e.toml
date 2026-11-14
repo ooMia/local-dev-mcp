@@ -1,0 +1,7 @@
+impact = "none"
+summary = "Prove Trail index initial build, on-write synchronization, and replay safety with the real CLI in a disposable project."
+reason = "Replaces mocked-only post-edit evidence with optional actual local Trail CLI coverage without touching the active Git checkout; unavailable host installations skip explicitly."
+contract = "docs/tools/indexing/README.md"
+assessed_by = "agent"
+migration = "No runtime configuration changes. Run the integration test on a host with Trail installed; the server instance still requires restart to load already-committed M1/M2 logic fixes."
+supersedes = []

@@ -63,6 +63,7 @@ SSH origin에는 HTTPS Credential Helper를 적용하지 않는다.
 릴리스 PR 본문은 검증된 버전·소비 개수·원본 HEAD·계획 digest를 별도로 표시하며 새 평가를 꾸며내지 않는다.
 
 현재 checkout을 전환하지 않고 과거 브랜치를 게시하려면 [격리형 Worktree 도구](worktrees.md)를 사용한다.
+Worktrunk backend의 `push_project_branch`·`create_project_branch_draft_pr`는 `allow_dirty_controller=true`를 명시한 경우에 한해 원본 checkout의 Dirty 상태를 허용한다. 허용된 원본 파일·index 지문을 작업 전후 재검증하고, 대상은 반드시 Clean 상태여야 한다. 기본값 `false` 및 Native backend의 Clean 요구는 변경하지 않는다. 실제 원격 쓰기 후 원본 상태 검증이 실패하면 성공이 불확실할 수 있으므로 결과를 재조회하고 자동 재실행하지 않는다.
 
 ## 에이전트 작업 절차
 

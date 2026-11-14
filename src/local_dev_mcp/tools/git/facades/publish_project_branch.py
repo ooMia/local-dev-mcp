@@ -29,9 +29,14 @@ async def publication(
     original_head: str,
     permission: str,
     backend: Literal["native", "worktrunk"] = "native",
+    allow_dirty_controller: bool = False,
 ) -> AsyncGenerator[ServerSettings]:
     remote_pr.require_permission(settings, permission)
-    fingerprint = await _worktrees.original_snapshot(settings, original_branch, original_head)
+    if allow_dirty_controller and backend != "worktrunk":
+        raise ToolError("Dirty controller opt-in is supported only for the Worktrunk publication backend.")
+    fingerprint = await _worktrees.original_snapshot(
+        settings, original_branch, original_head, allow_dirty=allow_dirty_controller
+    )
 
     async def selected_checkout() -> ServerSettings:
         if backend == "worktrunk":
@@ -43,7 +48,9 @@ async def publication(
         yield target
         await selected_checkout()
     finally:
-        await _worktrees.confirm_original(settings, original_branch, original_head, fingerprint)
+        await _worktrees.confirm_original(
+            settings, original_branch, original_head, fingerprint, allow_dirty=allow_dirty_controller
+        )
 
 
 @dataclass(frozen=True)
@@ -83,9 +90,17 @@ class PushProjectBranchTool:
         expected_remote_main: ExpectedHead,
         expected_remote_feature: remote_pr.RemoteBranchHead = None,
         backend: Literal["native", "worktrunk"] = "native",
+        allow_dirty_controller: bool = False,
     ) -> remote_pr.PushedFeature:
         async with publication(
-            self.settings, branch, expected_branch_head, expected_branch, expected_head, "git.remote.write", backend
+            self.settings,
+            branch,
+            expected_branch_head,
+            expected_branch,
+            expected_head,
+            "git.remote.write",
+            backend,
+            allow_dirty_controller,
         ) as target:
             result = await remote_pr.PushFeatureTool(target).execute(
                 branch, expected_branch_head, expected_remote_main, expected_remote_feature
@@ -109,9 +124,17 @@ class CreateProjectBranchDraftPRTool:
         purpose: remote_pr.Purpose = None,
         exceptions: list[dict[str, str]] | None = None,
         backend: Literal["native", "worktrunk"] = "native",
+        allow_dirty_controller: bool = False,
     ) -> remote_pr.PullRequestResult:
         async with publication(
-            self.settings, branch, expected_branch_head, expected_branch, expected_head, "gh.pr.create", backend
+            self.settings,
+            branch,
+            expected_branch_head,
+            expected_branch,
+            expected_head,
+            "gh.pr.create",
+            backend,
+            allow_dirty_controller,
         ) as target:
             root = self.settings.policy.root
             template = root / ".github" / "PULL_REQUEST_TEMPLATE.md"
@@ -149,7 +172,9 @@ PUSH_PROJECT_BRANCH: Final = ToolDefinition(
     name="push_project_branch",
     description=(
         "Push an exact prepared SHA from backend=native (default) or a Git-registered Worktrunk checkout. "
-        "Requires observed original branch/HEAD, target SHA and remote refs. Reuses all non-force/main-history gates; "
+        "Requires observed original branch/HEAD, target SHA and remote refs. Explicit Worktrunk-only "
+        "allow_dirty_controller pins dirty original contents; default still requires clean original. "
+        "Reuses all non-force/main-history gates; "
         "never updates main, tags or bypasses hooks. Inspect both worktrees and remote refs after failure."
     ),
     annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=True),
@@ -162,6 +187,7 @@ CREATE_PROJECT_BRANCH_DRAFT_PR: Final = ToolDefinition(
     description=(
         "Create or rediscover a Draft PR from backend=native (default) or a clean Worktrunk checkout. "
         "Uses controller template and target committed assessments; reuses baseline, history and duplicate-PR gates. "
+        "Worktrunk-only allow_dirty_controller opt-in verifies original dirty contents before/after publication. "
         "Never invents assessments, merges, marks ready or changes Rulesets."
     ),
     annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=True),
