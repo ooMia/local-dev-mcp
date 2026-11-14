@@ -16,7 +16,7 @@
 
 [초기 Migration Guide](migration-guide.md)는 관리 문서 5개의 명시적 등록 정보와 관계 승인 대기 상태를 보유한다.
 새 계약은 실제 구현 범위에 맞춰 소유 문서에 추가한다. 조사 자료는 구현된 동작의 계약을 대체하지 않는다.
-연구 근거: [테스트 정책](research/testing-policy-research.md), [CLI 작업 정책](research/cli-task-policy-research.md), [B3-S 의존성·호환성 검증](research/b3s-delivery-compatibility-2026-11-02.md), [Issue #8 P3 검증 결과 증거 평가](research/issue-8-verification-evidence-2026-11-09.md).
+연구 근거: [Trail Code 탐색·토큰 실험](research/trail-code-context-budget-2026-11-14.md), [테스트 정책](research/testing-policy-research.md), [CLI 작업 정책](research/cli-task-policy-research.md), [B3-S 의존성·호환성 검증](research/b3s-delivery-compatibility-2026-11-02.md), [Issue #8 P3 검증 결과 증거 평가](research/issue-8-verification-evidence-2026-11-09.md).
 
 ## 현재 적용 정책
 

@@ -1,0 +1,7 @@
+impact = "none"
+summary = "Document reproducible Trail Code multi-repository routing and freshness gaps."
+reason = "Research-only observation and fallback guidance; no MCP behavior, settings, runtime dependency, public interface, or release semantics change."
+contract = "Development research and navigation guidance"
+assessed_by = "agent"
+migration = ""
+supersedes = []
