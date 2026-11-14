@@ -1,6 +1,6 @@
 # M4 준비: 내부 Linked Worktree의 Trail 인덱스 경계
 
-상태: **설계 및 회귀 준비만 완료. M4 기능 변경·운영 Worktree 생성·터널 변경은 수행하지 않음.**
+상태: **M4-P0 내부 Target Resolver와 임시 Git/Trail 통합 검증 구현. 공개 M4 도구·운영 Worktree 재배치·터널 변경은 수행하지 않음.**
 
 ## 기존 결정과 범위
 
@@ -44,6 +44,14 @@ resolve_index_target(kind="worktree", branch, expected_head)
 2. **Worktree 전용 status/refresh 도구 추가**: 분리된 권한·준비 상태를 더 명확히 다룰 수 있으나 도구가 늘어남.
 
 최소 권장안은 최초 PoC에서 **내부 Target Resolver + 별도 테스트 코드**로 안전 계약을 확인하고, API 선택은 그 결과에 따라 결정하는 것이다.
+
+최소 권장안의 첫 단계는 `src/local_dev_mcp/tools/indexing/_targets.py`의 `resolve_index_target(settings, kind, branch, expected_head)`로 구현했다. `kind="project"`는 원래 설정을 그대로 반환하고 선택자를 거부한다. `kind="worktree"`는 **Git 등록된 Worktrunk Checkout**에만 접근하며, 기존 `WorktrunkAdapter.require_ready`로 정확한 HEAD·브랜치·Git 공통 디렉터리·Clean 상태·접근 권한을 확인한다. 경로 문자열 입력은 없다.
+
+Worktree 범위에서만 `GRAFT_NO_IGNORE=1`, `GRAFT_NO_GITIGNORE=1`을 설정해 Trail 빌드의 `.ignore` 생성 및 추적 `.gitignore` 수정을 방지한다. 설정은 기존 런타임 환경의 **스코프 복사본**에만 적용된다. 기본 Checkout의 M1–M3 환경은 변경하지 않는다. 별도 Worktree별 자동 갱신·MCP 조회 라우팅은 아직 미구현이다.
+
+`tests/mcp/test_trail_m4_index_targets.py`는 임시 Git 저장소의 동일 `marker()` 심볼에 서로 다른 `M4_ONLY_MAIN_71`·`M4_ONLY_FEATURE_89` 문자열을 넣고 각 루트에 대해 `trail grep ... <explicit-root>`를 실행한다. **실제 양쪽 조회 PASS, 교차 조회 오인 0건**, Git status Clean, HEAD 유지, 잘못된 HEAD·Dirty Worktree·권한 부족 거부를 확인했다. 초기 실행에서는 기본 Checkout의 `.ignore`가 생성돼 테스트가 FAIL이었으며, 테스트의 기본 Checkout 빌드에도 명시적으로 `GRAFT_NO_IGNORE=1`을 주입하자 PASS가 됐다. 운영 프로젝트의 기본 설정은 바꾸지 않았다.
+
+**P0 미검증:** 상위 그래프 선택을 유발하는 무인자 CLI의 이슈 #453 실재 재현, 여러 동시 대상의 잠금 공유, 타임아웃/외부 프로세스 경합, Windows native, MCP 공개 API 설계·조회 전환. P0 PASS는 M4 전체 완료로 간주하지 않는다.
 
 ## 성공 기준 및 최소 회귀 매트릭스
 

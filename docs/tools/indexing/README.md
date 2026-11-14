@@ -55,10 +55,12 @@ TRAIL_REFRESH_ON_WRITE=true
 
 ## 현재 범위의 미해결 검증
 
-실행 정책·MCP 도구 스키마·동시 호출·출력 제한·파일 수정 후 동작은 로컬 테스트에서 검증한다. **실제 설치된 Trail CLI를 사용한 임시 프로젝트 통합 테스트**(`tests/mcp/test_trail_index_e2e.py`)로 초기 인덱스 생성·파일 변경 후 자동 갱신·중복 요청 재생을 검증했다. 이 E2E는 Trail이 설치되지 않은 환경에서는 skip 처리하므로, skip을 성공 근거로 삼지 않는다. **수정된 LOCAL_DEV_MCP 서버의 재시작/재로드 및 운영 인스턴스의 Fresh 확인**과 **Windows native 검증**은 별도로 남아 있다.
+실행 정책·MCP 도구 스키마·동시 호출·출력 제한·파일 수정 후 동작은 로컬 테스트에서 검증한다. **실제 설치된 Trail CLI를 사용한 임시 프로젝트 통합 테스트**(`tests/mcp/test_trail_index_e2e.py`)로 초기 인덱스 생성·파일 변경 후 자동 갱신·중복 요청 재생을 검증했다. 이 E2E는 Trail이 설치되지 않은 환경에서는 skip 처리하므로, skip을 성공 근거로 삼지 않는다. 2026-11-15 KST 실제 MCP 재로드 이후 기본 루트의 `refresh_project_index`가 `structural_state=fresh`, `deep_state=stale`, `ready_for_structural_search=true`를 반환했다. **Windows native 검증**은 별도로 남아 있다.
 
 Trail Code 구조 그래프 준비와 현재 터널의 조회 도구가 그 그래프를 참조하는지는 독립적으로 검증해야 한다. 인덱스 갱신 성공만으로 토큰 절감 성과가 입증되는 것은 아니다.
 
 참고: [Trail Code 및 토큰 실험 연구 기록](../../research/trail-code-context-budget-2026-11-14.md)
 
 M4 준비: [Git Linked Worktree별 Trail 그래프 격리·회귀 매트릭스](../../research/trail-worktree-index-m4-2026-11-14.md).
+
+M4-P0 내부 구현: `resolve_index_target`은 기존 공개 M1–M3 입력을 변경하지 않고 등록된 Linked Worktree의 루트·브랜치·HEAD·Clean 상태를 확인한다. Worktree에만 `GRAFT_NO_IGNORE`·`GRAFT_NO_GITIGNORE`을 적용하며 실제 서로 다른 소스의 CLI 조회를 임시 저장소에서 검증했다. Worktree별 공개 status/refresh, 동시성 및 Windows 회귀는 아직 구현/확인하지 않았다.

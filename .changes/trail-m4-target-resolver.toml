@@ -1,0 +1,7 @@
+impact = "patch"
+summary = "Add an internal Git-registered Worktrunk target resolver for isolated Trail graph checks without changing public M1-M3 schemas."
+reason = "M4 needs a verified, source-bound root rather than caller-provided paths or ancestor graph inference. Reuse the Worktrunk adapter's branch, HEAD, common-Git-directory, path and clean guards, and suppress Trail ignore-file mutations only in the scoped worktree environment. A disposable real-Trail test confirms cross-branch query isolation."
+contract = "docs/research/trail-worktree-index-m4-2026-11-14.md"
+assessed_by = "agent"
+migration = "No public MCP tool or configuration migration. M4-P0 remains internal; implementing exposed worktree indexing and concurrency requires further validation."
+supersedes = []
