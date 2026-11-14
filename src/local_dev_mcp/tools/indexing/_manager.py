@@ -47,29 +47,45 @@ def _now() -> str:
 
 
 def _state(output: str, label: str) -> str | None:
-    match = re.search(rf"(?mi)^{re.escape(label)} check:\s*(OK|FRESH|CURRENT|STALE|MISSING)\b", output)
+    match = re.search(rf"(?mi)^{re.escape(label)}:\s*(OK|FRESH|CURRENT|STALE|MISSING)\b", output)
     return match.group(1).lower() if match is not None else None
 
 
 def structural_state(run: TrailProcessResult) -> StructuralState:
+    """Determine wiring freshness independently of optional Deep summaries."""
     if run.error is not None:
         return "unknown"
-    state = _state(run.output, "graft")
-    if state in ("ok", "fresh", "current"):
-        return "fresh"
-    if state in ("stale", "missing"):
-        return state
-    return "fresh" if run.exit_code == 0 else "unknown"
-
-
-def deep_state(run: TrailProcessResult) -> DeepState:
-    if run.error is not None:
-        return "unknown"
-    state = _state(run.output, "graph")
+    if re.search(r"(?m)^graph check: NO GRAPH\b", run.output):
+        return "missing"
+    state = _state(run.output, "graph check")
     if state in ("ok", "fresh", "current"):
         return "fresh"
     if state == "stale":
+        # graph check: STALE includes Deep-only stale summaries, which do not
+        # invalidate a freshly built, deterministic wiring graph.
+        tail = run.output.split("graph check: STALE", 1)[1]
+        structural_drift = [re.search(rf"(?m)^{name} \(([0-9]+)\):", tail) for name in ("changed", "added", "removed")]
+        if any(match is not None and int(match.group(1)) > 0 for match in structural_drift):
+            return "stale"
+        if re.search(r"(?m)^stale summaries \([0-9]+\):", tail):
+            return "fresh"
+        return "unknown"
+    if re.search(r"(?m)^trail build --check: NO GRAPH\b", run.output):
+        return "missing"
+    return "unknown"
+
+
+def deep_state(run: TrailProcessResult) -> DeepState:
+    """Interpret concept drift and stale symbol summaries as Deep-only signals."""
+    if run.error is not None:
+        return "unknown"
+    if re.search(r"(?m)^deep layer: not built\b", run.output):
+        return "unavailable"
+    state = _state(run.output, "trail build --check")
+    if state == "stale" or re.search(r"(?m)^stale summaries \([0-9]+\):", run.output):
         return "stale"
+    if state in ("ok", "fresh", "current"):
+        return "fresh"
     return "unknown"
 
 
@@ -213,6 +229,15 @@ class IndexManager:
                 self._last_reason = result.error or "build_nonzero"
                 return self._report("unknown", deep, "failed", performed=True, reason=self._last_reason)
             structural, deep, error = await self._check(binary)
+            if structural in ("stale", "missing"):
+                # Some Trail caches can replay obsolete extraction even after
+                # an incremental success. Force one deterministic reparse only
+                # when the post-build graph still disagrees with the source.
+                retry = await self._run(binary, ("build", "--no-reuse", str(self.policy.root)), 120)
+                if retry.exit_code != 0 or retry.error is not None:
+                    self._last_reason = retry.error or "full_build_nonzero"
+                    return self._report("unknown", deep, "failed", performed=True, reason=self._last_reason)
+                structural, deep, error = await self._check(binary)
             if structural == "fresh" and self._revision == revision:
                 self._pending = False
             self._last_reason = error

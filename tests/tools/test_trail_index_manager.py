@@ -30,23 +30,37 @@ def test_readiness_defaults_to_unavailable_without_opt_in(tmp_path: Path) -> Non
 @pytest.mark.parametrize(
     ("text", "structural", "deep"),
     [
-        ("graft check: OK\ngraph check: STALE\n", "fresh", "stale"),
-        ("graft check: STALE\ngraph check: STALE\n", "stale", "stale"),
-        ("graft check: MISSING\n", "missing", "unknown"),
-        ("graft check: FRESH\ngraph check: OK\n", "fresh", "fresh"),
+        ("trail build --check: STALE\ngraph check: OK\n", "fresh", "stale"),
+        ("trail build --check: STALE\ngraph check: STALE\nchanged (1):\n", "stale", "stale"),
+        ("trail build --check: OK\ngraph check: OK\n", "fresh", "fresh"),
+        ("deep layer: not built\ngraph check: OK\n", "fresh", "unavailable"),
+        (
+            "trail build --check: STALE\ngraph check: STALE\n"
+            "stale summaries (36):\n  ! source.py#handler\n"
+            "Run `trail build --deep` to refresh stale summaries.\n",
+            "fresh",
+            "stale",
+        ),
+        ("trail build --check: NO GRAPH\nNo code map found.\n", "missing", "unknown"),
+        (
+            "trail build --check: STALE\nchanged (29):\n~ file.py\n"
+            "graph check: OK\nRun `trail build --deep` to refresh stale summaries.\n",
+            "fresh",
+            "stale",
+        ),
     ],
 )
-def test_check_states_keepstructural_state_anddeep_state_separate(
+def test_check_states_keep_structural_and_deep_separate(
     text: str,
     structural: str,
     deep: str,
 ) -> None:
-    run = TrailProcessResult(1 if "STALE" in text or "MISSING" in text else 0, text)
+    run = TrailProcessResult(1 if "STALE" in text or "NO GRAPH" in text else 0, text)
     assert structural_state(run) == structural
     assert deep_state(run) == deep
 
 
-def test_refresh_only_whenstructural_state_stale_and_rechecks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_refresh_only_when_structural_stale_and_rechecks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     index = manager(tmp_path)
     monkeypatch.setattr(index, "_binary", lambda: Path("/unused/trail"))
     commands: list[tuple[str, ...]] = []
@@ -54,10 +68,10 @@ def test_refresh_only_whenstructural_state_stale_and_rechecks(tmp_path: Path, mo
     async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
         commands.append(args)
         if len(commands) == 1:
-            return TrailProcessResult(1, "graft check: STALE\ngraph check: STALE\n")
+            return TrailProcessResult(1, "trail build --check: STALE\ngraph check: STALE\nchanged (1):\n")
         if len(commands) == 2:
             return TrailProcessResult(0, "rebuilt")
-        return TrailProcessResult(1, "graft check: OK\ngraph check: STALE\n")
+        return TrailProcessResult(1, "trail build --check: STALE\ngraph check: OK\n")
 
     monkeypatch.setattr(index, "_run", fake)
 
@@ -86,7 +100,7 @@ def test_already_fresh_never_runs_build(tmp_path: Path, monkeypatch: pytest.Monk
 
     async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
         calls.append(args)
-        return TrailProcessResult(0, "graft check: OK\n")
+        return TrailProcessResult(0, "graph check: OK\n")
 
     monkeypatch.setattr(index, "_run", fake)
 
@@ -106,7 +120,11 @@ def test_failed_build_stays_failed_without_raw_output(tmp_path: Path, monkeypatc
     async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
         nonlocal calls
         calls += 1
-        return TrailProcessResult(1, "graft check: STALE\n") if calls == 1 else TrailProcessResult(2, "secret output")
+        return (
+            TrailProcessResult(1, "graph check: STALE\nchanged (1):\n")
+            if calls == 1
+            else TrailProcessResult(2, "secret output")
+        )
 
     monkeypatch.setattr(index, "_run", fake)
 
@@ -129,7 +147,9 @@ def test_two_concurrent_refreshes_do_not_duplicate_build(tmp_path: Path, monkeyp
         nonlocal built, builds
         if "--check" in args:
             return (
-                TrailProcessResult(0, "graft check: OK\n") if built else TrailProcessResult(1, "graft check: STALE\n")
+                TrailProcessResult(0, "graph check: OK\n")
+                if built
+                else TrailProcessResult(1, "graph check: STALE\nchanged (1):\n")
             )
         builds += 1
         await asyncio.sleep(0)
@@ -157,7 +177,7 @@ def test_auto_refresh_coalesces_changes_and_closes(tmp_path: Path, monkeypatch: 
         if "--check" in args:
             checks += 1
             return TrailProcessResult(
-                1 if builds == 0 else 0, "graft check: STALE\n" if builds == 0 else "graft check: OK\n"
+                1 if builds == 0 else 0, "graph check: STALE\nchanged (1):\n" if builds == 0 else "graph check: OK\n"
             )
         builds += 1
         return TrailProcessResult(0, "")
@@ -196,3 +216,74 @@ def test_invalid_check_is_unknown_and_never_builds(tmp_path: Path, monkeypatch: 
 
     asyncio.run(scenario())
     assert calls == 1
+
+
+def test_one_full_reparse_repairs_incremental_cache_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index = manager(tmp_path)
+    monkeypatch.setattr(index, "_binary", lambda: Path("/unused/trail"))
+    commands: list[tuple[str, ...]] = []
+    check_count = 0
+
+    async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
+        nonlocal check_count
+        commands.append(args)
+        if "--check" in args:
+            check_count += 1
+            if check_count < 3:
+                return TrailProcessResult(1, "trail build --check: STALE\ngraph check: STALE\nchanged (1):\n")
+            # Deep is still stale, but structure has been repaired.
+            return TrailProcessResult(
+                1,
+                "trail build --check: STALE\ngraph check: STALE\nstale summaries (2):\n  ! file.py#function\n",
+            )
+        return TrailProcessResult(0, "build succeeded")
+
+    monkeypatch.setattr(index, "_run", fake)
+
+    async def scenario() -> None:
+        result = await index.refresh()
+        assert result["outcome"] == "updated"
+        assert result["structural_state"] == "fresh"
+        assert result["deep_state"] == "stale"
+        assert result["ready_for_structural_search"] is True
+
+    asyncio.run(scenario())
+    assert commands == [
+        ("build", "--check", str(tmp_path)),
+        ("build", str(tmp_path)),
+        ("build", "--check", str(tmp_path)),
+        ("build", "--no-reuse", str(tmp_path)),
+        ("build", "--check", str(tmp_path)),
+    ]
+
+
+def test_full_reparse_failure_reports_only_safe_reason(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    index = manager(tmp_path)
+    monkeypatch.setattr(index, "_binary", lambda: Path("/unused/trail"))
+    commands: list[tuple[str, ...]] = []
+
+    async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
+        commands.append(args)
+        if "--check" in args:
+            return TrailProcessResult(1, "graph check: STALE\nchanged (1):\n")
+        if "--no-reuse" in args:
+            return TrailProcessResult(7, "secret diagnostic")
+        return TrailProcessResult(0, "incremental built")
+
+    monkeypatch.setattr(index, "_run", fake)
+
+    async def scenario() -> None:
+        result = await index.refresh()
+        assert result["outcome"] == "failed"
+        assert result["reason"] == "full_build_nonzero"
+        assert result["refresh_performed"]
+        assert "secret" not in str(result)
+
+    asyncio.run(scenario())
+    assert len(commands) == 4

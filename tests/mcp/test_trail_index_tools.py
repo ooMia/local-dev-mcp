@@ -33,7 +33,7 @@ def test_index_tools_use_configured_root_without_path_inputs(
 
     async def fake(self: IndexManager, binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
         invoked.append(args)
-        return TrailProcessResult(0, "graft check: OK\ngraph check: STALE\n")
+        return TrailProcessResult(1, "trail build --check: STALE\ngraph check: OK\n")
 
     monkeypatch.setattr(IndexManager, "_run", fake)
 

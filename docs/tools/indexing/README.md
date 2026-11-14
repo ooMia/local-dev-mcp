@@ -22,7 +22,7 @@ TRAIL_REFRESH_ON_WRITE=true
 
 ## M1: get_project_index_status
 
-입력은 없다. 고정 루트에서 `trail build --check <Policy.root>`를 실행한다. 구조 인덱스(`graft check`)와 선택적 Deep 요약(`graph check`)을 따로 판정한다. 고정 출력 형식을 인식하지 못하면 Fresh로 추정하지 않고 `unknown`이다. `ready_for_structural_search`는 구조 인덱스가 최신이고 미반영 변경 이벤트가 없을 때만 참이다.
+입력은 없다. 고정 루트에서 `trail build --check <Policy.root>`를 실행한다. 구조 인덱스(`graph check`의 changed/added/removed)와 선택적 Deep/context 상태(`trail build --check` 헤더 및 stale summaries)를 따로 판정한다. `graph check: STALE`여도 **stale summaries만 존재하고 구조 변화가 없다면** 구조 인덱스는 `fresh`다. 고정 출력 형식을 인식하지 못하면 Fresh로 추정하지 않고 `unknown`이다. `ready_for_structural_search`는 구조 인덱스가 최신이고 미반영 변경 이벤트가 없을 때만 참이다.
 
 - `structural_state`: `fresh / stale / missing / unknown / unavailable`
 - `deep_state`: `fresh / stale / unknown / unavailable`
@@ -38,6 +38,7 @@ TRAIL_REFRESH_ON_WRITE=true
 - 실행 인자는 서버에서 고정하며, 경로나 셸 문자열을 MCP 호출자가 전달하지 않는다.
 - `trail` 권한·실행 파일 존재·실행 루트가 확인되어야 실행한다.
 - 상태 확인은 30초, 빌드는 120초 제한. 출력은 최대 128 KiB이며 외부 출력 원문을 도구 결과로 노출하지 않는다.
+- 증분 `trail build`가 종료 코드 0을 반환해도 후속 검사에서 구조 변화가 남는 경우, `trail build --no-reuse`를 **한 번만** 실행하고 재검증한다. 구조 상태가 여전히 불명확하면 Fresh로 간주하지 않는다.
 - 같은 서버 인스턴스의 동시 Refresh는 Lock으로 직렬화하고, 이전 요청의 성공 결과를 재검증해 중복 빌드를 억제한다.
 - 실패는 `failed`로 보고한다. 파일 수정이나 커밋을 취소하지 않는다.
 

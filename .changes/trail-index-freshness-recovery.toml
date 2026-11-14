@@ -1,0 +1,7 @@
+impact = "patch"
+summary = "Distinguish Trail wiring freshness from Deep/context drift and retry one full structural parse when incremental cache reuse leaves source mismatches."
+reason = "Installed Trail build --check reports two independent layers and can return nonzero for stale optional summaries. Previous status parsing misidentified the structural graph and could block updates; observed --no-reuse restored wiring freshness while leaving Deep summaries untouched."
+contract = "docs/tools/indexing/README.md"
+assessed_by = "agent"
+migration = "No additional environment variables or permissions. Restart the LOCAL_DEV_MCP instance to load the corrected index status and refresh logic."
+supersedes = []
