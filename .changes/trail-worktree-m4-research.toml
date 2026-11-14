@@ -1,0 +1,7 @@
+impact = "none"
+summary = "Document M4 linked worktree graph isolation, existing Worktrunk support, and a reproducible regression matrix."
+reason = "Design-only readiness research; documents the nested-worktree Trail root issue and the separate graph identity requirement, without creating or moving any worktrees."
+contract = "docs/research/trail-worktree-index-m4-2026-11-14.md"
+assessed_by = "agent"
+migration = "No runtime migration. Do not move .lab/wt checkouts or enable multi-repo indexing; M4 API and path decisions remain subject to isolated verification."
+supersedes = []

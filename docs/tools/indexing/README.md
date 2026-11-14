@@ -55,8 +55,10 @@ TRAIL_REFRESH_ON_WRITE=true
 
 ## 현재 범위의 미해결 검증
 
-실행 정책·MCP 도구 스키마·동시 호출·출력 제한·파일 수정 후 동작은 로컬 테스트에서 검증한다. 현재 연결에 새 도구를 노출하려면 **수정된 LOCAL_DEV_MCP 서버의 재시작/재로드**가 필요하다. 실제 호스트 `trail` 바이너리를 통한 프로젝트별 E2E 및 Windows native 검증은 배포 이후 별도로 수행한다.
+실행 정책·MCP 도구 스키마·동시 호출·출력 제한·파일 수정 후 동작은 로컬 테스트에서 검증한다. **실제 설치된 Trail CLI를 사용한 임시 프로젝트 통합 테스트**(`tests/mcp/test_trail_index_e2e.py`)로 초기 인덱스 생성·파일 변경 후 자동 갱신·중복 요청 재생을 검증했다. 이 E2E는 Trail이 설치되지 않은 환경에서는 skip 처리하므로, skip을 성공 근거로 삼지 않는다. **수정된 LOCAL_DEV_MCP 서버의 재시작/재로드 및 운영 인스턴스의 Fresh 확인**과 **Windows native 검증**은 별도로 남아 있다.
 
 Trail Code 구조 그래프 준비와 현재 터널의 조회 도구가 그 그래프를 참조하는지는 독립적으로 검증해야 한다. 인덱스 갱신 성공만으로 토큰 절감 성과가 입증되는 것은 아니다.
 
 참고: [Trail Code 및 토큰 실험 연구 기록](../../research/trail-code-context-budget-2026-11-14.md)
+
+M4 준비: [Git Linked Worktree별 Trail 그래프 격리·회귀 매트릭스](../../research/trail-worktree-index-m4-2026-11-14.md).
