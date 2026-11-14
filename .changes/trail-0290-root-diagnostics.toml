@@ -1,0 +1,7 @@
+impact = "none"
+summary = "Record observed Trail 0.29.0 federated-root and structural freshness output with regression coverage."
+reason = "The parent workspace is a valid seven-repository federation index, while local-dev-mcp's graph has actual changed, added and removed symbols. The runtime MCP still reports check_unrecognized; root cache purge and Deep regeneration are not justified."
+contract = "docs/research/trail-index-root-audit-2026-11-14.md"
+assessed_by = "agent"
+migration = "No runtime or policy changes. Reload the instance before repeating the project-root M1/M2 status and refresh checks."
+supersedes = []

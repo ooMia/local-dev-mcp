@@ -32,6 +32,15 @@ def test_readiness_defaults_to_unavailable_without_opt_in(tmp_path: Path) -> Non
     [
         ("trail build --check: STALE\ngraph check: OK\n", "fresh", "stale"),
         ("trail build --check: STALE\ngraph check: STALE\nchanged (1):\n", "stale", "stale"),
+        (
+            "trail build --check: STALE\n\nchanged (29):\n~ previous.py\n"
+            "graph check: STALE\n\nchanged (9):\n~ module.py#handler\n"
+            "added (13):\n+ new_module.py\nremoved (3):\n- old_module.py\n"
+            "stale summaries (36):\n! module.py#handler\n"
+            "Run `trail build` to rebuild the structure.\n",
+            "stale",
+            "stale",
+        ),
         ("trail build --check: OK\ngraph check: OK\n", "fresh", "fresh"),
         ("deep layer: not built\ngraph check: OK\n", "fresh", "unavailable"),
         (

@@ -1,6 +1,6 @@
 # Trail Index Root Audit — 2026-11-14
 
-상태: **부분 검증, 상위 폴더의 캐시 구성 미확인. 정리·purge 미수행.**
+상태: **Trail 0.29.0의 상위 federation 인덱스 확인. 개별 프로젝트의 구조 그래프 STALE, 운영 MCP 재로드 미검증. 정리·purge 미수행.**
 
 ## 목적
 
@@ -12,10 +12,17 @@ M4(Linked Worktree별 Trail 그래프 격리) 이전에 상위 폴더의 `graft/
 
 | 경로 | 디렉터리 항목 | 해석 |
 | --- | --- | --- |
-| `/Users/mia/Github/graft` | `drwxr-xr-x@ 3 ... 96`, 11월 14일 02:07 | 상위 폴더에 `graft/`가 존재한다. **내용·총 사용량·정확한 그래프 역할은 아직 미확인** |
+| `/Users/mia/Github/graft` | `drwxr-xr-x@ 3 ... 96`, 11월 14일 02:07 | 상위 폴더에 `graft/`가 존재한다. **`workspace.json` 존재 및 7개 저장소의 federation 조회 확인. 개별 캐시 내용·총 사용량은 미확인** |
 | `/Users/mia/Github/local-dev-mcp/graft` | `drwxr-xr-x@ 167 ... 5344`, 11월 10일 06:09 | 개별 프로젝트의 `graft/`가 존재한다. **정확한 유효성은 별도 검사 필요** |
 
-`ls -ld`의 96/5344는 전체 캐시 데이터 크기나 심볼 수가 아니다. 상위 폴더가 여러 Git 저장소를 포함하면 Trail의 공식 동작상 `graft/workspace.json`을 이용한 **federated workspace 인덱스**일 가능성이 있다. 실제 파일 목록을 확인하기 전에는 그것으로 확정하지 않는다.
+`ls -ld`의 96/5344는 전체 캐시 데이터 크기나 심볼 수가 아니다. 추가 조회로 상위 `graft/workspace.json`이 존재하고 `trail build --check "$HOME/Github"`가 **7개 Git 저장소를 구분해 검사하는 federation 인덱스**임이 확인됐다. 하위 프로젝트의 구조 그래프와 Deep 요약 상태는 별개다.
+
+## Trail 0.29.0 실측 결과 (2026-11-14)
+
+- 상위 `$HOME/Github/graft/workspace.json` 파일 존재 확인. `trail build --check "$HOME/Github"`는 7개 저장소를 보고: FDE·local-dev-mcp·stt-lab은 STALE, 나머지 4개는 OK. **federation 인덱스가 존재한다는 사실만으로 삭제 대상이라고 판단하지 않는다.**
+- `trail build --check "$HOME/Github/local-dev-mcp"`는 상위 구조 입력의 `changed (29)`와 별도로 `graph check: STALE`에서 **9 changed, 13 added, 3 removed**, `stale summaries (36)`을 반환. 구조 그래프와 Deep 요약 **둘 다 최신이 아님**.
+- 현재 소스의 `structural_state()`는 위 `graph check: STALE`와 changed/added/removed 형식을 STALE로 해석할 수 있다. 반면 실행 중인 MCP의 `check_unrecognized`는 계속 관측된다. **서버 재시작 전 구버전 코드 로드 또는 프로세스 환경 차이는 아직 가설**이다.
+- M1/M2 정상 운영 증거를 확보할 때까지 MCP의 `unknown`을 우회해 실제 프로젝트에 자동 재빌드를 실행하지 않는다. `--deep` 전역 갱신이나 상위 캐시 purge도 수행하지 않는다.
 
 ## LOCAL_DEV_MCP / Trail 읽기 전용 결과
 
