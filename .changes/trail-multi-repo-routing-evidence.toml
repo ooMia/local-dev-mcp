@@ -1,0 +1,7 @@
+impact = "none"
+summary = "Clarify Trail Code workspace routing, scoped call analysis, and local index recovery evidence."
+reason = "Documentation-only update of observed read-only MCP behavior and verified upstream CLI contracts. No runtime, published tool schema, dependency or configuration is changed; the graph rebuild and client reconnection remain unperformed."
+contract = "Development research and operator diagnostics"
+assessed_by = "agent"
+migration = ""
+supersedes = []
