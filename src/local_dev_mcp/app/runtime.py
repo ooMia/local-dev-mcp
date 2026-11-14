@@ -12,6 +12,7 @@ from ..readiness import PreparationIssue, ToolReadiness
 from ..redaction import Redactor
 from ..settings import Policy, read_dotenv
 from ..tools.git import PreparedGitCommit, command_environment, commit_configuration, git_configuration
+from ..tools.indexing import IndexManager
 from ..tools.tasks import TaskManager
 from ..tools.workspace import WorkspaceFiles
 from ._task_environment import public_environment_names, task_environment
@@ -28,10 +29,21 @@ class ServerSettings:
     readiness: tuple[ToolReadiness, ...] = ()
     task_environment: tuple[tuple[str, str], ...] = field(default=(), repr=False)
     redactor: Redactor = field(default_factory=lambda: Redactor.from_values({}), repr=False)
+    trail_executable: str | None = field(default=None, repr=False)
+    trail_refresh_on_write: bool = False
+
+    @cached_property
+    def index(self) -> IndexManager:
+        return IndexManager(
+            self.policy,
+            dict(self.environment),
+            executable=self.trail_executable,
+            refresh_on_write=self.trail_refresh_on_write,
+        )
 
     @cached_property
     def files(self) -> WorkspaceFiles:
-        return WorkspaceFiles(self.policy)
+        return WorkspaceFiles(self.policy, change_callback=self.index.changed)
 
     @cached_property
     def tasks(self) -> TaskManager:
@@ -67,6 +79,8 @@ class ServerSettings:
             redactor=Redactor.from_values(
                 values, public_names=public_environment_names(values, policy.public_environment)
             ),
+            trail_executable=values.get("TRAIL_EXECUTABLE"),
+            trail_refresh_on_write=values.get("TRAIL_REFRESH_ON_WRITE") == "true",
         )
 
     def require_git(self) -> Path:

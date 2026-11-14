@@ -59,6 +59,8 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `get_release_plan` | 커밋된 변경 영향·권장 버전·SHA/Digest·현재 상태 조회 |
 | `prepare_project_release` | 관측한 릴리스 버전·Digest와 일치할 때 버전·Lock·Changelog·Receipt 갱신 |
 | `get_tool_readiness` | 시작 snapshot의 도구별 준비 여부·안전한 수정 안내 |
+| `get_project_index_status` | 현재 Policy.root의 Trail 구조·Deep 인덱스 상태 확인 (읽기 전용) |
+| `refresh_project_index` | 명시적인 Trail 구조 인덱스 갱신·재검증 (선택적 권한) |
 | `list_project_tasks` | 등록된 lint·format·test recipe와 각각의 준비 여부 |
 | `start_project_task` | 등록한 작업을 시작하고 짧은 결과 또는 실행 ID 반환 |
 | `get_project_task` | 작업 상태 조회; `include_output=true`로 보관된 마스킹 진단 확인 |

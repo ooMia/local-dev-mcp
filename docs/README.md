@@ -10,7 +10,7 @@
 | 저장소 지침 | [AGENTS.md](../AGENTS.md) | 작업 범위·안전·변경 검증 |
 | 채택 결정 | [현재 적용 정책](#현재-적용-정책) | 현재 유효한 범위와 부분 대체·일회성 예외를 작업별로 조회 |
 | 개발 규약 | [conventions.md](conventions.md) | 배치·명명·테스트 |
-| 운영 계약 | [configuration.md](configuration.md), [도구별 계약](tools/) | 실제 입력·결과·권한; [릴리스 도구](tools/release/README.md), [PR workflow](tools/workflow/README.md) |
+| 운영 계약 | [configuration.md](configuration.md), [도구별 계약](tools/) | 실제 입력·결과·권한; [릴리스 도구](tools/release/README.md), [Trail 인덱스](tools/indexing/README.md), [PR workflow](tools/workflow/README.md) |
 | 실험적 내부 계약 | [Document Core](contracts/document-core.md), [Event Core](contracts/event-core.md), [GitHub Delivery](contracts/github-durable-delivery.md), [GitHub Webhook 검증](contracts/github-webhook-verification.md), [GitHub Plan 구조](contracts/github-operation-plan.md) | 순수 모델·GitHub 영속 수락 및 인증 경계 |
 | 설계·검증 | [design.md](design.md), [testing.md](testing.md) | 연결 구조 및 시험 근거 |
 
