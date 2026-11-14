@@ -78,6 +78,27 @@ class InspectProjectBranchRemoteTool:
 
 
 @dataclass(frozen=True)
+class FetchProjectBranchRemoteMainTool:
+    settings: ServerSettings
+
+    async def execute(
+        self,
+        branch: BranchName,
+        expected_branch_head: ExpectedHead,
+        expected_remote_main: ExpectedHead,
+    ) -> remote_pr.FetchedMain:
+        """Fetch only origin/main from a clean registered Worktrunk checkout."""
+        remote_pr.require_permission(self.settings, "git.remote.write")
+        adapter = WorktrunkAdapter(self.settings)
+        target = await adapter.require_ready(branch, expected_branch_head)
+        result = await remote_pr.FetchRemoteMainTool(target).execute(branch, expected_branch_head, expected_remote_main)
+        # A shared tracking ref may have moved; the source checkout must not.
+        await adapter.require_ready(branch, expected_branch_head)
+        result["project"] = str(self.settings.policy.root)
+        return result
+
+
+@dataclass(frozen=True)
 class PushProjectBranchTool:
     settings: ServerSettings
 
@@ -166,6 +187,19 @@ INSPECT_PROJECT_BRANCH_REMOTE: Final = ToolDefinition(
     annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=True),
     required_commands=("git", "gh", "git.remote.read"),
     create_runtime=InspectProjectBranchRemoteTool,
+    readiness=remote_pr.remote_readiness,
+)
+FETCH_PROJECT_BRANCH_REMOTE_MAIN: Final = ToolDefinition(
+    name="fetch_project_branch_remote_main",
+    description=(
+        "Fetch the exact observed remote main into origin/main from one clean, Git-registered "
+        "Worktrunk checkout without requiring a clean controller. Reuse existing no-tags, "
+        "fast-forward-only, direct-ref and remote SHA gates. Never update local main or the "
+        "controller index/working tree; inspect refs after uncertain failures."
+    ),
+    annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=True),
+    required_commands=("git", "wt", "git.worktree.write", "gh", "git.remote.write"),
+    create_runtime=FetchProjectBranchRemoteMainTool,
     readiness=remote_pr.remote_readiness,
 )
 PUSH_PROJECT_BRANCH: Final = ToolDefinition(

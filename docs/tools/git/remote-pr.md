@@ -47,6 +47,7 @@ SSH origin에는 HTTPS Credential Helper를 적용하지 않는다.
 | `diagnose_project_remote_auth` | 설정 경로·GitHub CLI 인증 상태와 저장소 접근을 비밀값 없이 구분 | `git.remote.read` |
 | `inspect_project_remote` | `origin`·실제 GitHub `main`·로컬 `main`·`origin/main`·기능 HEAD와 원격 기능 Ref 조회 | `git.remote.read` |
 | `fetch_project_remote_main` | 관측한 SHA의 원격 `main`을 `origin/main`으로 Fetch | `git.remote.write` |
+| `fetch_project_branch_remote_main` | Dirty 원본을 유지하고 Clean 등록 Worktrunk에서 같은 제한적 Fetch 수행 | `git.remote.write`, `wt`, `git.worktree.write` |
 | `push_project_feature` | 일반 기능 또는 검증된 `release/X.Y.Z` 브랜치를 비강제 Push | `git.remote.write` |
 | `create_project_draft_pr` | 일반 변경 또는 검증된 릴리스 스냅샷에서 `main` 대상 Draft PR 생성 | `gh.pr.create` |
 | `get_project_pr_merge_plan` | PR head·고정 squash 메시지·계획 digest 조회 | `git.remote.read` |
