@@ -1,0 +1,7 @@
+impact = "patch"
+summary = "Pin M4 Worktree Trail failure, timeout, cancellation, bounded output and recovery behavior in disposable integration tests."
+reason = "M4-P1 exposed public Worktree status/refresh APIs, but failure and cancellation gates lacked a stable regression. Simulated check/build timeouts, unavailable executables and resumed refresh alongside real child process timeout/output-limit cleanup, retaining user files and exact Git identity."
+contract = "docs/tools/indexing/README.md"
+assessed_by = "agent"
+migration = "No API or configuration changes. Tests cover server-local cancellation and direct subprocess termination; Windows native and cross-process coordination remain independent gates."
+supersedes = []

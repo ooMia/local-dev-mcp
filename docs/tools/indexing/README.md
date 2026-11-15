@@ -73,5 +73,17 @@ M4-P0 내부 구현: `resolve_index_target`은 기존 공개 M1–M3 입력을 �
 - 호출 전후 Worktree의 Git 등록, 공통 Git 저장소, HEAD·브랜치, Clean 상태를 확인하고 대상이 이동하거나 Dirty 상태가 되면 결과 성공 대신 오류를 반환한다.
 - 같은 서버 인스턴스에서는 **대상 절대 루트별 공유 `asyncio.Lock`**을 사용해 동시 status/refresh를 직렬화하고, 두 번째 갱신은 첫 성공 뒤 재검사해 불필요한 빌드를 생략한다. 서로 다른 루트는 독립적으로 실행할 수 있다. 잠금은 외부 Trail 프로세스·다른 서버 인스턴스와 공유하지 않는다.
 - Worktree 내부 Trail 실행에는 `GRAFT_NO_IGNORE=1`·`GRAFT_NO_GITIGNORE=1`을 주입하고 기존 M1–M3 인스턴스 설정과 자동 갱신 루프를 변경하지 않는다. 파일 변경 자동 감지는 Worktree에 확장하지 않는다.
-- 임시 Git 저장소의 서로 다른 두 Worktree와 실제 Trail CLI 통합 검증에서 교차 조회·중복 동시 갱신·권한·HEAD·Dirty 상태 거부를 확인한다. Windows native, 외부 프로세스 동시 갱신, 타임아웃·정리 경계, tunnel-client 별도 Worktree 탐색 통합은 **후속 검증 대상**이다.
+- 임시 Git 저장소의 서로 다른 두 Worktree와 실제 Trail CLI 통합 검증에서 교차 조회·중복 동시 갱신·권한·HEAD·Dirty 상태 거부를 확인한다. Windows native, 외부 프로세스 동시 갱신, 자식 프로세스 트리 정리 및 tunnel-client 별도 Worktree 탐색 통합은 **후속 검증 대상**이다.
 
+## M4-P2: 오류·타임아웃·취소 복구 회귀 증거
+
+`tests/mcp/test_trail_m4_failure_recovery.py`는 실제 Git에 등록한 **임시 Linked Worktree**에서 공개 MCP 호출을 통해 다음을 검증한다.
+
+- Trail 실행 파일이 없는 경우 `unavailable`이며 갱신 성공으로 해석하지 않는다
+- `--check` 타임아웃은 `unknown`/실패로 보고하고, 무작정 빌드를 시도하지 않는다
+- 구조 빌드 타임아웃 뒤에는 안전한 오류 코드 `timeout`만 반환하고, 다음 명시 갱신 호출에서 다시 검사해 복구한다
+- 동시 갱신을 취소해도 같은 Worktree의 서버 내부 잠금이 해제돼 다음 요청이 정상 진행된다
+- 하위 프로세스의 시간 초과·128 KiB 출력 상한 초과는 정해진 `timeout`/`output_limit`으로 정규화하고 원시 진단을 응답에 포함하지 않는다
+- 원본·대상 Git HEAD 및 Clean 상태를 보존하며, 실패 당시 입력 파일이나 Git 변경을 자동 복원·삭제하지 않는다
+
+이 검증은 실행 중인 Trail 명령의 **직접 하위 프로세스 종료 경로**와 서버 로컬 잠금 복구에 한정한다. 별도 MCP 인스턴스·외부 Trail 프로세스의 공통 잠금, 프로세스 후손 전체 종료 보장, 실제 Windows native 실행 및 터널의 Worktree별 조회는 아직 검증되지 않았다.
