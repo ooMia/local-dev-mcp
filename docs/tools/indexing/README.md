@@ -98,3 +98,9 @@ M4-P0 내부 구현: `resolve_index_target`은 기존 공개 M1–M3 입력을 �
 - `tests/mcp/test_trail_m4_interprocess_lock.py`에서 기존 구현의 독립 서버 빌드 중첩(최대 2)을 먼저 재현했고, 개선 후 동시 빌드 1, 실제 별도 Python 프로세스 간 직렬화, 프로세스 비정상 종료 뒤 재획득, 잠금 대기 타임아웃, 서로 다른 Worktree의 독립 실행을 검증했다.
 
 **보장 범위 제한:** advisory lock은 이 모듈을 호출하는 LOCAL_DEV_MCP 인스턴스끼리만 합의된 규칙이다. 일반 `trail build`·`trail mcp`·다른 앱은 잠금을 준수하지 않으므로 해당 프로세스까지 보호한다고 주장하지 않는다. Windows 네이티브 실행 결과와 Git 공통 디렉터리를 프로젝트 외부에 둔 구성은 별도로 검증해야 한다. 현재는 프로젝트 밖 Git 공통 디렉터리를 안전하게 거부한다.
+
+## M4-P4: 명시적 루트 조회 회귀
+
+`tests/mcp/test_trail_m4_index_targets.py`는 실제 Trail CLI로 **두 Checkout의 동일한 `marker` 심볼**을 별도 그래프에서 빌드한 뒤, 각각 `trail grep`, `trail skeleton module.py <verified-root>`, `trail callers marker <verified-root>`의 결과를 확인한다. `call_main`은 기본 Checkout에서만, `call_feature`는 선택한 Linked Worktree에서만 나타나야 한다. 쿼리·빌드 뒤 Git HEAD와 Clean 상태를 확인한다.
+
+`[dir]` 인자가 없는 탐색 명령의 루트 추론 정확성은 이 회귀가 보장하지 않는다. LOCAL_DEV_MCP는 현재 Trail 조회용 범용 MCP 도구를 새로 추가하지 않았으며, `trail mcp <Policy.root>` 터널의 Worktree별 조회 라우팅도 변경하지 않았다.

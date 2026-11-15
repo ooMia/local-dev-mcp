@@ -82,6 +82,14 @@ P3에서는 공통 Git 제어 디렉터리에 대상 절대 루트 SHA-256에서
 
 **한계:** 합의한 OS advisory lock에 참여하지 않는 외부 `trail build`/터널, 원격 파일 시스템의 잠금 신뢰성, Windows native 실측은 검증 대상이다. Git common directory가 승인된 프로젝트 밖에 있으면 실패로 처리하므로 외부 `--separate-git-dir` 구성은 이 버전에서 지원하지 않는다. 모든 외부 Trail 접근의 안전성까지 증명한 것은 아니다.
 
+## M4-P4: 명시적 Worktree 루트의 Skeleton·Callers 조회 검증
+
+공식 Trail Code CLI 계약의 `trail skeleton <file> [dir]`·`trail callers <symbol> [dir]`를 실제 설치된 CLI로 시험했다. `tests/mcp/test_trail_m4_index_targets.py`는 기본 Checkout과 Git Linked Worktree에 이름이 같은 `marker()`를 두되 호출자 함수만 `call_main()`·`call_feature()`로 구분한다.
+
+각 대상에 정확한 절대 루트를 전달한 `grep`·`skeleton`·`callers` 결과를 교차 비교해 서로 다른 브랜치의 소스·호출자가 섞이지 않음을 확인했다. 두 Git HEAD와 Clean 상태가 그대로 유지됐고 실제 Trail 통합 테스트가 PASS였다. 이는 M4-03, M4-12의 명시적 루트 조회 경로에 대한 회귀 증거다.
+
+**남은 M4-04:** 루트 인자를 생략한 CLI가 상위 그래프를 고르는 Trail 이슈 #453의 재현 여부는 이번 테스트로 판정하지 않았다. 운영 경로는 항상 검증된 루트를 전달하므로 이 동작에 의존하지 않는다.
+
 ## 성공 기준 및 최소 회귀 매트릭스
 
 | ID | 검증 상황 | 수용 기준 |
