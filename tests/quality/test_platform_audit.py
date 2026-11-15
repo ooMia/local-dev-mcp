@@ -61,7 +61,9 @@ def test_binary_inventory_reports_windows_interop_without_running_binary(
     assert report["trail"]["path"] is None
 
 
-def test_catalog_only_wsl_gate_fails_closed(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_catalog_only_wsl_gate_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     monkeypatch.setattr(audit.sys, "argv", ["platform_audit", "--catalog-only", "--require-wsl"])
     monkeypatch.setattr(audit, "is_wsl", lambda: False)
     monkeypatch.setattr(audit, "binary_inventory", lambda: {})
