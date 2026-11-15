@@ -1,0 +1,7 @@
+impact = "patch"
+summary = "Verify exact-root Trail skeleton and callers queries isolate identical symbols across registered Git Worktrees."
+reason = "M4-P0 covered structural graph and grep isolation, but skeleton/callers source evidence was unverified. Extend disposable real-Trail CLI tests with distinct call sites in controller and linked Worktree and assert that explicit-root signature and call-edge results never cross branch boundaries."
+contract = "docs/tools/indexing/README.md"
+assessed_by = "agent"
+migration = "No API, configuration or runtime changes. Continue to pass an exact Git-verified Worktree root in Trail query commands; unqualified CLI root inference and separate tunnel routing are outside this regression."
+supersedes = []
