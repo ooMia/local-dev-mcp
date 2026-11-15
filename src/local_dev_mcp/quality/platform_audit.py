@@ -16,7 +16,7 @@ import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from mcp import Client
 from mcp.client.stdio import StdioServerParameters
@@ -186,10 +186,26 @@ async def inspect_stdio(workspace: Path, report: dict[str, Any]) -> None:
             "unexpected": sorted(set(advertised) - set(expected)),
             "ordered": advertised == expected,
         }
-        readiness = await session.call_tool("get_tool_readiness", raise_on_error=False)
-        details = readiness.structured_content if not readiness.is_error else None
-        if not isinstance(details, dict) or not isinstance(details.get("tools"), list):
+        readiness = await session.call_tool("get_tool_readiness")
+        raw_details: object = readiness.structured_content if not readiness.is_error else None
+        if not isinstance(raw_details, dict):
             report["readiness"] = {"state": "FAIL", "reason": "unavailable_or_invalid"}
+            return
+        details = cast(dict[str, object], raw_details)
+        raw_tools = details.get("tools")
+        if not isinstance(raw_tools, list):
+            report["readiness"] = {"state": "FAIL", "reason": "unavailable_or_invalid"}
+            return
+        states: dict[str, bool] = {}
+        for raw_value in cast(list[object], raw_tools):
+            if not isinstance(raw_value, dict):
+                continue
+            value = cast(dict[str, object], raw_value)
+            name = value.get("name")
+            ready = value.get("ready")
+            if isinstance(name, str) and isinstance(ready, bool):
+                states[name] = ready
+        report["readiness"] = {"state": "FAIL", "reason": "unavailable_or_invalid"}
             return
         states = {
             value["name"]: value["ready"]
@@ -210,7 +226,7 @@ async def inspect_stdio(workspace: Path, report: dict[str, Any]) -> None:
                 report["read_probes"][name] = "BLOCKED"
                 continue
             try:
-                response = await session.call_tool(name, arguments, raise_on_error=False)
+                response = await session.call_tool(name, arguments)
                 report["read_probes"][name] = (
                     "PASS" if not response.is_error and isinstance(response.structured_content, dict) else "FAIL"
                 )
