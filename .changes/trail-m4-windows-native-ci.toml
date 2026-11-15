@@ -1,0 +1,7 @@
+impact = "none"
+summary = "Add a bounded Windows-native CI check for Trail Worktree process lock and failure recovery."
+reason = "M4-P3 was verified on POSIX only, while the Windows msvcrt locking path and Python 3.15 dependency setup have not been executed. A dedicated path-scoped GitHub-hosted Windows job exercises existing real-process and failure-recovery integration tests without modifying production code or the Ubuntu quality gate."
+contract = "docs/research/trail-worktree-index-m4-2026-11-14.md"
+assessed_by = "agent"
+migration = "No runtime or MCP API migration. The Windows job runs only when relevant PR paths change, or when manually dispatched; its timeout is bounded. GitHub-hosted private runner minutes count against included compute usage and may incur charges beyond the allowance. Windows Trail CLI itself is not installed or proven by this workflow."
+supersedes = []

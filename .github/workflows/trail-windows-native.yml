@@ -1,0 +1,42 @@
+name: Windows M4 Trail compatibility
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - '.github/workflows/trail-windows-native.yml'
+      - 'src/local_dev_mcp/tools/indexing/**'
+      - 'tests/mcp/test_trail_m4_*.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trail-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: Windows M4 native
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Install project Python
+        run: uv python install 3.15
+      - name: Resolve locked Windows dependencies
+        run: uv sync --locked
+      - name: Assert native Windows interpreter
+        run: uv run --locked python -c "import os, sys; assert os.name == 'nt' and sys.platform == 'win32'; print(sys.version)"
+      - name: Exercise Worktree locking and failure recovery
+        run: >-
+          uv run --locked pytest -n 0 -m integration
+          --verbosity=-1 --tb=short --no-header -rfE
+          tests/mcp/test_trail_m4_interprocess_lock.py
+          tests/mcp/test_trail_m4_failure_recovery.py
+          tests/mcp/test_trail_m4_public_worktree_index.py
