@@ -1,6 +1,6 @@
 # M4 준비: 내부 Linked Worktree의 Trail 인덱스 경계
 
-상태: **M4-P0 내부 Target Resolver와 임시 Git/Trail 통합 검증 구현. 공개 M4 도구·운영 Worktree 재배치·터널 변경은 수행하지 않음.**
+상태: **M4-P0 내부 Target Resolver + M4-P1 Worktree 전용 status/refresh API와 임시 Git/Trail 통합 검증 구현. 운영 Worktree 재배치·터널 변경은 수행하지 않음.**
 
 ## 기존 결정과 범위
 
@@ -52,6 +52,14 @@ Worktree 범위에서만 `GRAFT_NO_IGNORE=1`, `GRAFT_NO_GITIGNORE=1`을 설정�
 `tests/mcp/test_trail_m4_index_targets.py`는 임시 Git 저장소의 동일 `marker()` 심볼에 서로 다른 `M4_ONLY_MAIN_71`·`M4_ONLY_FEATURE_89` 문자열을 넣고 각 루트에 대해 `trail grep ... <explicit-root>`를 실행한다. **실제 양쪽 조회 PASS, 교차 조회 오인 0건**, Git status Clean, HEAD 유지, 잘못된 HEAD·Dirty Worktree·권한 부족 거부를 확인했다. 초기 실행에서는 기본 Checkout의 `.ignore`가 생성돼 테스트가 FAIL이었으며, 테스트의 기본 Checkout 빌드에도 명시적으로 `GRAFT_NO_IGNORE=1`을 주입하자 PASS가 됐다. 운영 프로젝트의 기본 설정은 바꾸지 않았다.
 
 **P0 미검증:** 상위 그래프 선택을 유발하는 무인자 CLI의 이슈 #453 실재 재현, 여러 동시 대상의 잠금 공유, 타임아웃/외부 프로세스 경합, Windows native, MCP 공개 API 설계·조회 전환. P0 PASS는 M4 전체 완료로 간주하지 않는다.
+
+## M4-P1 상태·갱신 API 구현 및 검증
+
+기존 M1–M3 공개 입력 스키마는 그대로 두고 `get_project_worktree_index_status(branch, expected_head)`, `refresh_project_worktree_index(branch, expected_head)` 두 도구를 추가한다. P0 Resolver는 읽기와 쓰기 권한을 분리하고, `WorktreeIndexService`는 등록된 실제 루트 경로별로 서버 로컬 `asyncio.Lock`을 공유한다. 대상 선택 직후와 잠금 내부, Trail 명령 완료 후 Git 등록·HEAD·Clean 상태를 다시 확인한다. 호출별 `IndexManager`를 종료하며 임의 경로·`--deep`·Worktree 자동 갱신은 허용하지 않는다.
+
+임시 저장소의 두 Linked Worktree에서 실제 Trail 구조 그래프를 생성하고 동일 심볼의 두 값이 섞이지 않는지 검증했다. 같은 Worktree의 두 `refresh` 동시 호출은 한 번 빌드 후 다른 호출이 `already_fresh`를 확인하도록 직렬화된다. 상태 읽기는 쓰기 권한 없이 허용하며, 잘못된 SHA·Dirty 대상·실행 도중 변경된 Git 상태는 거부한다.
+
+**P1 잔여 범위:** 독립 MCP 서버 간 공유 잠금은 없고, 외부 Trail 실행의 경합·타임아웃 복구·Windows native 호환성·Trail 터널에 Worktree별 탐색 라우팅은 검증되지 않았다. 따라서 M4 전체 완료나 모든 환경에서의 그래프 격리를 주장하지 않는다.
 
 ## 성공 기준 및 최소 회귀 매트릭스
 
