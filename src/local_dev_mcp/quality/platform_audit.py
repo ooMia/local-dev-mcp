@@ -205,13 +205,6 @@ async def inspect_stdio(workspace: Path, report: dict[str, Any]) -> None:
             ready = value.get("ready")
             if isinstance(name, str) and isinstance(ready, bool):
                 states[name] = ready
-        report["readiness"] = {"state": "FAIL", "reason": "unavailable_or_invalid"}
-            return
-        states = {
-            value["name"]: value["ready"]
-            for value in details["tools"]
-            if isinstance(value, dict) and isinstance(value.get("name"), str) and isinstance(value.get("ready"), bool)
-        }
         report["readiness"] = {
             "state": "PASS" if set(states) == set(expected) else "FAIL",
             "ready": sum(states.values()),
