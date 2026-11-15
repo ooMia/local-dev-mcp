@@ -1,0 +1,7 @@
+impact = "patch"
+summary = "Serialize Trail Worktree index operations across cooperating LOCAL_DEV_MCP processes with OS-backed advisory file locks."
+reason = "M4-P1's asyncio.Lock only serialized each ServerSettings instance. Independent instances concurrently rebuilt the same registered Worktree graph (reproduced peak 2). A standard-library file lock keyed by canonical Worktree root in the authorized Git common directory provides cancellable, crash-released, bounded coordination without modifying M1-M3 schemas or adding dependencies; non-cooperating Trail CLI remains out of scope."
+contract = "docs/tools/indexing/README.md"
+assessed_by = "agent"
+migration = "No public API changes. Git common directory must remain within the authorized project. Status and refresh can create a small persistent administrative lock file; cooperative lock acquisition is bounded. Windows native and external Trail CLI concurrency remain unverified."
+supersedes = []

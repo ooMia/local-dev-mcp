@@ -71,7 +71,7 @@ M4-P0 내부 구현: `resolve_index_target`은 기존 공개 M1–M3 입력을 �
 - `refresh_project_worktree_index(branch, expected_head)`: 같은 대상의 구조 그래프만 갱신하며 `git`·`trail`·`wt`·`git.worktree.write` 권한이 필요하다. `--deep`·`git reset`·`stash`·임의 Git 명령은 실행하지 않는다.
 - 두 도구 모두 등록된 상대 Worktree 경로·브랜치·HEAD를 결과에 포함한다. 기본 Checkout은 선택할 수 없다. `project`는 원본 `Policy.root`이며, `worktree_path`는 검증된 상대 경로다.
 - 호출 전후 Worktree의 Git 등록, 공통 Git 저장소, HEAD·브랜치, Clean 상태를 확인하고 대상이 이동하거나 Dirty 상태가 되면 결과 성공 대신 오류를 반환한다.
-- 같은 서버 인스턴스에서는 **대상 절대 루트별 공유 `asyncio.Lock`**을 사용해 동시 status/refresh를 직렬화하고, 두 번째 갱신은 첫 성공 뒤 재검사해 불필요한 빌드를 생략한다. 서로 다른 루트는 독립적으로 실행할 수 있다. 잠금은 외부 Trail 프로세스·다른 서버 인스턴스와 공유하지 않는다.
+- 같은 서버 인스턴스에서는 **대상 절대 루트별 공유 `asyncio.Lock`**을 사용해 동시 status/refresh를 직렬화하고, 두 번째 갱신은 첫 성공 뒤 재검사해 불필요한 빌드를 생략한다. 서로 다른 루트는 독립적으로 실행할 수 있다. 서버 로컬 잠금만으로는 다른 MCP 인스턴스를 제어할 수 없으며, P3의 별도 OS 파일 잠금이 협력하는 인스턴스 간 경합을 막는다.
 - Worktree 내부 Trail 실행에는 `GRAFT_NO_IGNORE=1`·`GRAFT_NO_GITIGNORE=1`을 주입하고 기존 M1–M3 인스턴스 설정과 자동 갱신 루프를 변경하지 않는다. 파일 변경 자동 감지는 Worktree에 확장하지 않는다.
 - 임시 Git 저장소의 서로 다른 두 Worktree와 실제 Trail CLI 통합 검증에서 교차 조회·중복 동시 갱신·권한·HEAD·Dirty 상태 거부를 확인한다. Windows native, 외부 프로세스 동시 갱신, 자식 프로세스 트리 정리 및 tunnel-client 별도 Worktree 탐색 통합은 **후속 검증 대상**이다.
 
@@ -87,3 +87,14 @@ M4-P0 내부 구현: `resolve_index_target`은 기존 공개 M1–M3 입력을 �
 - 원본·대상 Git HEAD 및 Clean 상태를 보존하며, 실패 당시 입력 파일이나 Git 변경을 자동 복원·삭제하지 않는다
 
 이 검증은 실행 중인 Trail 명령의 **직접 하위 프로세스 종료 경로**와 서버 로컬 잠금 복구에 한정한다. 별도 MCP 인스턴스·외부 Trail 프로세스의 공통 잠금, 프로세스 후손 전체 종료 보장, 실제 Windows native 실행 및 터널의 Worktree별 조회는 아직 검증되지 않았다.
+
+## M4-P3: 협력 프로세스 간 Worktree 인덱스 잠금
+
+`WorktreeIndexService`의 기존 루트별 `asyncio.Lock` 내부에서 `coordinated_trail_index`가 **Git common directory 내부**의 `local-dev-mcp-trail-<root-sha256>.lock`에 OS advisory lock을 획득한다. `git rev-parse --git-common-dir`가 프로젝트 밖을 반환하거나 경로가 불명확하면 실패를 반환하고 Trail을 실행하지 않는다. 파일은 Git 관리 영역에만 생성되므로 Checkout의 Git status에는 나타나지 않으며, 파일 잠금이 해제돼도 파일을 삭제하지 않는다(경합 중 다른 inode로 분리되는 사고 방지).
+
+- 잠금 대상: 동일 Git 공통 디렉터리 + 동일한 검증된 Worktree 루트. 서로 다른 루트의 구조 그래프는 병렬 처리 가능하다. `status`와 `refresh` 모두 일관된 상태 조회를 위해 잠금에 참여한다. 조회 요청 역시 Git 내부 잠금 파일을 최초 생성할 수 있지만 소스·인덱스·작업 파일은 수정하지 않는다.
+- POSIX에서는 `flock(LOCK_EX|LOCK_NB)`, Windows에서는 `msvcrt.locking(LK_NBLCK)` 사용. 표준 라이브러리만 필요하며, `asyncio.sleep`으로 비차단 재시도한다. 대기 상한은 360초이고 초과 시 Trail 실행 없이 거부한다. 취소·프로세스 종료 시 OS가 열린 파일 디스크립터의 잠금을 해제한다.
+- 잠금 안쪽에서 Git 등록·HEAD·Clean을 다시 검증하고 Trail의 사전/사후 구조 검사·빌드·재시도를 완료한다. 실패·취소 뒤 파일을 되돌리거나 자동 재실행하지 않는다.
+- `tests/mcp/test_trail_m4_interprocess_lock.py`에서 기존 구현의 독립 서버 빌드 중첩(최대 2)을 먼저 재현했고, 개선 후 동시 빌드 1, 실제 별도 Python 프로세스 간 직렬화, 프로세스 비정상 종료 뒤 재획득, 잠금 대기 타임아웃, 서로 다른 Worktree의 독립 실행을 검증했다.
+
+**보장 범위 제한:** advisory lock은 이 모듈을 호출하는 LOCAL_DEV_MCP 인스턴스끼리만 합의된 규칙이다. 일반 `trail build`·`trail mcp`·다른 앱은 잠금을 준수하지 않으므로 해당 프로세스까지 보호한다고 주장하지 않는다. Windows 네이티브 실행 결과와 Git 공통 디렉터리를 프로젝트 외부에 둔 구성은 별도로 검증해야 한다. 현재는 프로젝트 밖 Git 공통 디렉터리를 안전하게 거부한다.

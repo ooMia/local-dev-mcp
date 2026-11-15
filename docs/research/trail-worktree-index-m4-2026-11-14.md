@@ -72,6 +72,16 @@ Worktree 범위에서만 `GRAFT_NO_IGNORE=1`, `GRAFT_NO_GITIGNORE=1`을 설정�
 
 4개 테스트 PASS는 **M4-08 중 서버 로컬 실패 복구의 수용 기준**으로 해석한다. 다른 서버·외부 Trail 프로세스의 동시 접근과 후손 프로세스 정리는 별도 미해결 과제이며 Windows native 실증을 대체하지 않는다.
 
+## M4-P3: 다중 MCP 인스턴스의 Trail 빌드 경합 재현·차단
+
+`tests/mcp/test_trail_m4_interprocess_lock.py`에서 독립된 `ServerSettings` 두 개가 같은 Linked Worktree를 갱신하면 **최대 2개의 구조 빌드가 중첩되는 실패**를 구현 전에 재현했다. P1의 `asyncio.Lock`은 인스턴스별이기 때문이다.
+
+P3에서는 공통 Git 제어 디렉터리에 대상 절대 루트 SHA-256에서 파생한 잠금 파일을 두고 POSIX `flock`, Windows `msvcrt.locking`으로 협력하는 LOCAL_DEV_MCP 프로세스를 직렬화한다. 파일은 삭제하지 않으며 실제 잠금 소유권은 OS 파일 디스크립터에 귀속된다. 비차단 재시도·360초 대기 상한·취소·프로세스 종료 시 OS 해제를 사용한다. 잠금은 대상 재검증부터 Trail의 체크/빌드/재검증까지 보유한다.
+
+수정 뒤 독립 서버 객체 간 중첩 빌드 수는 1로 감소했고, 실제 두 Python 프로세스의 진입/종료 순서도 직렬화를 보였다. 강제 프로세스 종료 뒤 즉시 새 프로세스가 잠금을 획득했으며, 지정된 대기 제한에서 실패를 반환하고 서로 다른 루트에서는 동시 진행 가능함을 검증했다. Checkout Git status는 Clean이고 HEAD도 유지됐다.
+
+**한계:** 합의한 OS advisory lock에 참여하지 않는 외부 `trail build`/터널, 원격 파일 시스템의 잠금 신뢰성, Windows native 실측은 검증 대상이다. Git common directory가 승인된 프로젝트 밖에 있으면 실패로 처리하므로 외부 `--separate-git-dir` 구성은 이 버전에서 지원하지 않는다. 모든 외부 Trail 접근의 안전성까지 증명한 것은 아니다.
+
 ## 성공 기준 및 최소 회귀 매트릭스
 
 | ID | 검증 상황 | 수용 기준 |

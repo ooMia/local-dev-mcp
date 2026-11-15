@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Literal
 from fastmcp.exceptions import ToolError
 
 from ._manager import IndexReport
+from ._process_lock import coordinated_trail_index
 from ._targets import resolve_index_target
 
 if TYPE_CHECKING:
@@ -24,8 +25,9 @@ class WorktreeIndexReport(IndexReport):
 class WorktreeIndexService:
     """Serialize calls to one registered checkout while allowing independent roots.
 
-    Locks are server-local, not distributed or shared with standalone Trail
-    processes. Revalidate Git identity within each critical section and again
+    In-process root locks and cooperative OS file locks cover independent MCP
+    instances, but not unmodified standalone Trail CLI processes. Revalidate
+    Git identity within each critical section and again
     after Trail completes. No cached IndexManager outlives a request, and
     Worktree automatic refresh is explicitly disabled by the target resolver.
     """
@@ -49,7 +51,7 @@ class WorktreeIndexService:
         )
         root = initial.policy.root
         lock = self._locks.setdefault(root, asyncio.Lock())
-        async with lock:
+        async with lock, coordinated_trail_index(self.settings, root):
             selected = await resolve_index_target(
                 self.settings, kind="worktree", branch=branch, expected_head=expected_head, write=write
             )
