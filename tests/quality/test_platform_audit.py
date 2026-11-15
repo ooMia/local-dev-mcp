@@ -75,8 +75,23 @@ def test_catalog_only_wsl_gate_fails_closed(
     monkeypatch.setattr(audit.sys, "argv", ["platform_audit", "--catalog-only", "--require-wsl"])
     monkeypatch.setattr(audit, "is_wsl", lambda: False)
     monkeypatch.setattr(audit, "binary_inventory", _empty_binary_inventory)
-    assert audit.main() == 1
+    assert audit.main() == 2
     report = json.loads(capsys.readouterr().out)
     assert report["host"]["gate"] == "BLOCKED_NOT_WSL"
-    assert report["outcome"] == "FAIL"
+    assert report["outcome"] == "BLOCKED"
     assert report["catalog"]["state"] == "NOT_RUN"
+
+
+def test_catalog_only_with_prerequisites_never_claims_live_success(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def available_binaries() -> dict[str, dict[str, object]]:
+        return {"uv": {"available": True}, "git": {"available": True}}
+
+    monkeypatch.setattr(audit.sys, "argv", ["platform_audit", "--catalog-only"])
+    monkeypatch.setattr(audit, "binary_inventory", available_binaries)
+    assert audit.main() == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["outcome"] == "CATALOG_ONLY"
+    assert report["catalog"]["state"] == "NOT_RUN"
+    assert all(tool["functional"] == "NOT_RUN" for tool in report["tools"])
