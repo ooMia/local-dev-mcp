@@ -256,9 +256,7 @@ def main() -> int:
     workspace = args.workspace.resolve()
     report = build_report(workspace)
     invalid_host = args.require_wsl and not report["host"]["wsl"]
-    required_missing = [
-        name for name in ("uv", "git") if report["binaries"].get(name, {}).get("available") is not True
-    ]
+    required_missing = [name for name in ("uv", "git") if report["binaries"].get(name, {}).get("available") is not True]
     if invalid_host:
         report["host"]["gate"] = "BLOCKED_NOT_WSL"
     if required_missing:
