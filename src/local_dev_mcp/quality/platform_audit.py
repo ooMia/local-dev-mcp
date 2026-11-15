@@ -255,27 +255,37 @@ def main() -> int:
     args = parser.parse_args()
     workspace = args.workspace.resolve()
     report = build_report(workspace)
+    invalid_host = args.require_wsl and not report["host"]["wsl"]
+    required_missing = [
+        name for name in ("uv", "git") if report["binaries"].get(name, {}).get("available") is not True
+    ]
+    if invalid_host:
+        report["host"]["gate"] = "BLOCKED_NOT_WSL"
+    if required_missing:
+        report["host"]["missing_required_binaries"] = required_missing
     try:
-        if not args.catalog_only:
+        if not args.catalog_only and not invalid_host and not required_missing:
             asyncio.run(inspect_stdio(workspace, report))
     except Exception as error:
         report["connection"] = {"state": "FAIL", "error_type": type(error).__name__}
     issues = report["inventory_issues"]
-    invalid_inventory = any(issues.values())
-    invalid_host = args.require_wsl and not report["host"]["wsl"]
     failed = (
-        invalid_inventory
-        or invalid_host
+        any(issues.values())
         or report["catalog"]["state"] == "FAIL"
         or report["readiness"]["state"] == "FAIL"
         or report.get("connection", {}).get("state") == "FAIL"
         or "FAIL" in report["read_probes"].values()
     )
-    if invalid_host:
-        report["host"]["gate"] = "BLOCKED_NOT_WSL"
-    report["outcome"] = "FAIL" if failed else "PASS_PRECHECK_ONLY"
+    if failed:
+        report["outcome"], exit_code = "FAIL", 1
+    elif invalid_host or required_missing:
+        report["outcome"], exit_code = "BLOCKED", 2
+    elif args.catalog_only:
+        report["outcome"], exit_code = "CATALOG_ONLY", 0
+    else:
+        report["outcome"], exit_code = "PASS_PRECHECK_ONLY", 0
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
-    return 1 if failed else 0
+    return exit_code
 
 
 if __name__ == "__main__":
