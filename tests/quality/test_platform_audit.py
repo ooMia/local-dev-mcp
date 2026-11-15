@@ -17,7 +17,6 @@ def _empty_binary_inventory() -> dict[str, dict[str, object]]:
     return {}
 
 
-
 def test_explicit_tool_inventory_matches_all_public_mcp_definitions() -> None:
     issues = audit.inventory_issues()
     assert issues == {"missing": [], "unexpected": [], "duplicate": []}
@@ -57,6 +56,7 @@ def test_binary_inventory_reports_windows_interop_without_running_binary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     found = {"git": "/usr/bin/git", "wt": "/mnt/c/Windows/wt.exe"}
+
     def fake_which(name: str) -> str | None:
         return found.get(name)
 
