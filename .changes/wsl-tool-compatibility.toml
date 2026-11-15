@@ -1,0 +1,7 @@
+impact = "patch"
+summary = "Add an opt-in, read-only WSL MCP catalog and host preflight that never reports unexecuted tools as functional PASS."
+reason = "The macOS startup snapshot exposed 71 ready tools but does not establish WSL compatibility. Pin every public tool to a named audit family, compare against live stdio tools/list, inspect WSL binary resolution and safe read probes, and retain explicit NOT_RUN for mutating/external paths."
+contract = "docs/testing.md"
+assessed_by = "agent"
+migration = "No public MCP schema, server startup, policy or dependency change. Run python -m local_dev_mcp.quality.platform_audit from a configured WSL workspace for opt-in evidence; this preflight does not replace full integration tests."
+supersedes = []
