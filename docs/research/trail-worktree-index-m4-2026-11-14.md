@@ -61,6 +61,17 @@ Worktree 범위에서만 `GRAFT_NO_IGNORE=1`, `GRAFT_NO_GITIGNORE=1`을 설정�
 
 **P1 잔여 범위:** 독립 MCP 서버 간 공유 잠금은 없고, 외부 Trail 실행의 경합·타임아웃 복구·Windows native 호환성·Trail 터널에 Worktree별 탐색 라우팅은 검증되지 않았다. 따라서 M4 전체 완료나 모든 환경에서의 그래프 격리를 주장하지 않는다.
 
+## M4-P2: 실패·타임아웃 복구 회귀
+
+`tests/mcp/test_trail_m4_failure_recovery.py`는 임시 Git Linked Worktree와 공개 MCP API를 대상으로 다음 4개 테스트를 추가한다.
+
+- Trail 미설치 `unavailable`, `--check` 타임아웃의 빌드 차단, 구조 빌드 타임아웃 후 명시 재시도 및 Fresh 판정
+- 실행 중 갱신 취소 이후 서버 로컬 Worktree 잠금 재획득과 재실행
+- 실제 하위 Python 프로세스의 시간 초과·출력 128 KiB 상한에 따른 정규화된 오류 보고와 정리 경로
+- 비밀이 포함된 모의 CLI 출력의 비노출, 임시 Git HEAD·Clean 상태 유지
+
+4개 테스트 PASS는 **M4-08 중 서버 로컬 실패 복구의 수용 기준**으로 해석한다. 다른 서버·외부 Trail 프로세스의 동시 접근과 후손 프로세스 정리는 별도 미해결 과제이며 Windows native 실증을 대체하지 않는다.
+
 ## 성공 기준 및 최소 회귀 매트릭스
 
 | ID | 검증 상황 | 수용 기준 |
