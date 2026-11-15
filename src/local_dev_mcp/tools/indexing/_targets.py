@@ -23,6 +23,7 @@ async def resolve_index_target(
     kind: IndexTargetKind,
     branch: str | None = None,
     expected_head: str | None = None,
+    write: bool = True,
 ) -> ServerSettings:
     """Bind an immutable target root, rejecting caller-supplied filesystem paths."""
     try:
@@ -43,7 +44,7 @@ async def resolve_index_target(
 
     # require_ready verifies Git registration, common Git directory, path access,
     # clean status, exact branch and HEAD both before and after target resolution.
-    scoped = await WorktrunkAdapter(settings).require_ready(branch, expected_head)
+    scoped = await WorktrunkAdapter(settings).require_ready(branch, expected_head, write=write)
     environment = dict(scoped.environment)
     # Trail otherwise may write .ignore or append /graft/ to tracked .gitignore.
     # This is restricted to the explicitly selected Worktree, not the controller.

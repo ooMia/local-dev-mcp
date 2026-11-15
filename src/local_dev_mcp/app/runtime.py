@@ -13,6 +13,7 @@ from ..redaction import Redactor
 from ..settings import Policy, read_dotenv
 from ..tools.git import PreparedGitCommit, command_environment, commit_configuration, git_configuration
 from ..tools.indexing import IndexManager
+from ..tools.indexing._worktree_service import WorktreeIndexService
 from ..tools.tasks import TaskManager
 from ..tools.workspace import WorkspaceFiles
 from ._task_environment import public_environment_names, task_environment
@@ -40,6 +41,10 @@ class ServerSettings:
             executable=self.trail_executable,
             refresh_on_write=self.trail_refresh_on_write,
         )
+
+    @cached_property
+    def worktree_indexes(self) -> WorktreeIndexService:
+        return WorktreeIndexService(self)
 
     @cached_property
     def files(self) -> WorkspaceFiles:

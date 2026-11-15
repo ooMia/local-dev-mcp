@@ -1,0 +1,7 @@
+impact = "minor"
+summary = "Expose guarded Trail structural status and refresh for exact Git-registered linked worktrees."
+reason = "P0 proved explicit-root graph isolation, but public index tools could only target the controller. Add two narrow worktree-specific MCP tools with strict branch/HEAD validation, read/write permissions, per-root server-local serialization, post-operation Git verification and real-Trail cross-branch regression, preserving M1-M3 input schemas."
+contract = "docs/tools/indexing/README.md"
+assessed_by = "agent"
+migration = "Reload the MCP server to register get_project_worktree_index_status and refresh_project_worktree_index. Read requires git/trail; refresh requires git, wt, git.worktree.write and trail. Existing tools/config remain unchanged."
+supersedes = []

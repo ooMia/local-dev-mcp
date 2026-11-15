@@ -69,6 +69,8 @@ TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
     get_tool_readiness.GET_TOOL_READINESS,
     indexing.GET_PROJECT_INDEX_STATUS,
     indexing.REFRESH_PROJECT_INDEX,
+    indexing.GET_PROJECT_WORKTREE_INDEX_STATUS,
+    indexing.REFRESH_PROJECT_WORKTREE_INDEX,
     client_elicitation.DIAGNOSE_CLIENT_ELICITATION,
     client_elicitation.PROBE_CLIENT_ELICITATION,
     client_elicitation.PROBE_CLIENT_ELICITATION_MRTR,

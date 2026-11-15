@@ -109,6 +109,8 @@ Git·identity·서명 준비 부족은 해당 도구만 사용 불가로 만들�
 | `inspect_project_worktrunk` | Git 등록 Worktree의 브랜치·HEAD·Dirty·접근 차단 상태를 Receipt 없이 읽기 전용 조회 |
 | `list_project_worktrees` | 권한이 허용된 Git Worktree·브랜치 목록을 읽고, 확인된 Worktrunk 상태만 추가 |
 | `get_project_worktree_review` | 지정 Worktree의 커밋·Staged·Unstaged·Untracked 변경을 보호 경로 필터와 함께 검토 |
+| `get_project_worktree_index_status` | Git 등록 Clean Worktree의 정확한 브랜치·HEAD에 대응하는 Trail 구조·Deep 상태 조회 |
+| `refresh_project_worktree_index` | 대상 루트별 직렬화·Git 재검증 후 구조 그래프만 갱신, Deep 및 원본 변경 없음 |
 | `plan_project_worktree_cleanup` | Worktrunk dry-run 후보 중 Clean·허용 경로·Main 조상 관계를 확인한 정리 계획만 조회 (삭제 없음) |
 | `create_project_worktrunk` | 로컬 기준 SHA에서 보호된 경로의 새 브랜치·Worktree 생성 (실험적) |
 | `verify_project_worktrunk_quality` | Worktrunk Source의 완전한 검사 Job·HEAD·Tree·Manifest 증거 발급 (승인과 별개) |
