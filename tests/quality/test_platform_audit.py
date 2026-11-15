@@ -13,6 +13,11 @@ from local_dev_mcp.quality import platform_audit as audit
 pytestmark = pytest.mark.unit
 
 
+def _empty_binary_inventory() -> dict[str, dict[str, object]]:
+    return {}
+
+
+
 def test_explicit_tool_inventory_matches_all_public_mcp_definitions() -> None:
     issues = audit.inventory_issues()
     assert issues == {"missing": [], "unexpected": [], "duplicate": []}
@@ -38,7 +43,7 @@ def test_wsl_identification_uses_host_context(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_catalog_is_never_reported_as_functional_pass(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(audit, "binary_inventory", lambda: {})
+    monkeypatch.setattr(audit, "binary_inventory", _empty_binary_inventory)
     report = audit.build_report(Path("/tmp/tool-audit-test"))
     assert report["catalog"]["state"] == "NOT_RUN"
     assert report["readiness"]["state"] == "NOT_RUN"
@@ -52,7 +57,10 @@ def test_binary_inventory_reports_windows_interop_without_running_binary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     found = {"git": "/usr/bin/git", "wt": "/mnt/c/Windows/wt.exe"}
-    monkeypatch.setattr(audit.shutil, "which", lambda name: found.get(name))
+    def fake_which(name: str) -> str | None:
+        return found.get(name)
+
+    monkeypatch.setattr(audit.shutil, "which", fake_which)
     report = audit.binary_inventory()
     assert report["git"]["available"] is True
     assert report["git"]["windows_interop_candidate"] is False
@@ -66,7 +74,7 @@ def test_catalog_only_wsl_gate_fails_closed(
 ) -> None:
     monkeypatch.setattr(audit.sys, "argv", ["platform_audit", "--catalog-only", "--require-wsl"])
     monkeypatch.setattr(audit, "is_wsl", lambda: False)
-    monkeypatch.setattr(audit, "binary_inventory", lambda: {})
+    monkeypatch.setattr(audit, "binary_inventory", _empty_binary_inventory)
     assert audit.main() == 1
     report = json.loads(capsys.readouterr().out)
     assert report["host"]["gate"] == "BLOCKED_NOT_WSL"
