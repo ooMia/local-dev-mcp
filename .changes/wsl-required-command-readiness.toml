@@ -1,0 +1,7 @@
+impact = "patch"
+summary = "Reflect denied required MCP tool commands in the startup readiness snapshot."
+reason = "WSL verification exposed that get_tool_readiness listed Worktree Trail tools as ready even though their declared required_commands included a denied trail permission. The invocation middleware rejected those calls correctly, but startup readiness omitted the same permission constraint. Reuse Policy.require_command for snapshot classification and retain live execution as a separate guarantee."
+contract = "docs/configuration.md"
+assessed_by = "agent"
+migration = "No public MCP schema or permission change. Restart the server to rebuild the fixed startup snapshot. Tools with denied declared commands may now report ready=false; optional status tools that return unavailable instead of requiring the command remain unaffected."
+supersedes = []
