@@ -32,8 +32,7 @@ def hostile_git_global(tmp_path_factory: pytest.TempPathFactory, monkeypatch: py
     """Expose ambient Git signing that disposable test repositories must ignore."""
     config = tmp_path_factory.mktemp("hostile-git-global") / "config"
     config.write_text(
-        "[commit]\n\tgpgSign = true\n"
-        "[gpg]\n\tprogram = nonexistent-gpg-signer-for-test\n",
+        "[commit]\n\tgpgSign = true\n[gpg]\n\tprogram = nonexistent-gpg-signer-for-test\n",
         encoding="utf-8",
     )
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
