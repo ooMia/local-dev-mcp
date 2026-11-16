@@ -1,5 +1,6 @@
 """Git repository, identity and in-process Git client preparation for tests."""
 
+import subprocess
 from pathlib import Path
 from typing import Protocol
 
@@ -23,6 +24,23 @@ async def git(root: Path, *args: str, timeout: float = 10) -> str:
     return (
         await sh("git", "-C", str(root), *args).set(inherit_env=False, env=command_environment(), timeout=timeout)
     ).removesuffix("\n")
+
+
+def git_sync(root: Path, *args: str, timeout: float = 10) -> str:
+    """Run test-owned Git commands without ambient global/system Git settings."""
+    result = subprocess.run(
+        ["git", "-C", str(root), *args],
+        env=command_environment(),
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=timeout,
+    )
+    if result.returncode != 0:
+        raise AssertionError(
+            f"Test Git {args[0]!r} failed (exit {result.returncode}): {result.stderr.strip()}"
+        )
+    return result.stdout.strip()
 
 
 def configure_identity(root: Path, name: str = "Test Writer", email: str = "writer@example.invalid") -> None:
