@@ -37,9 +37,7 @@ def git_sync(root: Path, *args: str, timeout: float = 10) -> str:
         timeout=timeout,
     )
     if result.returncode != 0:
-        raise AssertionError(
-            f"Test Git {args[0]!r} failed (exit {result.returncode}): {result.stderr.strip()}"
-        )
+        raise AssertionError(f"Test Git {args[0]!r} failed (exit {result.returncode}): {result.stderr.strip()}")
     return result.stdout.strip()
 
 
