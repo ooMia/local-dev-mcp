@@ -1,25 +1,24 @@
 """Exercise PR collection against real Git topology without GitHub credentials."""
 
-import subprocess
 from pathlib import Path
 
 import pytest
 
 from local_dev_mcp.tools import workflow_pr
+from tests.support.git import git_sync
 
 pytestmark = pytest.mark.integration
 
 
-def test_real_git_history_collects_only_new_assessments_and_exact_commits(tmp_path: Path) -> None:
+@pytest.mark.parametrize("hostile_global", [False, True], ids=["normal-git", "hostile-global"])
+def test_real_git_history_collects_only_new_assessments_and_exact_commits(
+    tmp_path: Path, hostile_global: bool, request: pytest.FixtureRequest
+) -> None:
+    if hostile_global:
+        request.getfixturevalue("hostile_git_global")
+
     def git(*args: str) -> str:
-        result = subprocess.run(
-            ["git", "-C", str(tmp_path), *args],
-            text=True,
-            capture_output=True,
-            check=True,
-            timeout=10,
-        )
-        return result.stdout
+        return git_sync(tmp_path, *args)
 
     def save(path: str, content: str) -> None:
         target = tmp_path / path
