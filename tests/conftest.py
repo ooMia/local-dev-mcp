@@ -28,6 +28,20 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 
 
 @pytest.fixture
+def hostile_git_global(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Expose ambient Git signing that disposable test repositories must ignore."""
+    config = tmp_path_factory.mktemp("hostile-git-global") / "config"
+    config.write_text(
+        "[commit]\n\tgpgSign = true\n"
+        "[gpg]\n\tprogram = nonexistent-gpg-signer-for-test\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    return config
+
+
+@pytest.fixture
 def workspace_config(tmp_path: Path) -> WorkspaceConfigFactory:
     def create(commands: str = "[]", paths: str = '["."]') -> Path:
         configure(tmp_path, commands, paths)
