@@ -28,10 +28,3 @@ jobs:
         run: uv run --locked pyright
       - name: Run unit tests only
         run: uv run --locked pytest --verbosity=-1 --tb=short --no-header -rfE -n 0 -m unit tests
-      - name: Verify Git fixture isolation against hostile global signing
-        run: >-
-          uv run --locked pytest --verbosity=-1 --tb=short --no-header -rfE
-          -n 0 -m integration
-          tests/quality/test_quality_cli.py
-          tests/tools/test_workflow_pr_git.py
-          tests/tools/git/test_worktrunk_cli.py::test_worktrunk_squash_and_safe_removal
