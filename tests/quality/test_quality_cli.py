@@ -8,12 +8,13 @@ from pathlib import Path
 import pytest
 
 from local_dev_mcp.quality.__main__ import run_profile
+from tests.support.git import git_sync
 
 pytestmark = pytest.mark.integration
 
 
 def _git(root: Path, *args: str) -> str:
-    return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=True).stdout.strip()
+    return git_sync(root, *args)
 
 
 def _workspace(root: Path, code: str) -> None:
@@ -81,3 +82,30 @@ def test_python_module_entrypoint_runs_shared_profile(tmp_path: Path) -> None:
     )
     assert process.returncode == 0, process.stderr
     assert "quality: PASS pre_merge (1 checks)" in process.stdout
+
+
+@pytest.mark.usefixtures("hostile_git_global")
+def test_test_owned_git_and_quality_profile_ignore_invalid_global_signing(tmp_path: Path) -> None:
+    _workspace(tmp_path, 'print("quality check passed")')
+    head = _git(tmp_path, "rev-parse", "HEAD")
+    assert run_profile(tmp_path, "pre_merge") == 0
+    assert _git(tmp_path, "rev-parse", "HEAD") == head
+
+
+@pytest.mark.usefixtures("hostile_git_global")
+def test_poisoned_global_signing_breaks_an_unisolated_git_commit(tmp_path: Path) -> None:
+    """Negative control: prove the injected Git setting is not a no-op."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.name", "Test")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    (tmp_path / "tracked.txt").write_text("content\n", encoding="utf-8")
+    _git(tmp_path, "add", "tracked.txt")
+    result = subprocess.run(
+        ["git", "-C", str(tmp_path), "commit", "-m", "unisolated"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert result.returncode != 0
+    assert "gpg" in result.stderr.lower()

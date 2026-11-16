@@ -1,0 +1,7 @@
+impact = "none"
+summary = "Isolate disposable Git test repositories and Worktrunk subprocesses from host-wide Git signing."
+reason = "WSL plain pytest inherited personal/system Git commit signing: seven fixture commits failed with exit 128 and an external Worktrunk squash failed with GPG pinentry ioctl. The same selected tests passed when Git global and system settings were excluded. Reuse the existing fail-closed command_environment, make synchronous Git failure stderr visible, and add a hostile-global-signing fixture and negative control to prevent recurrence."
+contract = "docs/testing.md"
+assessed_by = "agent"
+migration = "No production MCP behavior, public schema, user Git configuration, or signing policy changes. Tests run disposable repositories with their own local identities. The negative test deliberately injects an invalid global signer outside the checked-out repository."
+supersedes = []

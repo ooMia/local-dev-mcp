@@ -12,6 +12,7 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from local_dev_mcp.app.runtime import ServerSettings
+from local_dev_mcp.tools.git import command_environment
 from local_dev_mcp.tools.git.worktrunk import WorktrunkAdapter
 from tests.support.git import WorkspaceFactory, git
 from tests.support.worktrees import policy, seed
@@ -49,6 +50,7 @@ async def _external_worktrunk_merge(root: Path, branch: str) -> None:
         "main",
         "--format",
         "json",
+        env=command_environment(),
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -83,8 +85,17 @@ def test_worktrunk_create_preserves_checkout_and_refuses_collision(
 
 
 @pytest.mark.parametrize("count", [1, 3])
-def test_worktrunk_squash_and_safe_removal(tmp_path: Path, workspace_factory: WorkspaceFactory, count: int) -> None:
+@pytest.mark.parametrize("hostile_global", [False, True], ids=["normal-git", "hostile-global"])
+def test_worktrunk_squash_and_safe_removal(
+    tmp_path: Path,
+    workspace_factory: WorkspaceFactory,
+    count: int,
+    hostile_global: bool,
+    request: pytest.FixtureRequest,
+) -> None:
     _require_wt()
+    if hostile_global:
+        request.getfixturevalue("hostile_git_global")
 
     async def scenario() -> None:
         head, _ = await seed(tmp_path, workspace_factory)

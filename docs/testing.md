@@ -40,6 +40,19 @@ Pylance와 CLI의 버전별 진단은 다를 수 있으며 저장소의 타입 �
 위 unit 프로필은 실행 준비 비용을 줄이려고 xdist worker를 끈다. 테스트 간 독립성과 병렬 유효성은 계속 요구한다.
 일반 회귀의 기본 worker 수는 `pyproject.toml`을 그대로 따르며 프로필별 선택과 구분한다.
 
+## 임시 Git 저장소 테스트의 설정 격리
+
+일반 Git fixture는 `tests/support/git.py`의 `git_sync()` 또는 비동기 `git()`를 사용하며,
+둘 다 `command_environment()`로 전역·시스템 Git 설정을 제외한다. 따라서 개인의
+`commit.gpgSign`, `gpg.program` 및 설정 include가 일반 테스트 커밋에 개입하지 않는다.
+Fixture에서 명시한 저장소 로컬 `user.name`·`user.email`은 그대로 적용된다.
+외부 Worktrunk `wt merge` 테스트에도 같은 환경을 주입한다. 실제 사용자의 설정 파일은 수정하지 않는다.
+
+`hostile_git_global` fixture는 테스트 전용 전역 설정에 강제 서명과 존재하지 않는 GPG 프로그램을 넣는다.
+격리하지 않은 Git commit이 실패한다는 negative control과, 격리된 Quality/PR/Worktrunk 테스트가
+같은 조건에서 통과한다는 회귀를 함께 유지한다. 실제 GPG 서명 검증에는 별도 테스트 키·GnuPG 홈을 사용하며
+서명을 일괄 비활성화하지 않는다. Git subprocess의 테스트 fixture 오류는 stderr를 포함해 원인을 보여준다.
+
 [workspace 선택 검사](../tests/system/test_workspace_selection.py)는 호출 위치와 대상에 별도 저장소·설정을 준비하고
 실제 CLI·stdio의 읽기·Git 작업이 선택한 대상에만 적용되는지 확인한다.
 [connect 검사](../tests/app/test_workspace_connect.py)는 실제 사전 검사와 테스트 전용 Tunnel 실행 파일을 사용해
