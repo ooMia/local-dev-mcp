@@ -68,7 +68,7 @@ class OperationCheckpoint:
         return digest_bytes(self.canonical_bytes())
 
     @classmethod
-    def from_canonical_bytes(cls, raw: bytes) -> "OperationCheckpoint":
+    def from_canonical_bytes(cls, raw: bytes) -> OperationCheckpoint:
         value = read_object(
             raw,
             MAX_CHECKPOINT_BYTES,

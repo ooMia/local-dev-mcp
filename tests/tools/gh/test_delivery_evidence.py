@@ -17,6 +17,7 @@ from local_dev_mcp.tools.gh.delivery import (
     IntentConflictError,
     IntentHold,
     IntentIntegrityError,
+    IntentRecord,
     OperationIntent,
     OperationNode,
     PlanConflictError,
@@ -260,7 +261,7 @@ def test_immutable_intent_is_event_scoped_and_claim_gated() -> None:
                     active_worker: int = worker_id,
                     active_start: int = started_id,
                     expected_structure: PlanStructure = plan,
-                ) -> Any:
+                ) -> IntentRecord:
                     return await record_operation_intent(
                         connection=connection,
                         event_id=event_id,

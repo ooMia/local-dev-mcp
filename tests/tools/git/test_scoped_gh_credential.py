@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -40,8 +41,11 @@ def test_git_credential_uses_scoped_gh_helper_without_global_configuration(tmp_p
     assert "credential.https://github.com.helper=" in options
     assert all("--global" not in part for part in options)
 
+    git = shutil.which("git", path=os.environ.get("PATH", "/usr/bin:/bin"))
+    if git is None:
+        pytest.skip("Git executable unavailable on test host")
     result = subprocess.run(
-        ["git", *options, "credential", "fill"],
+        [git, *options, "credential", "fill"],
         input="protocol=https\nhost=github.com\n\n",
         capture_output=True,
         text=True,

@@ -54,7 +54,7 @@ class LocalGit:
 
     async def head(self) -> str:
         root = (await self.read("rev-parse", "--show-toplevel")).decode().strip()
-        if Path(root).resolve() != self.root.resolve():
+        if await asyncio.to_thread(lambda: Path(root).resolve() != self.root.resolve()):
             raise ValueError("The selected release workspace must itself be the Git root.")
         head = (await self.read("rev-parse", "--verify", "HEAD^{commit}")).decode().strip()
         if COMMIT_ID.fullmatch(head) is None:

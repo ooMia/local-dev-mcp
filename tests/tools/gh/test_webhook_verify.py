@@ -121,7 +121,7 @@ def test_rejects_modified_body_after_signing() -> None:
 
 def test_rejects_duplicate_security_header_ignoring_case() -> None:
     raw = payload()
-    hs = headers(raw) + [("x-hub-signature-256", headers(raw)[-1][1])]
+    hs = [*headers(raw), ("x-hub-signature-256", headers(raw)[-1][1])]
     with pytest.raises(InvalidWebhook, match="invalid_header"):
         verify_delivery(secret=SECRET, headers=hs, body=raw, repositories=REPOSITORIES)
 
@@ -179,7 +179,7 @@ def test_rejects_unsupported_content_encoding() -> None:
     raw = payload()
     with pytest.raises(InvalidWebhook, match="unsupported_encoding"):
         verify_delivery(
-            secret=SECRET, headers=headers(raw) + [("Content-Encoding", "gzip")], body=raw, repositories=REPOSITORIES
+            secret=SECRET, headers=[*headers(raw), ("Content-Encoding", "gzip")], body=raw, repositories=REPOSITORIES
         )
 
 

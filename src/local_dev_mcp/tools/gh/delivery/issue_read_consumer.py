@@ -160,7 +160,7 @@ def decode_issue_read_checkpoint(*, raw: bytes, target: VerifiedTarget, intent: 
         if type(name) is not str or not 0 < len(name) <= 100 or any(c in name for c in "\r\n\x00"):
             raise IssueReadHold("invalid_issue_label")
         names.append(name)
-    if len(set(name.casefold() for name in names)) != len(names):
+    if len({name.casefold() for name in names}) != len(names):
         raise IssueReadHold("duplicate_issue_label")
 
     label_bytes = json.dumps(sorted(names, key=str.casefold), separators=(",", ":"), ensure_ascii=False).encode("utf-8")

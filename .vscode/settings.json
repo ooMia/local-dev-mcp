@@ -14,4 +14,7 @@
       "source.organizeImports.ruff": "always"
     }
   },
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml"
+  },
 }

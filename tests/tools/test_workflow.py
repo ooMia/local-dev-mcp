@@ -62,7 +62,8 @@ def test_installed_hooks_reject_failed_quality_and_missing_source_before_main_mo
         assert installed.returncode == 0, installed.stderr
         (tmp_path / "data.txt").write_text("feature\n")
         await git(tmp_path, "add", "data.txt")
-        refused = subprocess.run(
+        refused = await asyncio.to_thread(
+            subprocess.run,
             ["git", "-C", str(tmp_path), "commit", "-m", "feat: example\n\nSource-PR: https://github.com/o/r/pull/12"],
             env=base_environment(),
             capture_output=True,
@@ -117,7 +118,8 @@ def test_no_verify_cannot_update_main_without_quality_approval(
         assert run_workflow(tmp_path, "install").returncode == 0
         (tmp_path / "data.txt").write_text("unvalidated\n")
         await git(tmp_path, "add", "data.txt")
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             [
                 "git",
                 "-C",
@@ -148,9 +150,16 @@ def test_approved_candidate_can_advance_main_and_stale_approval_is_refused(
         await git(tmp_path, "switch", "-c", "feat/example", timeout=30)
         (tmp_path / "data.txt").write_text("validated\n")
         await git(tmp_path, "add", "data.txt")
-        await git(tmp_path, "commit", "-m", "feat: example\n\nSource-PR: https://github.com/o/r/pull/12", timeout=30)
+        await git(
+            tmp_path,
+            "commit",
+            "-m",
+            "feat: example\n\nSource-PR: https://github.com/o/r/pull/12",
+            timeout=30,
+        )
         candidate = await git(tmp_path, "rev-parse", "HEAD")
-        refused = subprocess.run(
+        refused = await asyncio.to_thread(
+            subprocess.run,
             ["git", "-C", str(tmp_path), "update-ref", "refs/heads/main", candidate, initial],
             env=base_environment(),
             capture_output=True,
@@ -165,9 +174,16 @@ def test_approved_candidate_can_advance_main_and_stale_approval_is_refused(
         assert await git(tmp_path, "rev-parse", "main") == candidate
         (tmp_path / "data.txt").write_text("unapproved followup\n")
         await git(tmp_path, "add", "data.txt")
-        await git(tmp_path, "commit", "-m", "fix: followup\n\nSource-PR: https://github.com/o/r/pull/12", timeout=30)
+        await git(
+            tmp_path,
+            "commit",
+            "-m",
+            "fix: followup\n\nSource-PR: https://github.com/o/r/pull/12",
+            timeout=30,
+        )
         next_head = await git(tmp_path, "rev-parse", "HEAD")
-        stale = subprocess.run(
+        stale = await asyncio.to_thread(
+            subprocess.run,
             ["git", "-C", str(tmp_path), "update-ref", "refs/heads/main", next_head, candidate],
             env=base_environment(),
             capture_output=True,
@@ -244,7 +260,8 @@ def test_commit_all_validates_gits_actual_temporary_index(tmp_path: Path, worksp
         await git(tmp_path, "commit", "-m", "initial tracked file")
         assert run_workflow(tmp_path, "install").returncode == 0
         (tmp_path / "tracked.txt").write_text("after\n")
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             [
                 "git",
                 "-C",
@@ -297,7 +314,8 @@ def test_linked_worktree_uses_common_main_guard_and_approval(
         await git(linked, "add", "data.txt")
         await git(linked, "commit", "-m", "feat: linked\n\nSource-PR: https://github.com/o/r/pull/12")
         candidate = await git(linked, "rev-parse", "HEAD")
-        refused = subprocess.run(
+        refused = await asyncio.to_thread(
+            subprocess.run,
             ["git", "-C", str(linked), "update-ref", "refs/heads/main", candidate, initial],
             env=base_environment(),
             capture_output=True,

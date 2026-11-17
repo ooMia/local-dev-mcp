@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -224,10 +225,8 @@ async def inspect(settings: ServerSettings, branch: str) -> WorktreeState:
     records = await worktree.list_registered(repo)
     selected = [row for row in records if row.path == path]
     branch_head: str | None = None
-    try:
+    with contextlib.suppress(ToolError):
         _, branch_head = await resolve_local_ref(repo, branch)
-    except ToolError:
-        pass
     result: WorktreeState = {
         "project": str(repo.root),
         "branch": branch,

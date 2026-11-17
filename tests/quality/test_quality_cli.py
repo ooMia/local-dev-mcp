@@ -1,6 +1,7 @@
 """Direct CLI execution contract using disposable Git repositories."""
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -20,7 +21,7 @@ def _git(root: Path, *args: str) -> str:
 def _workspace(root: Path, code: str) -> None:
     (root / ".config").mkdir()
     (root / "config.toml").write_text(
-        '[filesystem]\nallowed_paths = ["."]\n[system]\nallowed_commands = ["task.quality"]\n'
+        '[filesystem]\nallowed_paths = ["."]\n[system]\nallowed_commands = ["task.quality", "git"]\n'
         '[jobs.check]\nkind = "lint"\npermission = "task.quality"\nargv = '
         + json.dumps([sys.executable, "-c", code])
         + "\n"
@@ -100,8 +101,11 @@ def test_poisoned_global_signing_breaks_an_unisolated_git_commit(tmp_path: Path)
     _git(tmp_path, "config", "user.email", "test@example.invalid")
     (tmp_path / "tracked.txt").write_text("content\n", encoding="utf-8")
     _git(tmp_path, "add", "tracked.txt")
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("Git executable unavailable on test host")
     result = subprocess.run(
-        ["git", "-C", str(tmp_path), "commit", "-m", "unisolated"],
+        [git, "-C", str(tmp_path), "commit", "-m", "unisolated"],
         capture_output=True,
         text=True,
         check=False,

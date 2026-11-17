@@ -65,7 +65,7 @@ class OperationAttempt:
         return digest_bytes(self.canonical_bytes())
 
     @classmethod
-    def from_canonical_bytes(cls, raw: bytes) -> "OperationAttempt":
+    def from_canonical_bytes(cls, raw: bytes) -> OperationAttempt:
         if type(raw) is not bytes or not 0 < len(raw) <= MAX_ATTEMPT_BYTES:
             raise ValueError("Invalid Attempt evidence length.")
         try:

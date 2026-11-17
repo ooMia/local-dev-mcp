@@ -6,7 +6,7 @@ The caller explicitly owns DB connections, Task, credentials and server lifecycl
 
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from typing import Any, TypeAlias, cast
+from typing import Any, cast
 
 from procrastinate.tasks import Task
 from psycopg import AsyncConnection
@@ -21,11 +21,11 @@ from local_dev_mcp.tools.gh.delivery import (
 
 from .verify import MAX_BODY_BYTES, InvalidWebhook, validate_repository_scope, verify_delivery
 
-ASGIMessage: TypeAlias = dict[str, object]
-Receive: TypeAlias = Callable[[], Awaitable[ASGIMessage]]
-Send: TypeAlias = Callable[[ASGIMessage], Awaitable[None]]
-ConnectionFactory: TypeAlias = Callable[[], Awaitable[AsyncConnection[tuple[Any, ...]]]]
-ASGIApp: TypeAlias = Callable[[Mapping[str, object], Receive, Send], Awaitable[None]]
+type ASGIMessage = dict[str, object]
+type Receive = Callable[[], Awaitable[ASGIMessage]]
+type Send = Callable[[ASGIMessage], Awaitable[None]]
+type ConnectionFactory = Callable[[], Awaitable[AsyncConnection[tuple[Any, ...]]]]
+type ASGIApp = Callable[[Mapping[str, object], Receive, Send], Awaitable[None]]
 
 # Responses are fixed; no credentials, payloads, tracebacks or storage exceptions.
 _RESPONSES: dict[str, tuple[int, bytes]] = {

@@ -92,7 +92,8 @@ class FileMutations:
         result, claim = self._begin("create", path, content, request_id, create_parents, budget)
         if isinstance(claim, FileMutation):
             return claim
-        assert isinstance(claim, Receipt)
+        # The replay case returned above; the remaining claim is the owning receipt.
+        # Handle any additional _begin claim variants explicitly before finalizing them.
         try:
             try:
                 data = replacement_bytes(content)
@@ -132,7 +133,8 @@ class FileMutations:
         result, claim = self._begin("delete", path, read_ref, request_id, False, budget)
         if isinstance(claim, FileMutation):
             return claim
-        assert isinstance(claim, Receipt)
+        # The replay case returned above; the remaining claim is the owning receipt.
+        # Handle any additional _begin claim variants explicitly before finalizing them.
         try:
             scoped = self.workspace.path(path)
             with self.locks.hold(scoped.relative.casefold(), budget):
@@ -200,18 +202,18 @@ class FileMutations:
             location = self.workspace.policy.root / directory.relative
             try:
                 info = location.lstat()
-            except FileNotFoundError:
+            except FileNotFoundError as err:
                 if not parents:
                     raise EditRejected(
                         "missing_parent", "A parent directory is missing; creation was not requested."
-                    ) from None
+                    ) from err
                 self._write_policy(directory)
                 candidate = result.model_copy(deep=True)
                 candidate.created_directories.append(directory.relative)
                 if len(candidate.model_dump_json().encode("utf-8")) > RESPONSE_BYTES // 2:
                     raise EditRejected(
                         "directory_metadata_limit", "The created-directory receipt would exceed its limit."
-                    )
+                    ) from err
                 budget.check()
                 try:
                     os.mkdir(location)

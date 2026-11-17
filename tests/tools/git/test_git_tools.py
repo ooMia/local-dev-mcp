@@ -325,7 +325,7 @@ def test_commit_requires_dotenv_identity_and_preserves_preexisting_staged_conten
         (tmp_path / "preexisting.txt").write_text("user stage\n")
         await git(tmp_path, "add", ".")
         if not prepared:
-            with pytest.raises(ConfigurationError, match=".env"):
+            with pytest.raises(ConfigurationError, match=r"\.env"):
                 client(tmp_path, signing=signing_setup)
             assert await git(tmp_path, "ls-files") == "preexisting.txt"
             return
@@ -368,7 +368,7 @@ def test_prepared_identity_overrides_local_and_ambient_values_and_stays_frozen(
                 "미아 개발자 <local-identity>|미아 개발자 <local-identity>"
             )
             (tmp_path / ".env").unlink()
-            with pytest.raises(ConfigurationError, match=".env"):
+            with pytest.raises(ConfigurationError, match=r"\.env"):
                 client(tmp_path, signing=signing_setup)
             assert await git(tmp_path, "show", "-s", "--format=%s") == "second"
         assert await git(tmp_path, "config", "--local", "--list") == configuration

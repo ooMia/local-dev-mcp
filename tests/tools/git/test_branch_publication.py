@@ -28,7 +28,9 @@ def test_branch_publication_reuses_remote_gates_in_target_checkout(
     async def scenario() -> None:
         base, _ = await seed(tmp_path, workspace_factory)
         # Controller template exists only in the current checkout, not the historical branch.
-        template = Path(__file__).resolve().parents[3] / ".github" / "PULL_REQUEST_TEMPLATE.md"
+        template = await asyncio.to_thread(
+            lambda: Path(__file__).resolve().parents[3] / ".github" / "PULL_REQUEST_TEMPLATE.md"
+        )
         (tmp_path / ".github").mkdir()
         (tmp_path / ".github" / "PULL_REQUEST_TEMPLATE.md").write_text(template.read_text())
         with (tmp_path / ".git" / "info" / "exclude").open("a") as stream:

@@ -26,7 +26,7 @@ class ReleasePlan(TypedDict):
     current_version: str
     next_version: str | None
     maximum_impact: Impact
-    counts: dict[str, int]
+    counts: dict[Impact, int]
     causes: list[str]
     changes: list[PlannedChange]
 
@@ -62,7 +62,7 @@ def build_plan(head: str, current_version: str, records: Mapping[str, Assessment
     version = canonical_version(current_version)
     replaced = _superseded(records)
     changes: list[PlannedChange] = []
-    counts = {impact: 0 for impact in IMPACTS}
+    counts = dict.fromkeys(IMPACTS, 0)
     for name, record in sorted(records.items()):
         effective = name not in replaced
         if effective:

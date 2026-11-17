@@ -224,7 +224,6 @@ def test_label_scope_lock_lost() -> None:
                 await lock_conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
 
                 async def post_after_disconnect(target: VerifiedTarget, label: str) -> None:
-                    pass
                     assert target.repository == "acme/widget" and label == "triaged"
                     await lock_conn.close()
                     api.post_calls += 1

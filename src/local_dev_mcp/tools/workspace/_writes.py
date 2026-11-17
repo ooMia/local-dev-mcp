@@ -31,7 +31,7 @@ class WriteLocks:
         self._entries: dict[str, _LockEntry] = {}
 
     @contextmanager
-    def hold(self, name: str, budget: Budget) -> Generator[None, None, None]:
+    def hold(self, name: str, budget: Budget) -> Generator[None]:
         with self._guard:
             entry = self._entries.setdefault(name, _LockEntry(threading.Lock()))
             entry.users += 1

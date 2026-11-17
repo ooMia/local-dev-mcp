@@ -16,8 +16,11 @@ pytestmark = pytest.mark.integration
 
 
 def _git(cwd: Path, *argv: str) -> str:
+    git = shutil.which("git")
+    if git is None:
+        raise RuntimeError("Git executable not found in PATH")
     result = subprocess.run(
-        ["git", "-C", str(cwd), *argv],
+        [git, "-C", str(cwd), *argv],
         capture_output=True,
         text=True,
         check=True,

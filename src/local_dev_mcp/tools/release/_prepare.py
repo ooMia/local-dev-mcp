@@ -1,5 +1,6 @@
 """Explicit developer operation: prepare files, never commit, tag or publish."""
 
+import asyncio
 import stat
 from pathlib import Path
 from typing import TypedDict
@@ -60,7 +61,7 @@ async def _changed_paths(repository: LocalGit, allowed: set[str]) -> list[str]:
 
 
 async def prepare_release(root: Path, expected_head: str, expected_plan: str) -> PreparedRelease:
-    root = root.resolve(strict=True)
+    root = await asyncio.to_thread(root.resolve, strict=True)
     repository = LocalGit(root)
     if await repository.head() != expected_head:
         raise ValueError("Release HEAD differs from the observed source.")

@@ -3,6 +3,7 @@
 import asyncio
 import os
 import shutil
+import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack
 from pathlib import Path
@@ -77,7 +78,10 @@ def gpg_home_factory() -> Iterator[Callable[[], Path]]:
         def create() -> Path:
             # Short paths avoid the Unix socket path limit even in deep checkouts.
             directory = resources.enter_context(
-                TemporaryDirectory(prefix="ldm-gpg-", dir="/tmp" if os.name == "posix" else None)
+                TemporaryDirectory(
+                    prefix="ldm-gpg-",
+                    dir=tempfile.gettempdir() if os.name == "posix" else None,
+                )
             )
             home = Path(directory).resolve()
             home.chmod(0o700)
@@ -124,7 +128,7 @@ def signing_material(gpg_home_factory: Callable[[], Path]) -> SigningSetup:
     return asyncio.run(setup())
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def signing_setup(signing_material: SigningSetup) -> SigningSetup:
     return signing_material
 

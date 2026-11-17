@@ -77,7 +77,7 @@ _PROCRASTINATE_TYPED_COLUMNS: dict[str, dict[str, tuple[str, str]]] = {
         "abort_requested": ("bool", "NO"),
     },
 }
-_PROCRASTINATE_PRIMARY_KEYS: dict[str, str] = {table: "PRIMARY KEY (id)" for table in _PROCRASTINATE_COLUMNS}
+_PROCRASTINATE_PRIMARY_KEYS: dict[str, str] = dict.fromkeys(_PROCRASTINATE_COLUMNS, "PRIMARY KEY (id)")
 _PRIMARY_KEYS: dict[str, str] = {
     "github_sealed_plans": "PRIMARY KEY (event_id)",
     "github_delivery_claim_generations": "PRIMARY KEY (event_id, generation)",
@@ -223,18 +223,17 @@ async def inspect_issue_read_worker_schema(*, connection: AsyncConnection[tuple[
 
     # A Claim's started event must be unique across generations, even when
     # the same Job is reused. The second UNIQUE key is part of its DDL.
-    if kinds.get("github_delivery_claim_generations") in ("r", "p"):
-        if (
-            saved.get(
-                (
-                    "github_delivery_claim_generations",
-                    "u",
-                    "github_claim_started_unique",
-                )
+    if kinds.get("github_delivery_claim_generations") in ("r", "p") and (
+        saved.get(
+            (
+                "github_delivery_claim_generations",
+                "u",
+                "github_claim_started_unique",
             )
-            != "UNIQUE (event_id, started_event_id)"
-        ):
-            issues.append("github_delivery_claim_generations_started_unique_missing")
+        )
+        != "UNIQUE (event_id, started_event_id)"
+    ):
+        issues.append("github_delivery_claim_generations_started_unique_missing")
 
     return SchemaReadiness(ready=not issues, issues=tuple(issues))
 

@@ -9,6 +9,8 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Protocol, TypedDict
 
+from ._execution import executable
+
 HOOK_NAMES = ("pre-commit", "commit-msg", "pre-push", "reference-transaction")
 _MARKER = "# local-dev-mcp managed workflow hook"
 
@@ -25,9 +27,10 @@ class GitRunner(Protocol):
 def _values(
     root: Path, environment: dict[str, str], key: str, *, scope: str | None = None, boolean: bool = False
 ) -> list[str]:
+    git = str(executable("git", search_path=environment.get("PATH")))
     options = ([] if scope is None else [f"--{scope}"]) + (["--type=bool"] if boolean else [])
     result = subprocess.run(
-        ["git", "config", *options, "--null", "--get-all", key],
+        [git, "config", *options, "--null", "--get-all", key],
         cwd=root,
         env=environment,
         capture_output=True,

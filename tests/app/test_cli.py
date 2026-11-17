@@ -1,6 +1,7 @@
 """Exercise the CLI interface, including real library-managed child processes."""
 
 import asyncio
+import contextlib
 import errno
 import logging
 import os
@@ -12,6 +13,7 @@ from dataclasses import replace
 from io import StringIO
 from pathlib import Path
 from typing import Never, Self
+from unittest.mock import patch
 
 import pytest
 from shellous import Result, sh
@@ -50,6 +52,47 @@ def invoke(root: Path, *args: str, env: dict[str, str] | None = None) -> Result:
     return asyncio.run(scenario())
 
 
+class _InProcessResult:
+    def __init__(self, exit_code: int, output: str, error: str) -> None:
+        self.exit_code = exit_code
+        self.output = output
+        self.error = error
+
+
+def invoke_in_process(
+    root: Path,
+    *args: str,
+    env: dict[str, str] | None = None,
+    capsys: pytest.CaptureFixture[str] | None = None,
+) -> _InProcessResult:
+    """Call cli.main() in-process with the same argv/env/cwd as invoke(), returning a Result-like object.
+
+    Avoids spawning sys.executable -I -m local_dev_mcp as a child process for tests that do not
+    exercise subprocess-specific behavior (child exit codes, tunnel-client launch, signal handling).
+    Each call fully restores sys.argv, cwd and os.environ so tests remain independent of one another.
+    """
+    old_argv = sys.argv
+    old_cwd = Path.cwd()
+    env_to_use = env if env is not None else base_environment()
+    try:
+        sys.argv = ["local-dev-mcp", *args]
+        os.chdir(root)
+        with patch.dict(os.environ, env_to_use, clear=True):
+            try:
+                code = cli.main()
+            except SystemExit as error:
+                code = error.code if isinstance(error.code, int) else ExitCode.USAGE
+        captured = capsys.readouterr() if capsys is not None else None
+        return _InProcessResult(
+            exit_code=code,
+            output=captured.out if captured else "",
+            error=captured.err if captured else "",
+        )
+    finally:
+        sys.argv = old_argv
+        os.chdir(old_cwd)
+
+
 @pytest.mark.parametrize(
     ("contents", "reason"),
     [
@@ -64,10 +107,12 @@ def invoke(root: Path, *args: str, env: dict[str, str] | None = None) -> Result:
         ),
     ],
 )
-def test_config_failures_are_contextual_and_redacted(tmp_path: Path, contents: str | None, reason: str) -> None:
+def test_config_failures_are_contextual_and_redacted(
+    tmp_path: Path, contents: str | None, reason: str, capsys: pytest.CaptureFixture[str]
+) -> None:
     if contents is not None:
         (tmp_path / "config.toml").write_text(contents)
-    result = invoke(tmp_path, "run")
+    result = invoke_in_process(tmp_path, "run", capsys=capsys)
     assert result.exit_code == ExitCode.CONFIG_ERROR
     assert reason in result.error
     assert "Action:" in result.error
@@ -117,12 +162,12 @@ def test_project_resolution_error_is_not_config_read_failure(
     assert SECRET not in error
 
 
-def test_missing_env_and_missing_executable_are_different(tmp_path: Path) -> None:
+def test_missing_env_and_missing_executable_are_different(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     configure(tmp_path)
     envfile = tmp_path / ".env"
     contents = envfile.read_text()
     envfile.unlink()
-    missing_env = invoke(tmp_path, "connect")
+    missing_env = invoke_in_process(tmp_path, "connect", capsys=capsys)
     assert missing_env.exit_code == ExitCode.CONFIG_ERROR
     assert "[.env]" in missing_env.error
     assert "file is missing" in missing_env.error
@@ -204,9 +249,9 @@ def test_unexpected_internal_error_is_general_and_redacted(
     assert "Traceback" not in error
 
 
-def test_usage_and_help_have_standard_exit_status(tmp_path: Path) -> None:
-    assert invoke(tmp_path, "unknown-command").exit_code == ExitCode.USAGE
-    assert invoke(tmp_path, "--help").exit_code == ExitCode.SUCCESS
+def test_usage_and_help_have_standard_exit_status(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert invoke_in_process(tmp_path, "unknown-command", capsys=capsys).exit_code == ExitCode.USAGE
+    assert invoke_in_process(tmp_path, "--help", capsys=capsys).exit_code == ExitCode.SUCCESS
 
 
 def test_run_warns_about_missing_identity_without_failing_startup(tmp_path: Path) -> None:
@@ -259,7 +304,7 @@ def test_ctrl_c_confirms_direct_child_exit(tmp_path: Path) -> None:
         async with command as process:
             # Interpreters launched under xdist contention may exceed a 5-second startup budget.
             async with asyncio.timeout(15):
-                while not (tmp_path / "child.pid").exists():
+                while not (tmp_path / "child.pid").exists():  # noqa: ASYNC110 - another process creates this filesystem marker; it has no in-process notification.
                     await asyncio.sleep(0.02)
             child_pid = int((tmp_path / "child.pid").read_text())
             process.send_signal(signal.SIGINT)
@@ -276,10 +321,8 @@ def test_ctrl_c_confirms_direct_child_exit(tmp_path: Path) -> None:
             os.kill(child_pid, 0)  # Independent observation, not product process management.
     finally:
         if child_pid is not None:
-            try:
+            with contextlib.suppress(ProcessLookupError):
                 os.kill(child_pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
 
 
 def test_unconfirmed_cleanup_is_general_failure(

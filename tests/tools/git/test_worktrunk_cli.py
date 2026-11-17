@@ -550,15 +550,16 @@ def test_worktrunk_explicit_workspace_path_creates_or_checks_out(
 
 
 @pytest.mark.parametrize(
-    "bad_path", ["../outside", "/tmp/outside", "C:/outside", ".git/checkout", "unignored/checkout"]
+    "bad_path", ["../outside", "absolute-outside", "C:/outside", ".git/checkout", "unignored/checkout"]
 )
 def test_worktrunk_explicit_path_rejects_unsafe_targets_without_creating_branch(
     tmp_path: Path, workspace_factory: WorkspaceFactory, bad_path: str
 ) -> None:
     async def scenario() -> None:
         head, _ = await seed(tmp_path, workspace_factory)
+        requested_path = str(tmp_path.parent / "outside") if bad_path == "absolute-outside" else bad_path
         with pytest.raises(ToolError):
-            await _adapter(tmp_path).create("feat/bad-path", "main", head, "main", head, worktree_path=bad_path)
+            await _adapter(tmp_path).create("feat/bad-path", "main", head, "main", head, worktree_path=requested_path)
         assert await git(tmp_path, "branch", "--list", "feat/bad-path") == ""
 
     asyncio.run(scenario())

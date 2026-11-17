@@ -1,4 +1,4 @@
-"""Q74–Q76 Consumer-owned versioned Operation Contract compatibility.
+"""Q74-Q76 Consumer-owned versioned Operation Contract compatibility.
 
 This catalog inspects registered callable capabilities and declared concurrency
 protection; it NEVER invokes execute, probe, decode, verify or the guard.

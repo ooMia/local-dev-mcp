@@ -10,6 +10,7 @@ from shellous import sh
 
 from local_dev_mcp.mcp.server import create_server
 from local_dev_mcp.settings import Policy
+from local_dev_mcp.tools._execution import executable
 from local_dev_mcp.tools.git import command_environment
 from tests.support.signing import SigningSetup
 
@@ -20,7 +21,8 @@ class WorkspaceFactory(Protocol):
     ) -> Path: ...
 
 
-async def git(root: Path, *args: str, timeout: float = 10) -> str:
+async def git(root: Path, *args: str, timeout: float = 10) -> str:  # noqa: ASYNC109
+    """Preserve Shellous' native per-command timeout in this test adapter."""
     return (
         await sh("git", "-C", str(root), *args).set(inherit_env=False, env=command_environment(), timeout=timeout)
     ).removesuffix("\n")
@@ -29,7 +31,7 @@ async def git(root: Path, *args: str, timeout: float = 10) -> str:
 def git_sync(root: Path, *args: str, timeout: float = 10) -> str:
     """Run test-owned Git commands without ambient global/system Git settings."""
     result = subprocess.run(
-        ["git", "-C", str(root), *args],
+        [str(executable("git")), "-C", str(root), *args],
         env=command_environment(),
         capture_output=True,
         text=True,

@@ -32,7 +32,8 @@ class LocalRemote:
 def test_release_pr_checks_receipt_from_real_git_snapshot(tmp_path: Path, workspace_factory: WorkspaceFactory) -> None:
     async def scenario() -> None:
         await release_workspace(tmp_path, workspace_factory, pending=True)
-        subprocess.run(
+        await asyncio.to_thread(
+            subprocess.run,
             ["uv", "lock", "--offline", "--no-config", "--cache-dir", str(tmp_path.parent / "uv-cache")],
             cwd=tmp_path,
             env=base_environment(),

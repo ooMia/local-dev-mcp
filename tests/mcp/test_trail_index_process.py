@@ -13,8 +13,8 @@ pytestmark = pytest.mark.integration
 
 
 class ProcessHarness(IndexManager):
-    async def run_command(self, executable: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
-        return await self._run(executable, args, timeout)
+    async def run_command(self, executable: Path, args: tuple[str, ...]) -> TrailProcessResult:
+        return await self._run(executable, args)
 
 
 def test_argv_subprocess_uses_fixed_cwd_and_returns_bounded_output(tmp_path: Path) -> None:
@@ -24,7 +24,6 @@ def test_argv_subprocess_uses_fixed_cwd_and_returns_bounded_output(tmp_path: Pat
         result = await index.run_command(
             Path(sys.executable),
             ("-c", "import os; print(os.getcwd()); print('ready')"),
-            5,
         )
         assert result.exit_code == 0
         assert result.error is None
@@ -41,7 +40,6 @@ def test_output_limit_kills_process_without_returning_partial_output(tmp_path: P
         result = await index.run_command(
             Path(sys.executable),
             ("-c", "print('x'*150000)"),
-            5,
         )
         assert result.error == "output_limit"
         assert result.output == ""
@@ -50,16 +48,15 @@ def test_output_limit_kills_process_without_returning_partial_output(tmp_path: P
     asyncio.run(scenario())
 
 
-def test_timeout_reports_failure_not_success(tmp_path: Path) -> None:
+def test_timeout_cancels_process_without_success(tmp_path: Path) -> None:
     index = ProcessHarness(Policy(tmp_path, (tmp_path,), ("trail",)), {"PATH": ""})
 
     async def scenario() -> None:
-        result = await index.run_command(
-            Path(sys.executable),
-            ("-c", "import time; time.sleep(5)"),
-            0.05,
-        )
-        assert result.error == "timeout"
-        assert result.exit_code is None
+        with pytest.raises(TimeoutError):
+            async with asyncio.timeout(0.05):
+                await index.run_command(
+                    Path(sys.executable),
+                    ("-c", "import time; time.sleep(5)"),
+                )
 
     asyncio.run(scenario())

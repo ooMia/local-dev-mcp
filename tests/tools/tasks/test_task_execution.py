@@ -73,16 +73,12 @@ def manager(
 
 async def finished(tasks: TaskManager, job_id: str, *, include_output: bool = False) -> TaskResult:
     async with asyncio.timeout(5):
-        while True:
-            result = tasks.get(job_id)
-            if result["state"] != "running":
-                return tasks.get(job_id, include_output=True) if include_output else result
-            await asyncio.sleep(0.01)
+        return await tasks.wait(job_id, include_output=include_output)
 
 
 async def ready(path: Path) -> None:
     async with asyncio.timeout(5):
-        while not path.exists():
+        while not await asyncio.to_thread(path.exists):  # noqa: ASYNC110 - the child process signals readiness through the filesystem.
             await asyncio.sleep(0.01)
 
 
@@ -213,7 +209,15 @@ def test_explicit_test_selection_replaces_full_targets_and_keeps_node_parameters
             assert result["targets"] == [selected] and result["all_tests"] is False
             entire = await tasks.start("check", "full", all_tests=True)
             assert json.loads(tasks.get(entire["job_id"], include_output=True)["stdout"]) == ["tests"]
-            for targets in ([], ["-q"], ["@arguments"], ["../test.py"], ["/tmp/test.py"], ["x\0y"]):
+            invalid_targets: tuple[list[str], ...] = (
+                [],
+                ["-q"],
+                ["@arguments"],
+                ["../test.py"],
+                [str(tmp_path / "test.py")],
+                ["x\0y"],
+            )
+            for targets in invalid_targets:
                 with pytest.raises(ToolError):
                     await tasks.start("check", "invalid", targets)
             with pytest.raises(ToolError, match="Select"):

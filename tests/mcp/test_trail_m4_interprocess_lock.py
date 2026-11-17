@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 import pytest
-from fastmcp.exceptions import ToolError
 
 from local_dev_mcp.app.runtime import ServerSettings
 from local_dev_mcp.settings import Policy
@@ -37,9 +36,7 @@ def test_two_independent_mcp_instances_serialize_one_worktree(
         peak = 0
         built = False
 
-        async def fake_run(
-            self: IndexManager, binary: Path, args: tuple[str, ...], timeout: float
-        ) -> TrailProcessResult:
+        async def fake_run(self: IndexManager, binary: Path, args: tuple[str, ...]) -> TrailProcessResult:
             nonlocal active, peak, built
             if "--check" in args:
                 return TrailProcessResult(
@@ -81,14 +78,15 @@ from local_dev_mcp.tools.indexing._process_lock import coordinated_trail_index
 async def main():
     repo, target, log, action = map(Path, sys.argv[1:5])
     settings = ServerSettings.load(Policy(repo, (repo,), ("git", "trail")))
-    async with coordinated_trail_index(settings, target, timeout=15):
-        with log.open("a", encoding="utf-8") as f:
-            f.write("enter\\n")
-        if action.name == "crash":
-            os._exit(0)
-        await asyncio.sleep(0.4)
-        with log.open("a", encoding="utf-8") as f:
-            f.write("exit\\n")
+    async with asyncio.timeout(15):
+        async with coordinated_trail_index(settings, target):
+            with log.open("a", encoding="utf-8") as f:
+                f.write("enter\\n")
+            if action.name == "crash":
+                os._exit(0)
+            await asyncio.sleep(0.4)
+            with log.open("a", encoding="utf-8") as f:
+                f.write("exit\\n")
 
 asyncio.run(main())
 """
@@ -143,12 +141,13 @@ def test_contended_lock_timeout_preserves_files_and_allows_retry(
         await git(tmp_path, "worktree", "add", "-b", "feat/m4-process", str(root), "main")
         settings = ServerSettings.load(Policy(tmp_path, (tmp_path,), ("git", "trail")))
         async with coordinated_trail_index(settings, root):
-            with pytest.raises(ToolError, match="busy"):
-                async with coordinated_trail_index(settings, root, timeout=0.05):
-                    pytest.fail("Should not acquire a held interprocess lock.")
+            with pytest.raises(TimeoutError):
+                async with asyncio.timeout(0.05):
+                    async with coordinated_trail_index(settings, root):
+                        pytest.fail("Should not acquire a held interprocess lock.")
 
             async def waiting() -> None:
-                async with coordinated_trail_index(settings, root, timeout=30):
+                async with coordinated_trail_index(settings, root):
                     pytest.fail("Cancelled waiter must never acquire the lock.")
 
             task = asyncio.create_task(waiting())
@@ -156,7 +155,7 @@ def test_contended_lock_timeout_preserves_files_and_allows_retry(
             task.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await task
-        async with coordinated_trail_index(settings, root, timeout=0.1):
+        async with coordinated_trail_index(settings, root):
             pass
         assert await git(root, "status", "--porcelain") == ""
 

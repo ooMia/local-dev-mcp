@@ -7,6 +7,7 @@ The Trail command is opt-in through the existing logical 'trail' permission.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import re
 import shutil
@@ -133,7 +134,7 @@ class IndexManager:
         except OSError:
             return None
 
-    async def _run(self, binary: Path, arguments: tuple[str, ...], timeout: float) -> TrailProcessResult:
+    async def _run(self, binary: Path, arguments: tuple[str, ...]) -> TrailProcessResult:
         process: asyncio.subprocess.Process | None = None
         try:
             process = await asyncio.create_subprocess_exec(
@@ -145,21 +146,17 @@ class IndexManager:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
             )
+            if (stdout := process.stdout) is None:
+                raise RuntimeError("Trail subprocess did not provide a captured stdout stream.")
 
-            async def collect() -> bytes:
-                assert process is not None and process.stdout is not None
-                data = bytearray()
-                while chunk := await process.stdout.read(8192):
-                    if len(data) + len(chunk) > 128 * 1024:
-                        raise ValueError("output_limit")
-                    data.extend(chunk)
-                await process.wait()
-                return bytes(data)
+            data = bytearray()
+            while chunk := await stdout.read(8192):
+                if len(data) + len(chunk) > 128 * 1024:
+                    raise ValueError("output_limit")
+                data.extend(chunk)
 
-            output = await asyncio.wait_for(collect(), timeout)
-            return TrailProcessResult(process.returncode, output.decode("utf-8", errors="replace"))
-        except TimeoutError:
-            return TrailProcessResult(None, "", "timeout")
+            await process.wait()
+            return TrailProcessResult(process.returncode, data.decode("utf-8", errors="replace"))
         except ValueError:
             return TrailProcessResult(None, "", "output_limit")
         except OSError:
@@ -192,7 +189,11 @@ class IndexManager:
         }
 
     async def _check(self, binary: Path) -> tuple[StructuralState, DeepState, str | None]:
-        check = await self._run(binary, ("build", "--check", str(self.policy.root)), 30)
+        try:
+            async with asyncio.timeout(30):
+                check = await self._run(binary, ("build", "--check", str(self.policy.root)))
+        except TimeoutError:
+            check = TrailProcessResult(None, "", "timeout")
         return (
             structural_state(check),
             deep_state(check),
@@ -224,7 +225,11 @@ class IndexManager:
             if structural == "unknown":
                 self._last_reason = error
                 return self._report(structural, deep, "failed", reason=error)
-            result = await self._run(binary, ("build", str(self.policy.root)), 120)
+            try:
+                async with asyncio.timeout(120):
+                    result = await self._run(binary, ("build", str(self.policy.root)))
+            except TimeoutError:
+                result = TrailProcessResult(None, "", "timeout")
             if result.exit_code != 0 or result.error is not None:
                 self._last_reason = result.error or "build_nonzero"
                 return self._report("unknown", deep, "failed", performed=True, reason=self._last_reason)
@@ -233,7 +238,11 @@ class IndexManager:
                 # Some Trail caches can replay obsolete extraction even after
                 # an incremental success. Force one deterministic reparse only
                 # when the post-build graph still disagrees with the source.
-                retry = await self._run(binary, ("build", "--no-reuse", str(self.policy.root)), 120)
+                try:
+                    async with asyncio.timeout(120):
+                        retry = await self._run(binary, ("build", "--no-reuse", str(self.policy.root)))
+                except TimeoutError:
+                    retry = TrailProcessResult(None, "", "timeout")
                 if retry.exit_code != 0 or retry.error is not None:
                     self._last_reason = retry.error or "full_build_nonzero"
                     return self._report("unknown", deep, "failed", performed=True, reason=self._last_reason)
@@ -280,7 +289,5 @@ class IndexManager:
         self._closed = True
         if self._auto_task is not None and not self._auto_task.done():
             self._auto_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._auto_task
-            except asyncio.CancelledError:
-                pass

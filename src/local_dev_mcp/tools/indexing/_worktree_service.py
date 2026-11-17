@@ -16,6 +16,9 @@ if TYPE_CHECKING:
     from ...app.runtime import ServerSettings
 
 
+_LOCK_TIMEOUT_SECONDS = 360
+
+
 class WorktreeIndexReport(IndexReport):
     branch: str
     head: str
@@ -51,24 +54,28 @@ class WorktreeIndexService:
         )
         root = initial.policy.root
         lock = self._locks.setdefault(root, asyncio.Lock())
-        async with lock, coordinated_trail_index(self.settings, root):
-            selected = await resolve_index_target(
-                self.settings, kind="worktree", branch=branch, expected_head=expected_head, write=write
-            )
-            if selected.policy.root != root:
-                raise ToolError("Worktree registration changed during index selection.")
-            try:
-                report = await (selected.index.refresh() if write else selected.index.status())
-            finally:
-                await selected.index.close()
+        try:
+            async with asyncio.timeout(_LOCK_TIMEOUT_SECONDS):
+                async with lock, coordinated_trail_index(self.settings, root):
+                    selected = await resolve_index_target(
+                        self.settings, kind="worktree", branch=branch, expected_head=expected_head, write=write
+                    )
+                    if selected.policy.root != root:
+                        raise ToolError("Worktree registration changed during index selection.")
+                    try:
+                        report = await (selected.index.refresh() if write else selected.index.status())
+                    finally:
+                        await selected.index.close()
 
-            # Even if Trail says Fresh, never return a successful report for
-            # an unexpectedly dirty, moved or unregistered target.
-            after = await resolve_index_target(
-                self.settings, kind="worktree", branch=branch, expected_head=expected_head, write=False
-            )
-            if after.policy.root != root:
-                raise ToolError("Worktree registration changed during index execution.")
+                    # Even if Trail says Fresh, never return a successful report for
+                    # an unexpectedly dirty, moved or unregistered target.
+                    after = await resolve_index_target(
+                        self.settings, kind="worktree", branch=branch, expected_head=expected_head, write=False
+                    )
+                    if after.policy.root != root:
+                        raise ToolError("Worktree registration changed during index execution.")
+        except TimeoutError as error:
+            raise ToolError("Worktree index operation exceeded its time budget.") from error
 
         return {
             **report,

@@ -49,7 +49,7 @@ def test_worktrunk_write_checks_commands_in_existing_order(
 def test_worktrunk_read_does_not_require_write_permission(tmp_path: Path) -> None:
     settings = ServerSettings.load(replace(policy(tmp_path), allowed_commands=("git", "wt")))
     require_worktrunk_access(settings, write=False)
-    with pytest.raises(ToolError, match="System command git.worktree.write is not allowed"):
+    with pytest.raises(ToolError, match=r"System command git\.worktree\.write is not allowed"):
         require_worktrunk_access(settings, write=True)
 
 

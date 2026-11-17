@@ -32,7 +32,7 @@ async def update_version(root: Path, version: str) -> None:
                 raise asyncio.CancelledError
             if process.returncode != 0 or len(scope) > 16384:
                 raise ValueError("uv workspace scope could not be confirmed; no version write was attempted.")
-            if Path(scope.decode().strip()).resolve() != root.resolve():
+            if await asyncio.to_thread(lambda: Path(scope.decode().strip()).resolve() != root.resolve()):
                 raise ValueError(
                     "The selected Git root belongs to a different uv workspace; no version write was attempted."
                 )

@@ -28,7 +28,7 @@ def _fake_binary(self: IndexManager) -> Path:
 
 class _IndexProcessProbe(IndexManager):
     async def run_script(self, script: str) -> TrailProcessResult:
-        return await self._run(Path(sys.executable), ("-c", script), timeout=0.5)
+        return await self._run(Path(sys.executable), ("-c", script))
 
 
 async def _fixture(root: Path, factory: WorkspaceFactory) -> tuple[Policy, Path, str, str]:
@@ -72,9 +72,7 @@ def test_worktree_index_unavailable_timeout_then_successful_retry(
                 TrailProcessResult(0, "graph check: OK\n"),
             ]
 
-            async def fake_run(
-                self: IndexManager, binary: Path, argv: tuple[str, ...], timeout: float
-            ) -> TrailProcessResult:
+            async def fake_run(self: IndexManager, binary: Path, argv: tuple[str, ...]) -> TrailProcessResult:
                 calls.append(argv)
                 return sequence.pop(0)
 
@@ -127,9 +125,7 @@ def test_cancelled_worktree_refresh_releases_root_lock(
         cancelled_build = asyncio.Event()
         finished = False
 
-        async def fake_run(
-            self: IndexManager, binary: Path, argv: tuple[str, ...], timeout: float
-        ) -> TrailProcessResult:
+        async def fake_run(self: IndexManager, binary: Path, argv: tuple[str, ...]) -> TrailProcessResult:
             nonlocal finished
             if "--check" in argv:
                 return TrailProcessResult(
@@ -184,10 +180,15 @@ def test_index_subprocess_termination_on_timeout_or_output_limit(tmp_path: Path,
     index = _IndexProcessProbe(Policy(tmp_path, (tmp_path,), ("trail",)), {"PATH": ""})
 
     async def scenario() -> None:
-        report = await index.run_script(script)
-        assert report.error == expected
-        assert report.exit_code is None
-        assert report.output == ""
+        if expected == "timeout":
+            with pytest.raises(TimeoutError):
+                async with asyncio.timeout(0.5):
+                    await index.run_script(script)
+        else:
+            report = await index.run_script(script)
+            assert report.error == expected
+            assert report.exit_code is None
+            assert report.output == ""
         await index.close()
 
     asyncio.run(scenario())

@@ -1,4 +1,4 @@
-"""Use an explicit workspace through a real CLI and independent stdio client."""
+"""Use an explicit workspace through an in-process MCP server."""
 
 import asyncio
 import hashlib
@@ -9,9 +9,10 @@ from pathlib import Path
 
 import pytest
 from mcp import Client
-from mcp.client.stdio import StdioServerParameters
 
 from local_dev_mcp.execution import base_environment
+from local_dev_mcp.mcp.server import create_server
+from local_dev_mcp.settings import Policy
 from tests.support.git import configure_identity, git, initialize
 from tests.support.workspace import configure
 
@@ -46,13 +47,11 @@ def test_explicit_workspace_keeps_file_and_git_work_out_of_the_caller(tmp_path: 
         target_before = await git(target, "rev-parse", "HEAD")
         (target / "shared.txt").write_text(payload)
 
+        workspace_path = caller / selected if relative else Path(selected)
+        policy = Policy.load(workspace_path)
+        fastmcp_server = create_server(policy)
         async with Client(
-            StdioServerParameters(
-                command=sys.executable,
-                args=["-I", "-m", "local_dev_mcp", "--workspace", selected, "run"],
-                cwd=caller,
-                env=base_environment(),
-            ),
+            fastmcp_server._mcp_server,  # type: ignore[reportPrivateUsage]
             read_timeout_seconds=15,
             cache=None,
         ) as session:

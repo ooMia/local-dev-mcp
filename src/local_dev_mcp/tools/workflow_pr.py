@@ -6,8 +6,9 @@ import hashlib
 import json
 import re
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, cast
 from urllib.parse import urlparse
 
 Run = Callable[..., str]

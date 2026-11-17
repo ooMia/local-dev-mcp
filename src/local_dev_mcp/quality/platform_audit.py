@@ -237,7 +237,7 @@ def build_report(workspace: Path) -> dict[str, Any]:
         "inventory_issues": inventory_issues(),
         "catalog": {"state": "NOT_RUN", "expected": len(names)},
         "readiness": {"state": "NOT_RUN"},
-        "read_probes": {name: "NOT_RUN" for name in READ_PROBES},
+        "read_probes": dict.fromkeys(READ_PROBES, "NOT_RUN"),
         "tools": [
             {"name": name, "family": family, "functional": "NOT_RUN"}
             for family, members in TOOL_FAMILIES.items()

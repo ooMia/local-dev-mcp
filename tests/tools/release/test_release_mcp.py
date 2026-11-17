@@ -53,7 +53,8 @@ def test_release_plan_exposes_committed_assessments_without_writing(
 
 async def prepared_workspace(root: Path, workspace_factory: WorkspaceFactory) -> tuple[str, str]:
     await release_workspace(root, workspace_factory, pending=True)
-    subprocess.run(
+    await asyncio.to_thread(
+        subprocess.run,
         ["uv", "lock", "--offline", "--no-config", "--cache-dir", str(root.parent / "uv-cache")],
         cwd=root,
         env=base_environment(),

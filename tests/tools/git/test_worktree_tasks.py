@@ -66,7 +66,7 @@ async def terminal(session: Client[FastMCPTransport], job_id: str) -> dict[str, 
 
 async def marker(path: Path) -> None:
     async with asyncio.timeout(10):
-        while not path.exists():
+        while not await asyncio.to_thread(path.exists):  # noqa: ASYNC110 - an external child process creates this filesystem marker.
             await asyncio.sleep(0.02)
 
 

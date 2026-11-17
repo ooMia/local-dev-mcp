@@ -12,13 +12,14 @@ import sys
 from pathlib import Path
 
 from ..settings import Policy
+from ..tools._execution import executable
 from .manifest import load_quality_manifest
 
 
-def _git_snapshot(root: Path) -> tuple[str, bytes]:
+def _git_snapshot(root: Path, git: str) -> tuple[str, bytes]:
     head = (
         subprocess.run(
-            ["git", "rev-parse", "--verify", "HEAD"],
+            [git, "rev-parse", "--verify", "HEAD"],
             cwd=root,
             capture_output=True,
             check=True,
@@ -28,7 +29,7 @@ def _git_snapshot(root: Path) -> tuple[str, bytes]:
         .strip()
     )
     status = subprocess.run(
-        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        [git, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
         cwd=root,
         capture_output=True,
         check=True,
@@ -41,11 +42,13 @@ def run_profile(root: Path, profile_name: str) -> int:
     """Fail closed on changed source, invalid profile, or failed checks."""
     policy = Policy.load(root)
     policy.require_project_access()
+    policy.require_command("git")
+    git = str(executable("git"))
     manifest = load_quality_manifest(policy.root)
     profile, recipes = manifest.select(profile_name, policy.jobs)
     source = policy.root / "config.toml"
     config_digest = hashlib.sha256(source.read_bytes()).digest()
-    head_before, status_before = _git_snapshot(policy.root)
+    head_before, status_before = _git_snapshot(policy.root, git)
     if profile.require_clean and status_before:
         raise ValueError("Source worktree is not clean; quality profile was not started.")
     for recipe in recipes:
@@ -69,7 +72,7 @@ def run_profile(root: Path, profile_name: str) -> int:
         if result.returncode != 0:
             print(f"quality: failed {recipe.name} (exit={result.returncode})", file=sys.stderr)
             return 1
-    head_after, status_after = _git_snapshot(policy.root)
+    head_after, status_after = _git_snapshot(policy.root, git)
     if head_after != head_before or (profile.require_clean and status_after):
         raise ValueError("Source Git state changed while checks ran.")
     if load_quality_manifest(policy.root).digest != manifest.digest:

@@ -5,7 +5,7 @@
 ## 기존 결정과 범위
 
 - LOCAL_DEV_MCP는 시작 시 한 번 확정된 `Policy.root`의 프로젝트만 소유한다. `[workspaces].paths` 목록이나 새 MCP 서버는 추가하지 않는다.
-- M1–M3의 `get_project_index_status`·`refresh_project_index`는 **기본 Checkout**에만 적용한다. 변경 시 `trail build`/단발 `--no-reuse` 복구와 선택적 on-write coalescing을 유지한다.
+- M1-M3의 `get_project_index_status`·`refresh_project_index`는 **기본 Checkout**에만 적용한다. 변경 시 `trail build`/단발 `--no-reuse` 복구와 선택적 on-write coalescing을 유지한다.
 - M4에서는 **같은 Git 저장소에 등록된 Linked Worktree 하나를 명시적으로 선택한 경우에만** 해당 Checkout 루트를 인덱싱한다.
 - 별도 Git Worktree는 독립 HEAD·index·파일 상태를 가진다. 한 저장소 아래의 폴더라고 해서 모노레포의 하위 패키지는 아니며 **그래프도 분리**해야 한다. 소스 파일과 그래프의 브랜치 간 혼합은 결함이다.
 
@@ -38,7 +38,7 @@ resolve_index_target(kind="worktree", branch, expected_head)
   -> Worktree root, distinct graph identity
 ```
 
-기존 M1–M3 공개 도구에는 임의 경로 인자를 추가하지 않는다. 추후 인터페이스는 두 안 중 검증 후 결정한다.
+기존 M1-M3 공개 도구에는 임의 경로 인자를 추가하지 않는다. 추후 인터페이스는 두 안 중 검증 후 결정한다.
 
 1. **기존 status/refresh에 선택적 `branch`·`expected_head` 추가**: 도구 수 적고 하위 호환 가능하나 공개 입력 스키마 변경.
 2. **Worktree 전용 status/refresh 도구 추가**: 분리된 권한·준비 상태를 더 명확히 다룰 수 있으나 도구가 늘어남.
@@ -47,7 +47,7 @@ resolve_index_target(kind="worktree", branch, expected_head)
 
 최소 권장안의 첫 단계는 `src/local_dev_mcp/tools/indexing/_targets.py`의 `resolve_index_target(settings, kind, branch, expected_head)`로 구현했다. `kind="project"`는 원래 설정을 그대로 반환하고 선택자를 거부한다. `kind="worktree"`는 **Git 등록된 Worktrunk Checkout**에만 접근하며, 기존 `WorktrunkAdapter.require_ready`로 정확한 HEAD·브랜치·Git 공통 디렉터리·Clean 상태·접근 권한을 확인한다. 경로 문자열 입력은 없다.
 
-Worktree 범위에서만 `GRAFT_NO_IGNORE=1`, `GRAFT_NO_GITIGNORE=1`을 설정해 Trail 빌드의 `.ignore` 생성 및 추적 `.gitignore` 수정을 방지한다. 설정은 기존 런타임 환경의 **스코프 복사본**에만 적용된다. 기본 Checkout의 M1–M3 환경은 변경하지 않는다. 별도 Worktree별 자동 갱신·MCP 조회 라우팅은 아직 미구현이다.
+Worktree 범위에서만 `GRAFT_NO_IGNORE=1`, `GRAFT_NO_GITIGNORE=1`을 설정해 Trail 빌드의 `.ignore` 생성 및 추적 `.gitignore` 수정을 방지한다. 설정은 기존 런타임 환경의 **스코프 복사본**에만 적용된다. 기본 Checkout의 M1-M3 환경은 변경하지 않는다. 별도 Worktree별 자동 갱신·MCP 조회 라우팅은 아직 미구현이다.
 
 `tests/mcp/test_trail_m4_index_targets.py`는 임시 Git 저장소의 동일 `marker()` 심볼에 서로 다른 `M4_ONLY_MAIN_71`·`M4_ONLY_FEATURE_89` 문자열을 넣고 각 루트에 대해 `trail grep ... <explicit-root>`를 실행한다. **실제 양쪽 조회 PASS, 교차 조회 오인 0건**, Git status Clean, HEAD 유지, 잘못된 HEAD·Dirty Worktree·권한 부족 거부를 확인했다. 초기 실행에서는 기본 Checkout의 `.ignore`가 생성돼 테스트가 FAIL이었으며, 테스트의 기본 Checkout 빌드에도 명시적으로 `GRAFT_NO_IGNORE=1`을 주입하자 PASS가 됐다. 운영 프로젝트의 기본 설정은 바꾸지 않았다.
 
@@ -55,7 +55,7 @@ Worktree 범위에서만 `GRAFT_NO_IGNORE=1`, `GRAFT_NO_GITIGNORE=1`을 설정�
 
 ## M4-P1 상태·갱신 API 구현 및 검증
 
-기존 M1–M3 공개 입력 스키마는 그대로 두고 `get_project_worktree_index_status(branch, expected_head)`, `refresh_project_worktree_index(branch, expected_head)` 두 도구를 추가한다. P0 Resolver는 읽기와 쓰기 권한을 분리하고, `WorktreeIndexService`는 등록된 실제 루트 경로별로 서버 로컬 `asyncio.Lock`을 공유한다. 대상 선택 직후와 잠금 내부, Trail 명령 완료 후 Git 등록·HEAD·Clean 상태를 다시 확인한다. 호출별 `IndexManager`를 종료하며 임의 경로·`--deep`·Worktree 자동 갱신은 허용하지 않는다.
+기존 M1-M3 공개 입력 스키마는 그대로 두고 `get_project_worktree_index_status(branch, expected_head)`, `refresh_project_worktree_index(branch, expected_head)` 두 도구를 추가한다. P0 Resolver는 읽기와 쓰기 권한을 분리하고, `WorktreeIndexService`는 등록된 실제 루트 경로별로 서버 로컬 `asyncio.Lock`을 공유한다. 대상 선택 직후와 잠금 내부, Trail 명령 완료 후 Git 등록·HEAD·Clean 상태를 다시 확인한다. 호출별 `IndexManager`를 종료하며 임의 경로·`--deep`·Worktree 자동 갱신은 허용하지 않는다.
 
 임시 저장소의 두 Linked Worktree에서 실제 Trail 구조 그래프를 생성하고 동일 심볼의 두 값이 섞이지 않는지 검증했다. 같은 Worktree의 두 `refresh` 동시 호출은 한 번 빌드 후 다른 호출이 `already_fresh`를 확인하도록 직렬화된다. 상태 읽기는 쓰기 권한 없이 허용하며, 잘못된 SHA·Dirty 대상·실행 도중 변경된 Git 상태는 거부한다.
 
@@ -94,7 +94,7 @@ P3에서는 공통 Git 제어 디렉터리에 대상 절대 루트 SHA-256에서
 
 | ID | 검증 상황 | 수용 기준 |
 | --- | --- | --- |
-| M4-01 | 기본 Checkout 조회·갱신 | 기존 M1–M3 입력/결과·Fresh 판정 동일 |
+| M4-01 | 기본 Checkout 조회·갱신 | 기존 M1-M3 입력/결과·Fresh 판정 동일 |
 | M4-02 | 임시 저장소의 `.wt` 내부 Linked Worktree | Git 등록·정확한 branch/HEAD 확인 후만 해당 루트 갱신 |
 | M4-03 | 기본 Checkout과 Worktree의 동일 심볼을 서로 다르게 수정 | 각 구조 그래프가 해당 코드만 포함하고 cross-branch 오인 0건 |
 | M4-04 | Nested Worktree에서 명령 실행 | CLI root를 명시하지 않은 경우의 #453 회귀를 재현·명시 root 사용으로 우회 검증 |
@@ -111,7 +111,7 @@ P3에서는 공통 Git 제어 디렉터리에 대상 절대 루트 SHA-256에서
 
 ## M4 실행 전 게이트
 
-1. M1–M3 패치가 main에 반영되고, 실행 중인 LOCAL_DEV_MCP 서버가 재시작되어 실제 `get_project_index_status`가 구조 Fresh를 반환할 것.
+1. M1-M3 패치가 main에 반영되고, 실행 중인 LOCAL_DEV_MCP 서버가 재시작되어 실제 `get_project_index_status`가 구조 Fresh를 반환할 것.
 2. 실제 Trail CLI + 임시 Workspace E2E에서 M1·M2·M3 on-write 변경을 재현할 것 (자동 검증 추가).
 3. 사용자 미커밋 `config.toml`과 기존 Worktree를 보존하고, 원격 게시·main 병합 시 기존 PR/CI 정책 준수.
 4. `.wt`로 모든 Worktree를 옮길 필요가 있는지, 현행 `.lab/wt`를 유지해도 되는지 검증 후 결정.

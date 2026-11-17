@@ -4,9 +4,10 @@ import hashlib
 import hmac
 import json
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Literal, Mapping, Sequence, cast
+from typing import Literal, cast
 
 from local_dev_mcp.event_core import EventIdentity, EventObservation
 

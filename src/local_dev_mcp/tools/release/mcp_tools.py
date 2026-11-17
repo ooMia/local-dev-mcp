@@ -1,5 +1,6 @@
 """MCP adapters for the existing immutable release plan and explicit preparation."""
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Final, TypedDict
@@ -44,7 +45,7 @@ class ReleasePreparation(PreparedRelease):
     branch: str
 
 
-def _authorize(settings: "ServerSettings", relative: str, *, write: bool = False) -> None:
+def _authorize(settings: ServerSettings, relative: str, *, write: bool = False) -> None:
     """Authorize Git tree input and potential output paths before exposing or writing content."""
     root = settings.policy.root
     target = root / relative
@@ -57,7 +58,7 @@ def _authorize(settings: "ServerSettings", relative: str, *, write: bool = False
         raise ValueError("A required release path is unavailable or restricted.") from None
 
 
-def _writable(settings: "ServerSettings", relative: str) -> None:
+def _writable(settings: ServerSettings, relative: str) -> None:
     """Preflight every release output and consumed assessment using normal workspace write rules."""
     _authorize(settings, relative, write=True)
     root = settings.policy.root
@@ -77,12 +78,12 @@ def _writable(settings: "ServerSettings", relative: str) -> None:
         raise ValueError("A release output is inaccessible, read-only or ignored.") from None
 
 
-async def _snapshot(settings: "ServerSettings") -> tuple[GitExecution, str | None, str, bool, ReleasePlan]:
+async def _snapshot(settings: ServerSettings) -> tuple[GitExecution, str | None, str, bool, ReleasePlan]:
     require_git_access(settings)
     repo = GitExecution(settings)
     # Verify the root without exposing potentially restricted changed paths.
     root_result = await repo.run("rev-parse", "--show-toplevel", operation="Check release Git root")
-    if Path(root_result.output.decode().strip()).resolve() != repo.root:
+    if await asyncio.to_thread(lambda: Path(root_result.output.decode().strip()).resolve() != repo.root):
         raise ToolError("The selected release workspace must be the Git root.")
     branch, head, entries = await status.read_porcelain_v2(repo)
     if head is None:
@@ -103,7 +104,7 @@ async def _snapshot(settings: "ServerSettings") -> tuple[GitExecution, str | Non
 
 @dataclass(frozen=True)
 class GetReleasePlanTool:
-    settings: "ServerSettings"
+    settings: ServerSettings
 
     async def execute(self) -> ReleaseSummary:
         repo, branch, _, clean, plan = await _snapshot(self.settings)
@@ -112,7 +113,7 @@ class GetReleasePlanTool:
 
 @dataclass(frozen=True)
 class PrepareProjectReleaseTool:
-    settings: "ServerSettings"
+    settings: ServerSettings
 
     async def execute(
         self, expected_head: CommitSHA, expected_plan: PlanDigest, expected_version: ReleaseVersion
@@ -147,7 +148,7 @@ class PrepareProjectReleaseTool:
         return {"project": str(repo.root), "branch": branch, **prepared}
 
 
-def _prepare_readiness(settings: "ServerSettings") -> PreparationIssue | None:
+def _prepare_readiness(settings: ServerSettings) -> PreparationIssue | None:
     previous = git_readiness(settings)
     if previous is not None:
         return previous

@@ -1,7 +1,7 @@
 """Stage 0 acceptance for source-independent event evidence value objects."""
 
 from dataclasses import FrozenInstanceError
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -9,7 +9,7 @@ from local_dev_mcp.event_core import EventIdentity, EventObservation
 
 pytestmark = pytest.mark.unit
 
-OBSERVED_AT = datetime(2026, 11, 2, 5, 0, tzinfo=timezone.utc)
+OBSERVED_AT = datetime(2026, 11, 2, 5, 0, tzinfo=UTC)
 DIGEST = "sha256:" + "a" * 64
 
 

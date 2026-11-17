@@ -43,7 +43,7 @@ def test_wsl_identification_uses_host_context(monkeypatch: pytest.MonkeyPatch) -
 
 def test_catalog_is_never_reported_as_functional_pass(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(audit, "binary_inventory", _empty_binary_inventory)
-    report = audit.build_report(Path("/tmp/tool-audit-test"))
+    report = audit.build_report(Path("tool-audit-test"))
     assert report["catalog"]["state"] == "NOT_RUN"
     assert report["readiness"]["state"] == "NOT_RUN"
     assert len(report["tools"]) == 71

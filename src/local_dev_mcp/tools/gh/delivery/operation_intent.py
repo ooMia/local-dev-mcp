@@ -105,7 +105,7 @@ class OperationIntent:
         return "sha256:" + hashlib.sha256(self.canonical_bytes()).hexdigest()
 
     @classmethod
-    def from_canonical_bytes(cls, raw: bytes) -> "OperationIntent":
+    def from_canonical_bytes(cls, raw: bytes) -> OperationIntent:
         if type(raw) is not bytes or not 0 < len(raw) <= MAX_INTENT_BYTES:
             raise ValueError("Invalid Intent bytes.")
         try:

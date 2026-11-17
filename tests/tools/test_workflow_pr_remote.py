@@ -87,7 +87,7 @@ def test_sync_distinguishes_remote_branch_name_from_local_tracking_ref(monkeypat
     }
     observed: list[tuple[str, str]] = []
 
-    def collect(_root: Path, _run: Any, base: str, head: str) -> dict[str, Any]:
+    def collect(_root: Path, _run: workflow_pr.Run, base: str, head: str) -> dict[str, Any]:
         observed.append((base, head))
         return snapshot
 

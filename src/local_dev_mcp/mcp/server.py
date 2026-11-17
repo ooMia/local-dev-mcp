@@ -91,9 +91,9 @@ TOOLS: Final[tuple[registry.ToolDefinition[ServerSettings], ...]] = (
 
 def load_settings(policy: Policy) -> ServerSettings:
     settings = ServerSettings.load(policy)
-    settings = replace(settings, readiness=registry.tool_readiness(TOOLS, settings, policy))
+    settings = replace(settings, readiness=registry.tool_readiness(TOOLS, settings))
     # Recipe executables and permission readiness belong to the startup snapshot.
-    settings.tasks
+    _ = settings.tasks
     return settings
 
 

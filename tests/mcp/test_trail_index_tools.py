@@ -31,7 +31,7 @@ def test_index_tools_use_configured_root_without_path_inputs(
 
     monkeypatch.setattr(IndexManager, "_binary", fake_binary)
 
-    async def fake(self: IndexManager, binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
+    async def fake(self: IndexManager, binary: Path, args: tuple[str, ...]) -> TrailProcessResult:
         invoked.append(args)
         return TrailProcessResult(1, "trail build --check: STALE\ngraph check: OK\n")
 
@@ -43,7 +43,7 @@ def test_index_tools_use_configured_root_without_path_inputs(
             assert tools["get_project_index_status"].input_schema["properties"] == {}
             assert tools["refresh_project_index"].input_schema["properties"] == {}
             status = await success(client, "get_project_index_status")
-            assert status["project"] == str(tmp_path.resolve())
+            assert status["project"] == str(await asyncio.to_thread(tmp_path.resolve))
             assert status["structural_state"] == "fresh"
             assert status["deep_state"] == "stale"
             assert status["ready_for_structural_search"] is True

@@ -1,4 +1,4 @@
-"""Q65–Q69 read-only operation recovery evidence inspection.
+"""Q65-Q69 read-only operation recovery evidence inspection.
 
 Pending, a recorded Checkpoint, and an unknown external outcome are separate.
 No probe, Consumer hook, Job transition, write, or retry is performed here.

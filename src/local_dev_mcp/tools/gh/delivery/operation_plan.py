@@ -117,7 +117,7 @@ class PlanStructure:
         return json.dumps(data, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
     @classmethod
-    def from_canonical_bytes(cls, raw: bytes) -> "PlanStructure":
+    def from_canonical_bytes(cls, raw: bytes) -> PlanStructure:
         """Decode only a recognized, structurally valid, canonical plan.
 
         A matching SHA-256 alone does not authenticate the contents as a Plan.

@@ -1,5 +1,6 @@
 """Own pytest DAG options, fixtures and node reporting; load through the repository plugin."""
 
+import asyncio
 import hashlib
 import json
 from collections.abc import Awaitable, Callable
@@ -38,8 +39,8 @@ def dag_workers(request: pytest.FixtureRequest) -> int:
 def run_dag(
     request: pytest.FixtureRequest, dag_selection: tuple[str, ...] | None, dag_workers: int
 ) -> Callable[[Graph], Awaitable[RunResult]]:
-    # FixtureRequest.node varies with scope in pytest's dynamic interface.
-    item: object = getattr(request, "node")
+    # FixtureRequest.node is dynamically typed by pytest across fixture scopes.
+    item = getattr(request, "node", None)
     if not isinstance(item, pytest.Item):
         raise TypeError("DAG reports require a function-scoped test item.")
 
@@ -73,9 +74,9 @@ def run_dag(
             if target is not None:
                 try:
                     folder = Path(target)
-                    folder.mkdir(parents=True, exist_ok=True)
+                    await asyncio.to_thread(folder.mkdir, parents=True, exist_ok=True)
                     name = hashlib.sha256(item.nodeid.encode()).hexdigest()[:16]
-                    (folder / f"{name}.json").write_text(payload + "\n", encoding="utf-8")
+                    await asyncio.to_thread((folder / f"{name}.json").write_text, payload + "\n", encoding="utf-8")
                 except (OSError, ValueError) as error:
                     if not snapshot.interrupted:
                         raise

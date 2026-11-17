@@ -27,7 +27,7 @@ def test_publication_tool_schema_and_scoped_permissions(tmp_path: Path, workspac
         server = create_server(Policy(tmp_path, (tmp_path,), ("git",)))
         async with Client(server) as session:
             declared = {tool.name: tool for tool in await session.list_tools()}
-            assert PUBLICATION_TOOLS <= declared.keys()
+            assert declared.keys() >= PUBLICATION_TOOLS
             push = declared["push_project_feature"]
             assert {"expected_branch", "expected_head", "expected_remote_main"} <= set(push.input_schema["required"])
             assert push.input_schema["additionalProperties"] is False

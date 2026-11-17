@@ -294,7 +294,7 @@ def test_path_values_are_immutable_and_revalidate_symlinks(tmp_path: Path) -> No
     workspace = Workspace(Policy(tmp_path, (tmp_path,), ()))
     path = workspace.path("sub/text")
     with pytest.raises(FrozenInstanceError):
-        setattr(path, "relative", "outside")
+        path.__setattr__("relative", "outside")
     (tmp_path / "sub/text").unlink()
     (tmp_path / "sub/text").symlink_to(tmp_path / ".env")
     with pytest.raises(WorkspaceError, match="Symlink"):
@@ -468,8 +468,7 @@ def test_worker_cancellation_does_not_issue_an_observation(tmp_path: Path, monke
 
         async with anyio.create_task_group() as group:
             group.start_soon(files.read_file, "text", 1, 1)
-            while not entered.is_set():
-                await anyio.sleep(0.001)
+            await anyio.to_thread.run_sync(entered.wait)
             group.cancel_scope.cancel()
 
     asyncio.run(scenario())

@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 from mcp import Client
-from mcp.client.stdio import StdioServerParameters
 from mcp.types import TextContent
 from pydantic import TypeAdapter
 from shellous import sh
 
-from local_dev_mcp.mcp.server import TOOLS
+from local_dev_mcp.mcp.server import TOOLS, create_server
+from local_dev_mcp.settings import Policy
 from local_dev_mcp.tools.get_tool_readiness import ReadinessReport
 from local_dev_mcp.tools.git import command_environment
 from tests.support.git import configure_identity
@@ -30,12 +30,10 @@ async def git(root: Path, *args: str) -> str:
 
 
 def client(root: Path) -> Client:
+    policy = Policy.load(root)
+    fastmcp_server = create_server(policy)
     return Client(
-        StdioServerParameters(
-            command=sys.executable,
-            args=["-I", "-m", "local_dev_mcp", "run"],
-            cwd=root,
-        ),
+        fastmcp_server._mcp_server,  # type: ignore[reportPrivateUsage]
         read_timeout_seconds=15,
         cache=None,
     )

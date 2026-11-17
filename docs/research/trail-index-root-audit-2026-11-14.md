@@ -36,7 +36,7 @@ M4(Linked Worktree별 Trail 그래프 격리) 이전에 상위 폴더의 `graft/
 `tests/mcp/test_trail_nested_worktree_probe.py` 및 `tests/mcp/test_trail_index_e2e.py`를 등록된 integration 작업으로 직접 수행:
 
 - **2 passed, 5 warnings** (2026-11-14, 약 6.89초, exit 0).
-- 임시 Git 프로젝트에서 명시적 루트의 독립 그래프 생성·Fresh 판정 및 기본 M1–M3 갱신 경계를 확인했다.
+- 임시 Git 프로젝트에서 명시적 루트의 독립 그래프 생성·Fresh 판정 및 기본 M1-M3 갱신 경계를 확인했다.
 - 이 성공은 **실제 `/Users/mia/Github` federation 루트에서 질의 라우팅이 정확하다는 증거가 아니다.** 테스트 코드는 그래프의 바이트 차이도 검증하지만, 실제 동일 심볼의 CLI 조회 결과까지 비교하는 M4 검증은 후속 과제다.
 
 ## 외부 근거와 실패 가능성

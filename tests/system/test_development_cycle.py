@@ -1,4 +1,4 @@
-"""Complete a small create/test/fix/review workflow using only actual stdio tools."""
+"""Complete a small create/test/fix/review workflow using an in-process MCP server."""
 
 import asyncio
 import json
@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 from mcp import Client
-from mcp.client.stdio import StdioServerParameters
 
-from local_dev_mcp.execution import base_environment
+from local_dev_mcp.mcp.server import create_server
+from local_dev_mcp.settings import Policy
 from tests.support.git import git, initialize
 from tests.support.workspace import configure
 
@@ -78,13 +78,10 @@ def test_stdio_creates_tests_fixes_formats_and_reviews_a_small_change(tmp_path: 
         await git(target, "add", "--", "pyproject.toml")
         await git(target, "-c", "commit.gpgSign=false", "commit", "--quiet", "-m", "fixture baseline")
         head_before = await git(target, "rev-parse", "HEAD")
+        policy = Policy.load(target)
+        fastmcp_server = create_server(policy)
         async with Client(
-            StdioServerParameters(
-                command=sys.executable,
-                args=["-I", "-m", "local_dev_mcp", "--workspace", str(target), "run"],
-                cwd=caller,
-                env=base_environment(),
-            ),
+            fastmcp_server._mcp_server,  # type: ignore[reportPrivateUsage]
             read_timeout_seconds=30,
             cache=None,
         ) as client:

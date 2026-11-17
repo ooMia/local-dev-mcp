@@ -74,7 +74,7 @@ def test_refresh_only_when_structural_stale_and_rechecks(tmp_path: Path, monkeyp
     monkeypatch.setattr(index, "_binary", lambda: Path("/unused/trail"))
     commands: list[tuple[str, ...]] = []
 
-    async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
+    async def fake(binary: Path, args: tuple[str, ...]) -> TrailProcessResult:
         commands.append(args)
         if len(commands) == 1:
             return TrailProcessResult(1, "trail build --check: STALE\ngraph check: STALE\nchanged (1):\n")
@@ -107,7 +107,7 @@ def test_already_fresh_never_runs_build(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setattr(index, "_binary", lambda: Path("/unused/trail"))
     calls: list[tuple[str, ...]] = []
 
-    async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
+    async def fake(binary: Path, args: tuple[str, ...]) -> TrailProcessResult:
         calls.append(args)
         return TrailProcessResult(0, "graph check: OK\n")
 
@@ -126,7 +126,7 @@ def test_failed_build_stays_failed_without_raw_output(tmp_path: Path, monkeypatc
     monkeypatch.setattr(index, "_binary", lambda: Path("/unused/trail"))
     calls = 0
 
-    async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
+    async def fake(binary: Path, args: tuple[str, ...]) -> TrailProcessResult:
         nonlocal calls
         calls += 1
         return (
@@ -152,7 +152,7 @@ def test_two_concurrent_refreshes_do_not_duplicate_build(tmp_path: Path, monkeyp
     built = False
     builds = 0
 
-    async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
+    async def fake(binary: Path, args: tuple[str, ...]) -> TrailProcessResult:
         nonlocal built, builds
         if "--check" in args:
             return (
@@ -181,7 +181,7 @@ def test_auto_refresh_coalesces_changes_and_closes(tmp_path: Path, monkeypatch: 
     checks = 0
     builds = 0
 
-    async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
+    async def fake(binary: Path, args: tuple[str, ...]) -> TrailProcessResult:
         nonlocal checks, builds
         if "--check" in args:
             checks += 1
@@ -213,7 +213,7 @@ def test_invalid_check_is_unknown_and_never_builds(tmp_path: Path, monkeypatch: 
     monkeypatch.setattr(index, "_binary", lambda: Path("/unused/trail"))
     calls = 0
 
-    async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
+    async def fake(binary: Path, args: tuple[str, ...]) -> TrailProcessResult:
         nonlocal calls
         calls += 1
         return TrailProcessResult(1, "untrusted different output")
@@ -236,7 +236,7 @@ def test_one_full_reparse_repairs_incremental_cache_drift(
     commands: list[tuple[str, ...]] = []
     check_count = 0
 
-    async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
+    async def fake(binary: Path, args: tuple[str, ...]) -> TrailProcessResult:
         nonlocal check_count
         commands.append(args)
         if "--check" in args:
@@ -277,7 +277,7 @@ def test_full_reparse_failure_reports_only_safe_reason(
     monkeypatch.setattr(index, "_binary", lambda: Path("/unused/trail"))
     commands: list[tuple[str, ...]] = []
 
-    async def fake(binary: Path, args: tuple[str, ...], timeout: float) -> TrailProcessResult:
+    async def fake(binary: Path, args: tuple[str, ...]) -> TrailProcessResult:
         commands.append(args)
         if "--check" in args:
             return TrailProcessResult(1, "graph check: STALE\nchanged (1):\n")

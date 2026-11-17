@@ -13,7 +13,7 @@ from fastmcp.tools.base import ToolResult
 from mcp.types import CallToolRequestParams, TextContent, ToolAnnotations
 from pydantic import ValidationError as PydanticValidationError
 
-from ..errors import PolicyError, ToolRegistrationError
+from ..errors import ToolRegistrationError
 from ..readiness import PreparationIssue, ToolReadiness
 from ..settings import Policy
 
@@ -187,7 +187,7 @@ def register_tools[Settings](
         else definition.required_commands
         for definition in definitions
     }
-    states = readiness if readiness is not None else tool_readiness(definitions, settings, policy)
+    states = readiness if readiness is not None else tool_readiness(definitions, settings)
     compact = frozenset(definition.name for definition in definitions if definition.compact_result)
     server.add_middleware(ToolAuthorization(policy, commands, states, compact))
     for definition in definitions:
@@ -202,23 +202,12 @@ def register_tools[Settings](
 
 
 def tool_readiness[Settings](
-    definitions: tuple[ToolDefinition[Settings], ...], settings: Settings, policy: Policy
+    definitions: tuple[ToolDefinition[Settings], ...], settings: Settings
 ) -> tuple[ToolReadiness, ...]:
     states: list[ToolReadiness] = []
     for definition in definitions:
-        commands = (
-            definition.required_commands(settings)
-            if callable(definition.required_commands)
-            else definition.required_commands
-        )
         issue = None
-        for command in commands:
-            try:
-                policy.require_command(command)
-            except PermissionError:
-                issue = PreparationIssue.from_error(PolicyError.command_denied(command))
-                break
-        if issue is None and definition.readiness is not None:
+        if definition.readiness is not None:
             issue = definition.readiness(settings)
         states.append(ToolReadiness(definition.name, issue))
     return tuple(states)

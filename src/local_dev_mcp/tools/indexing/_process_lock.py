@@ -25,7 +25,6 @@ from ..git.commands.worktree import common_directory
 if TYPE_CHECKING:
     from ...app.runtime import ServerSettings
 
-_WAIT_SECONDS = 360.0
 _POLL_SECONDS = 0.1
 
 
@@ -63,16 +62,19 @@ def _release(fd: int) -> None:
 
 
 @asynccontextmanager
-async def coordinated_trail_index(
-    settings: ServerSettings, root: Path, *, timeout: float = _WAIT_SECONDS
-) -> AsyncGenerator[None]:
-    """Serialize a single graph across cooperating processes, without threads.
+async def coordinated_trail_index(settings: ServerSettings, root: Path) -> AsyncGenerator[None]:
+    """Serialize a single graph across cooperating processes.
 
     Nonblocking lock attempts keep asyncio cancellation safe. The open file
     descriptor owns the advisory lock and OS cleanup releases it after crashes;
     do not unlink the file, which could split contenders across two inodes.
+    The caller owns the acquisition deadline through its cancellation scope.
     """
-    if root == settings.policy.root or not root.is_relative_to(settings.policy.root) or root.resolve() != root:
+    if (
+        root == settings.policy.root
+        or not root.is_relative_to(settings.policy.root)
+        or await asyncio.to_thread(root.resolve) != root
+    ):
         raise ToolError("Worktree index target is outside the authorized linked checkout scope.")
 
     common = await common_directory(GitExecution(settings))
@@ -94,7 +96,6 @@ async def coordinated_trail_index(
             raise OSError("unsafe_lock_file")
         if info.st_size == 0:
             os.write(fd, b"\0")
-        deadline = asyncio.get_running_loop().time() + timeout
         while True:
             try:
                 held = _try_acquire(fd)
@@ -102,9 +103,7 @@ async def coordinated_trail_index(
                 raise ToolError("Trail process lock could not be acquired safely.") from error
             if held:
                 break
-            if asyncio.get_running_loop().time() >= deadline:
-                raise ToolError("Trail index is busy; coordination lock timed out without running Trail.")
-            await asyncio.sleep(min(_POLL_SECONDS, max(0.0, deadline - asyncio.get_running_loop().time())))
+            await asyncio.sleep(_POLL_SECONDS)
         yield
     except OSError as error:
         raise ToolError("Trail process lock is unavailable; no Trail command was run.") from error

@@ -7,8 +7,8 @@ from pathlib import Path
 from ..errors import DependencyError
 
 
-def executable(command: str) -> Path:
-    found = shutil.which(command)
+def executable(command: str, *, search_path: str | None = None) -> Path:
+    found = shutil.which(command, path=search_path)
     if found is None:
         raise DependencyError.unavailable(command)
     try:

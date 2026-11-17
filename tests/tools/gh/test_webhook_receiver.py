@@ -5,7 +5,7 @@ import hashlib
 import hmac
 import json
 from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from typing import Any, Never, cast
 
 import pytest
 
@@ -84,7 +84,7 @@ def test_rejected_webhook_never_opens_database() -> None:
     async def run() -> None:
         calls = 0
 
-        async def forbidden_connection() -> Any:
+        async def forbidden_connection() -> Never:
             nonlocal calls
             calls += 1
             raise AssertionError("Database must not be touched before verification.")
@@ -98,7 +98,7 @@ def test_rejected_webhook_never_opens_database() -> None:
         assert status == 401
         assert calls == 0
 
-        status, _ = await call(app, body=raw, headers=make_headers(raw) + [make_headers(raw)[-1]])
+        status, _ = await call(app, body=raw, headers=[*make_headers(raw), make_headers(raw)[-1]])
         assert status == 400 and calls == 0
 
         status, _ = await call(app, body=raw, headers=make_headers(raw), chunks=[raw[:10], raw[10:]])
@@ -109,7 +109,7 @@ def test_rejected_webhook_never_opens_database() -> None:
 
 
 def test_size_limits_and_connection_abort_fail_closed() -> None:
-    async def never() -> Any:
+    async def never() -> Never:
         raise AssertionError("Database must not be touched")
 
     async def run() -> None:
@@ -137,7 +137,7 @@ def test_size_limits_and_connection_abort_fail_closed() -> None:
 
 
 def test_ping_does_not_queue_even_when_signed() -> None:
-    async def never() -> Any:
+    async def never() -> Never:
         raise AssertionError("Ignored signed ping does not open DB")
 
     async def run() -> None:
@@ -166,10 +166,10 @@ def test_ping_does_not_queue_even_when_signed() -> None:
     ],
 )
 def test_invalid_repository_scope_rejected_at_app_construction(repositories: dict[str, int]) -> None:
-    async def forbidden() -> Any:
+    async def forbidden() -> Never:
         raise AssertionError("App construction must not open a database.")
 
-    with pytest.raises(ValueError, match="scope|unique"):
+    with pytest.raises(ValueError, match=r"scope|unique"):
         create_app(
             secret=SECRET,
             repositories=repositories,
@@ -179,7 +179,7 @@ def test_invalid_repository_scope_rejected_at_app_construction(repositories: dic
 
 
 def test_repository_scope_is_snapshotted_during_app_construction() -> None:
-    async def forbidden() -> Any:
+    async def forbidden() -> Never:
         raise AssertionError("A valid signed ping must not open a database.")
 
     async def run() -> None:

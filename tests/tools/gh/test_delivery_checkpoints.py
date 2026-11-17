@@ -16,12 +16,15 @@ from local_dev_mcp.tools.gh.delivery import (
     CheckpointField,
     CheckpointHold,
     CheckpointIntegrityError,
+    CheckpointRecord,
+    ClaimGenerationRecord,
     ConcurrencyProtection,
     ConsumedOutput,
     ConsumerOperationContract,
     ContractCatalog,
     IntentHold,
     IntentIntegrityError,
+    IntentRecord,
     LineageBinding,
     LineageConflictError,
     LineageIntegrityError,
@@ -585,13 +588,15 @@ def test_checkpoint_output_and_dependent_lineage_are_immutable_and_atomic() -> N
                 assert loaded_checkpoint.recorded_generation == 1
                 await conn.execute("SET default_transaction_read_only = off")
 
-                for table in ("github_operation_checkpoints", "github_operation_lineages"):
-                    for sql_statement in (
-                        f"UPDATE {table} SET event_id = event_id WHERE event_id = %s",
-                        f"DELETE FROM {table} WHERE event_id = %s",
-                    ):
-                        with pytest.raises(psycopg.Error):
-                            await conn.execute(sql_statement, (event_id,))
+                # Keep identifiers literal; event_id remains a bound value.
+                for sql_statement in (
+                    "UPDATE github_operation_checkpoints SET event_id = event_id WHERE event_id = %s",
+                    "DELETE FROM github_operation_checkpoints WHERE event_id = %s",
+                    "UPDATE github_operation_lineages SET event_id = event_id WHERE event_id = %s",
+                    "DELETE FROM github_operation_lineages WHERE event_id = %s",
+                ):
+                    with pytest.raises(psycopg.Error):
+                        await conn.execute(sql_statement, (event_id,))
 
                 # A new Generation can read the old immutable Output but never
                 # silently replace it or change the dependent binding.
@@ -614,7 +619,7 @@ def test_checkpoint_output_and_dependent_lineage_are_immutable_and_atomic() -> N
                 newer_start = next_observation.started_event_id
                 with pytest.raises(CheckpointHold):
                     await persist_checkpoint(conn, active_start=newer_start)
-                new_generation = await record_claim_generation(
+                new_generation: ClaimGenerationRecord = await record_claim_generation(
                     connection=conn,
                     event_id=event_id,
                     job_id=job_id,
@@ -624,12 +629,14 @@ def test_checkpoint_output_and_dependent_lineage_are_immutable_and_atomic() -> N
                     started_event_id=newer_start,
                 )
                 assert new_generation.generation == 2
-                assert (
-                    await persist_checkpoint(conn, claim_generation=2, active_start=newer_start)
-                ).disposition == "existing"
-                assert (
-                    await persist_dependent(conn, claim_generation=2, active_start=newer_start)
-                ).disposition == "existing"
+                persisted_checkpoint: CheckpointRecord = await persist_checkpoint(
+                    conn, claim_generation=2, active_start=newer_start
+                )
+                assert persisted_checkpoint.disposition == "existing"
+                persisted_intent: IntentRecord = await persist_dependent(
+                    conn, claim_generation=2, active_start=newer_start
+                )
+                assert persisted_intent.disposition == "existing"
 
                 # A Checkpoint cannot predate the immutable Intent it records.
                 # Both generations exist, so a plain FK check would not catch

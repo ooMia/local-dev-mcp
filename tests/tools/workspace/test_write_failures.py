@@ -79,8 +79,8 @@ def test_failure_before_replacement_preserves_original_inode_bytes_and_cleans_te
         assert result.version_after is None and result.read_ref is None
         assert_read_recovery(result)
         assert target.read_bytes() == b"old\n"
-        assert target.stat().st_ino == before.st_ino
-        assert not list(tmp_path.glob(".local-dev-mcp-*"))
+        assert await asyncio.to_thread(lambda: target.stat().st_ino) == before.st_ino
+        assert not await asyncio.to_thread(lambda: list(tmp_path.glob(".local-dev-mcp-*")))
 
     asyncio.run(scenario())
 
@@ -106,7 +106,7 @@ def test_user_save_while_temporary_file_is_prepared_rejects_stale_edit_and_can_r
         assert rejected.changed is False
         assert_read_recovery(rejected)
         assert target.read_bytes() == b"user saved while preparing\n"
-        assert not list(tmp_path.glob(".local-dev-mcp-*"))
+        assert not await asyncio.to_thread(lambda: list(tmp_path.glob(".local-dev-mcp-*")))
         fresh = await reference(files)
         resumed = apply(files, fresh, "user saved while preparing plus agent\n")
         assert resumed.outcome == "applied" and resumed.read_ref
@@ -157,8 +157,8 @@ def test_edit_that_would_make_changed_line_unreadable_is_rejected_before_publica
         assert result.outcome == "rejected" and result.changed is False
         assert result.code == "invalid_replacement"
         assert target.read_bytes() == b"replace me\ntail\n"
-        assert target.stat().st_ino == before.st_ino
-        assert not list(tmp_path.glob(".local-dev-mcp-*"))
+        assert await asyncio.to_thread(lambda: target.stat().st_ino) == before.st_ino
+        assert not await asyncio.to_thread(lambda: list(tmp_path.glob(".local-dev-mcp-*")))
 
     asyncio.run(scenario())
 
@@ -209,8 +209,8 @@ def test_cancellation_after_preparation_propagates_without_replacing_original(
 
         assert cancelled == [True]
         assert target.read_bytes() == b"old\n"
-        assert target.stat().st_ino == before.st_ino
-        assert not list(tmp_path.glob(".local-dev-mcp-*"))
+        assert await asyncio.to_thread(lambda: target.stat().st_ino) == before.st_ino
+        assert not await asyncio.to_thread(lambda: list(tmp_path.glob(".local-dev-mcp-*")))
 
     asyncio.run(scenario())
 
@@ -261,8 +261,8 @@ def test_new_ignore_rule_during_preparation_is_checked_before_replacement(
         assert result.changed is False
         assert result.next_call is None and result.next_action
         assert target.read_bytes() == b"old\n"
-        assert target.stat().st_ino == before.st_ino
-        assert not list(tmp_path.glob(".local-dev-mcp-*"))
+        assert await asyncio.to_thread(lambda: target.stat().st_ino) == before.st_ino
+        assert not await asyncio.to_thread(lambda: list(tmp_path.glob(".local-dev-mcp-*")))
 
     asyncio.run(scenario())
 
@@ -312,7 +312,7 @@ def test_cancellation_after_replacement_preserves_applied_file_and_recovers_with
 
         assert cancelled == [True]
         assert target.read_bytes() == b"applied before cancellation\n"
-        assert not list(tmp_path.glob(".local-dev-mcp-*"))
+        assert not await asyncio.to_thread(lambda: list(tmp_path.glob(".local-dev-mcp-*")))
         stale = apply(files, token, "must not replay\n")
         assert stale.outcome == "rejected" and stale.code == "stale_version"
         assert target.read_bytes() == b"applied before cancellation\n"

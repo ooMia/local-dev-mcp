@@ -64,7 +64,9 @@ def test_pytest_adapter_preserves_partial_snapshot_and_cancellation(
             assert [node["status"] for node in nodes] == ["pass", "cancelled"]
         else:
             assert target.read_text(encoding="utf-8") == "owned obstruction"
-        item: object = getattr(request, "node")
+
+        # FixtureRequest.node is dynamically typed by pytest across fixture scopes.
+        item = getattr(request, "node", None)
         assert isinstance(item, pytest.Item)
         properties = dict(item.user_properties)
         encoded = properties["dag.node.active"]

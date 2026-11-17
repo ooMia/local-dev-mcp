@@ -9,7 +9,7 @@ import re
 import shutil
 import time
 from collections.abc import AsyncGenerator, Mapping
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -360,10 +360,8 @@ class TaskManager:
         async with self._submission:
             result, created = await self._submit(task, request_id, targets, all_tests, worktree)
         if created and result.task is not None:
-            try:
+            with suppress(TimeoutError):
                 await asyncio.wait_for(asyncio.shield(result.task), timeout=SHORT_WAIT_SECONDS)
-            except TimeoutError:
-                pass
         return self._snapshot(result)
 
     async def _submit(
@@ -466,6 +464,13 @@ class TaskManager:
     def get(self, job_id: str, *, include_output: bool = False) -> TaskResult:
         return self._snapshot(self._lookup(job_id), include_output=include_output)
 
+    async def wait(self, job_id: str, *, include_output: bool = False) -> TaskResult:
+        """Wait for one retained job to reach a terminal state without cancelling it."""
+        result = self._lookup(job_id)
+        if result.task is not None:
+            await asyncio.shield(result.task)
+        return self._snapshot(result, include_output=include_output)
+
     async def cancel(self, job_id: str) -> TaskResult:
         result = self._lookup(job_id)
         if result.state == "running" and result.task is not None:
@@ -516,9 +521,8 @@ class TaskManager:
         token = _TASK_LOG_CONTEXT.set(True)
         result.started_at = _now()
         try:
-            if result.worktree is not None:
-                if await result.worktree.prepare() != result.policy:
-                    raise ToolError("Managed worktree execution policy changed before process start.")
+            if result.worktree is not None and await result.worktree.prepare() != result.policy:
+                raise ToolError("Managed worktree execution policy changed before process start.")
             result.policy.require_project_access()
             result.policy.require_command(result.prepared.recipe.permission)
             self._require_targets(result.targets, recipe=result.prepared.recipe, policy=result.policy)

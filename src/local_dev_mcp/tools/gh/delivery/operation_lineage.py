@@ -78,7 +78,7 @@ class OperationLineage:
         return digest_bytes(self.canonical_bytes())
 
     @classmethod
-    def from_canonical_bytes(cls, raw: bytes) -> "OperationLineage":
+    def from_canonical_bytes(cls, raw: bytes) -> OperationLineage:
         value = read_object(raw, MAX_LINEAGE_BYTES, {"lineage_version", "bindings"})
         if value["lineage_version"] != LINEAGE_VERSION or type(value["bindings"]) is not list:
             raise ValueError("Unsupported Lineage fields or version.")

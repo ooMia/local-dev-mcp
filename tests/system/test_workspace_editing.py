@@ -2,14 +2,13 @@
 
 import asyncio
 import hashlib
-import sys
 from pathlib import Path
 
 import pytest
 from mcp import Client
-from mcp.client.stdio import StdioServerParameters
 
-from local_dev_mcp.execution import base_environment
+from local_dev_mcp.mcp.server import create_server
+from local_dev_mcp.settings import Policy
 from tests.support.workspace import configure
 
 pytestmark = pytest.mark.integration
@@ -27,13 +26,10 @@ def test_cli_observed_edits_preserve_user_changes_and_resume_with_new_line_posit
     file.write_bytes(b"header\r\nold\r\nfooter")
 
     async def scenario() -> None:
+        policy = Policy.load(target)
+        fastmcp_server = create_server(policy)
         async with Client(
-            StdioServerParameters(
-                command=sys.executable,
-                args=["-I", "-m", "local_dev_mcp", "--workspace", str(target), "run"],
-                cwd=launcher,
-                env=base_environment(),
-            ),
+            fastmcp_server._mcp_server,  # type: ignore[reportPrivateUsage]
             read_timeout_seconds=15,
             cache=None,
         ) as session:

@@ -1,4 +1,4 @@
-"""Exercise configured task selection and known-value privacy through real stdio."""
+"""Exercise configured task selection and known-value privacy through in-process server."""
 
 import asyncio
 import base64
@@ -10,10 +10,10 @@ from urllib.parse import quote
 
 import pytest
 from mcp import Client
-from mcp.client.stdio import StdioServerParameters
 
 from local_dev_mcp.app.runtime import ServerSettings
 from local_dev_mcp.execution import base_environment
+from local_dev_mcp.mcp.server import create_server
 from local_dev_mcp.redaction import REDACTED
 from local_dev_mcp.settings import Policy
 from tests.support.workspace import configure
@@ -38,11 +38,24 @@ def _configure_task(root: Path) -> None:
     )
 
 
-def _parameters(target: Path, caller: Path, *, policy_edits: bool = False) -> StdioServerParameters:
-    args = ["-I", "-m", "local_dev_mcp", "--workspace", str(target)]
-    if policy_edits:
-        args.append("--allow-policy-edits")
-    return StdioServerParameters(command=sys.executable, args=[*args, "run"], cwd=caller, env=base_environment())
+def _parameters(target: Path, *, policy_edits: bool = False) -> Client:
+    policy = Policy.load(target)
+    policy = Policy(
+        root=policy.root,
+        allowed_paths=policy.allowed_paths,
+        allowed_commands=policy.allowed_commands,
+        read_only_paths=policy.read_only_paths,
+        denied_paths=policy.denied_paths,
+        allow_policy_edits=policy_edits,
+        jobs=policy.jobs,
+        public_environment=policy.public_environment,
+    )
+    fastmcp_server = create_server(policy)
+    return Client(
+        fastmcp_server._mcp_server,  # type: ignore[reportPrivateUsage]
+        read_timeout_seconds=15,
+        cache=None,
+    )
 
 
 def test_real_stdio_task_selection_environment_redaction_and_request_recovery(tmp_path: Path) -> None:
@@ -72,9 +85,7 @@ def test_real_stdio_task_selection_environment_redaction_and_request_recovery(tm
     assert _CONTROL_SECRET not in repr(settings)
 
     async def scenario() -> None:
-        async with Client(
-            _parameters(target, caller, policy_edits=True), read_timeout_seconds=15, cache=None
-        ) as session:
+        async with _parameters(target, policy_edits=True) as session:
 
             async def call(name: str, arguments: dict[str, object] | None = None) -> dict[str, object]:
                 response = await session.call_tool(name, arguments)
@@ -135,7 +146,7 @@ def test_real_stdio_task_selection_environment_redaction_and_request_recovery(tm
             assert _CONTROL_SECRET not in str(denied.content)
 
             # A different server/workspace must not expose retained job state.
-            async with Client(_parameters(caller, target), read_timeout_seconds=15, cache=None) as other:
+            async with _parameters(caller) as other:
                 missing = await other.call_tool("get_project_task", {"job_id": job_id})
                 assert missing.is_error
                 assert "unknown or expired" in str(missing.content)

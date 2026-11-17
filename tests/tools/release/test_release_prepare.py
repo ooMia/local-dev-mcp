@@ -19,7 +19,8 @@ pytestmark = pytest.mark.integration
 
 async def ready(root: Path, factory: WorkspaceFactory) -> tuple[str, str]:
     await release_workspace(root, factory, pending=True)
-    subprocess.run(
+    await asyncio.to_thread(
+        subprocess.run,
         ["uv", "lock", "--offline", "--no-config", "--cache-dir", str(root.parent / "uv-cache")],
         cwd=root,
         env=base_environment(),
@@ -191,7 +192,7 @@ def test_prepare_detects_untracked_external_changes_without_rolling_back_version
 
     async def scenario() -> None:
         base, digest = await ready(tmp_path, workspace_factory)
-        with pytest.raises(ValueError, match="unrelated|unexpected|state"):
+        with pytest.raises(ValueError, match=r"unrelated|unexpected|state"):
             await prepare_release(tmp_path, base, digest)
         assert 'version = "1.3.0"' in (tmp_path / "pyproject.toml").read_text()
         assert (tmp_path / ".changes/previous.toml").exists()
@@ -216,7 +217,8 @@ def test_prepare_rejects_parent_uv_workspace_before_any_project_or_parent_write(
             '[project]\nname = "parent"\nversion = "0.1.0"\nrequires-python = ">=3.15"\n'
             '[tool.uv.workspace]\nmembers = ["child"]\n'
         )
-        subprocess.run(
+        await asyncio.to_thread(
+            subprocess.run,
             [
                 "uv",
                 "lock",

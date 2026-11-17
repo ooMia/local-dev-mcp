@@ -20,10 +20,7 @@ from local_dev_mcp.tools.gh.delivery import (
     load_operation_checkpoint,
     record_operation_attempt,
 )
-from tests.support.gh_delivery import (
-    DIGEST,
-    connect,
-)
+from tests.support.gh_delivery import DIGEST, connect
 from tests.support.gh_label_scope import assert_attempt_failure_is_atomic, prepared_label_scope
 
 pytestmark = pytest.mark.integration
@@ -132,30 +129,29 @@ def test_label_scope_attempt_race() -> None:
             writer, catalog = await assert_attempt_failure_is_atomic(case)
             assert writer.execute is not None and writer.decode is not None and writer.verify is not None
             assert writer.concurrency.guard is not None
-            async with await connect(options) as first:
-                async with await connect(options) as second:
-                    for session in (first, second):
-                        await session.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
-                    start = asyncio.Event()
-                    ready = 0
+            async with await connect(options) as first, await connect(options) as second:
+                for session in (first, second):
+                    await session.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
+                start = asyncio.Event()
+                ready = 0
 
-                    async def contender(session: psycopg.AsyncConnection[tuple[Any, ...]]) -> AttemptRecord:
-                        nonlocal ready
-                        ready += 1
-                        if ready == 2:
-                            start.set()
-                        await asyncio.wait_for(start.wait(), timeout=5)
-                        return await record_operation_attempt(
-                            connection=session,
-                            event_id=receipt.event_id,
-                            origin_generation=claim.generation,
-                            intent=write_intent,
-                        )
-
-                    outcomes = await asyncio.wait_for(
-                        asyncio.gather(contender(first), contender(second), return_exceptions=True),
-                        timeout=10,
+                async def contender(session: psycopg.AsyncConnection[tuple[Any, ...]]) -> AttemptRecord:
+                    nonlocal ready
+                    ready += 1
+                    if ready == 2:
+                        start.set()
+                    await asyncio.wait_for(start.wait(), timeout=5)
+                    return await record_operation_attempt(
+                        connection=session,
+                        event_id=receipt.event_id,
+                        origin_generation=claim.generation,
+                        intent=write_intent,
                     )
+
+                outcomes = await asyncio.wait_for(
+                    asyncio.gather(contender(first), contender(second), return_exceptions=True),
+                    timeout=10,
+                )
             winners = [value for value in outcomes if isinstance(value, AttemptRecord)]
             rejected = [value for value in outcomes if isinstance(value, AttemptHold)]
             assert len(winners) == 1 and len(rejected) == 1
@@ -270,26 +266,25 @@ def test_label_scope_attempt_commit_acknowledgement(scenario: str) -> None:
             )
             assert recovery.status == "hold" and recovery.reason == "outcome_unknown"
             assert recovery.attempt_digest == durable.attempt_digest
-            async with await connect(options) as next_scope_conn:
-                async with await connect(options) as next_attempt_conn:
-                    for connection in (next_scope_conn, next_attempt_conn):
-                        await connection.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
-                    restarted_writer = bind_issue_add_label_contract(
-                        intent=write_intent,
-                        target=target,
-                        label="triaged",
-                        source_intent=intent,
-                        source_checkpoint=checkpoint,
-                        observe=fake_get,
-                        add_label=fake_post,
-                        write_scope=replace(scope, connection=next_scope_conn, attempt_connection=next_attempt_conn),
-                        test_evidence_digest=DIGEST,
-                    )
-                    assert restarted_writer.execute is not None
-                    reads_before_replay = api.get_calls
-                    with pytest.raises(IssueLabelHold, match="attempt_already_recorded"):
-                        await restarted_writer.execute(write_intent)
-                    assert api.get_calls == reads_before_replay and api.post_calls == 0
+            async with await connect(options) as next_scope_conn, await connect(options) as next_attempt_conn:
+                for connection in (next_scope_conn, next_attempt_conn):
+                    await connection.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
+                restarted_writer = bind_issue_add_label_contract(
+                    intent=write_intent,
+                    target=target,
+                    label="triaged",
+                    source_intent=intent,
+                    source_checkpoint=checkpoint,
+                    observe=fake_get,
+                    add_label=fake_post,
+                    write_scope=replace(scope, connection=next_scope_conn, attempt_connection=next_attempt_conn),
+                    test_evidence_digest=DIGEST,
+                )
+                assert restarted_writer.execute is not None
+                reads_before_replay = api.get_calls
+                with pytest.raises(IssueLabelHold, match="attempt_already_recorded"):
+                    await restarted_writer.execute(write_intent)
+                assert api.get_calls == reads_before_replay and api.post_calls == 0
             return
 
     asyncio.run(run())

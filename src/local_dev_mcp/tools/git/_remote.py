@@ -24,6 +24,7 @@ from .commands import status
 
 if TYPE_CHECKING:
     from ...app.runtime import ServerSettings
+
 from .facades import _repository
 
 _SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
@@ -39,9 +40,7 @@ def valid_sha(value: object) -> str:
 
 
 def feature_name(branch: str) -> str:
-    if not branch_name_allowed(branch) or not (
-        branch.startswith(tuple(t + "/" for t in _TYPES)) or branch.startswith("release/")
-    ):
+    if not branch_name_allowed(branch) or not branch.startswith(tuple(t + "/" for t in (*_TYPES, "release"))):
         raise ToolError("Only allowed topic or canonical release branches can be published.")
     return branch
 

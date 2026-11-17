@@ -1,5 +1,6 @@
 """Server-local file operations; blocking filesystem work stays off the event loop."""
 
+import contextlib
 from collections.abc import Callable
 from typing import Literal
 
@@ -103,11 +104,9 @@ class WorkspaceFiles:
             and result.outcome in ("applied", "applied_unverified")
             and not (isinstance(result, FileMutation) and result.replayed)
         ):
-            try:
+            # Index maintenance is an optional, non-transactional side effect.
+            with contextlib.suppress(Exception):
                 self.change_callback()
-            except Exception:
-                # Index maintenance is an optional, non-transactional side effect.
-                pass
 
     def clear(self) -> None:
         self.mutations.clear()

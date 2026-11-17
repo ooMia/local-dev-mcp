@@ -41,7 +41,7 @@ class WorkspaceError(ToolError):
         return cls("A complete requested line exceeds the response limit. No partial line or read_ref was returned.")
 
     @classmethod
-    def changed(cls) -> "WorkspaceChanged":
+    def changed(cls) -> WorkspaceChanged:
         return WorkspaceChanged(
             "The file changed during reading. Discard this observation and read the required range again."
         )

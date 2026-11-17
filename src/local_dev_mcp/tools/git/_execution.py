@@ -53,9 +53,8 @@ class GitExecution:
     ) -> GitResult:
         require_git_access(self.settings, self.preparation)
         options = ("-c", "maintenance.auto=false", "-c", "gc.auto=0") if write else ()
-        if self.preparation is not None:
-            if self.preparation.signing is not None:
-                options += signing_options(self.preparation.signing)
+        if self.preparation is not None and self.preparation.signing is not None:
+            options += signing_options(self.preparation.signing)
         command = (
             sh.result(self.settings.require_git(), "--literal-pathspecs", "-C", str(self.root), *options, *args)
             .set(

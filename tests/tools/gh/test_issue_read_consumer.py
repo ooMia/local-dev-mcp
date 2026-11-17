@@ -138,7 +138,7 @@ def test_read_decoder_keeps_strict_json_validation_for_nested_and_ignored_fields
     """The extracted JSON hooks must reject ambiguity before shape filtering."""
     raw = response()
     assert raw.count(before) == 1
-    with pytest.raises(IssueReadHold, match="^invalid_issue_response$"):
+    with pytest.raises(IssueReadHold, match=r"^invalid_issue_response$"):
         decode_issue_read_checkpoint(
             raw=raw.replace(before, after, 1),
             target=target(),
